@@ -1,0 +1,500 @@
+<div class="container mx-auto px-4 py-6">
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Candidate Management</h1>
+    <button
+      (click)="openAddModal()"
+      class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+    >
+      Add New Candidate
+    </button>
+  </div>
+
+  <!-- Search and Filter Section -->
+  <div class="bg-white rounded-lg shadow p-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- Search -->
+      <div>
+        <label for="search" class="block text-sm font-medium text-gray-700 mb-1"
+          >Search</label
+        >
+        <div class="relative">
+          <input
+            type="text"
+            id="search"
+            [(ngModel)]="searchTerm"
+            (keyup.enter)="applyFilters()"
+            class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Search by name or phone"
+          />
+          <div
+            class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none"
+          >
+            <svg
+              class="h-5 w-5 text-gray-400"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Filter -->
+      <div>
+        <label for="status" class="block text-sm font-medium text-gray-700 mb-1"
+          >Status</label
+        >
+        <select
+          id="status"
+          [(ngModel)]="selectedStatus"
+          (change)="applyFilters()"
+          class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option [value]="''">All Statuses</option>
+          <option *ngFor="let status of statusOptions" [value]="status">
+            {{ statusLabels[status].label || status }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Page Size -->
+      <div>
+        <label
+          for="pageSize"
+          class="block text-sm font-medium text-gray-700 mb-1"
+          >Items per page</label
+        >
+        <select
+          id="pageSize"
+          [(ngModel)]="pageSize"
+          (change)="applyFilters()"
+          class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option [value]="5">5</option>
+          <option [value]="10">10</option>
+          <option [value]="25">25</option>
+          <option [value]="50">50</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Candidates Table -->
+  <div class="bg-white rounded-lg shadow overflow-hidden">
+    <div *ngIf="loading()" class="flex justify-center items-center p-8">
+      <svg
+        class="animate-spin h-8 w-8 text-blue-500"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          class="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          stroke-width="4"
+        ></circle>
+        <path
+          class="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+        ></path>
+      </svg>
+    </div>
+
+    <table
+      *ngIf="!loading() && candidates().length > 0"
+      class="min-w-full divide-y divide-gray-200"
+    >
+      <thead class="bg-gray-50">
+        <tr>
+          <th
+            scope="col"
+            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+          >
+            Name
+          </th>
+          <th
+            scope="col"
+            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+          >
+            Phone
+          </th>
+          <th
+            scope="col"
+            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+          >
+            Status
+          </th>
+          <th
+            scope="col"
+            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+          >
+            Created
+          </th>
+          <th
+            scope="col"
+            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+          >
+            Actions
+          </th>
+          <th
+            scope="col"
+            class="center px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+          >
+            Edit
+          </th>
+        </tr>
+      </thead>
+      <tbody class="bg-white divide-y divide-gray-200">
+        <tr *ngFor="let candidate of candidates()">
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm font-medium text-gray-900">
+              {{ candidate.name }}
+            </div>
+            <div *ngIf="candidate.email" class="text-sm text-gray-500">
+              {{ candidate.email }}
+            </div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            {{ candidate.phoneNumber }}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span
+              [class]="
+                'px-2 inline-flex text-xs leading-5 font-semibold rounded-full ' +
+                (statusLabels[candidate.status]?.color ||
+                  'bg-gray-100 text-gray-800')
+              "
+            >
+              {{ statusLabels[candidate.status]?.label || candidate.status }}
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            {{ formatDate(candidate.createdAt) }}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <button
+              *ngIf="candidate.status === 'LEAD'"
+              (click)="openSendSmsModal(candidate)"
+              class="text-indigo-600 hover:text-indigo-900"
+            >
+              Send WhatsApp
+            </button>
+            <span *ngIf="candidate.status !== 'LEAD'" class="text-gray-400"
+              >WhatsApp Sent</span
+            >
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <div class="flex space-x-2">
+              <button
+                (click)="openCandidateModal(candidate)"
+                class="text-blue-600 hover:text-blue-900"
+              >
+                <svg
+                  class="h-5 w-5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                  <path
+                    fill-rule="evenodd"
+                    d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div
+      *ngIf="!loading() && candidates().length === 0"
+      class="p-8 text-center"
+    >
+      <p class="text-gray-500">
+        No candidates found. Add some candidates to get started.
+      </p>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div
+      *ngIf="!loading() && pagination()"
+      class="px-6 py-4 bg-gray-50 border-t border-gray-200"
+    >
+      <div class="flex items-center justify-between">
+        <div class="text-sm text-gray-700">
+          Showing
+          <span class="font-medium">{{
+            pagination()!.page * pagination()!.pageSize + 1
+          }}</span>
+          to
+          <span class="font-medium">{{
+            Math.min(
+              (pagination()!.page + 1) * pagination()!.pageSize,
+              pagination()!.total
+            )
+          }}</span>
+          of
+          <span class="font-medium">{{ pagination()!.total }}</span> candidates
+        </div>
+        <div class="flex space-x-2">
+          <button
+            (click)="goToPage(pagination()!.page - 1)"
+            [disabled]="pagination()!.page === 0"
+            class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Previous
+          </button>
+
+          <button
+            *ngFor="let page of getPaginationArray()"
+            (click)="goToPage(page)"
+            [class]="
+              page === pagination()!.page
+                ? 'px-3 py-1 border border-indigo-500 rounded-md text-sm font-medium text-white bg-indigo-500'
+                : 'px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50'
+            "
+          >
+            {{ page + 1 }}
+          </button>
+
+          <button
+            (click)="goToPage(pagination()!.page + 1)"
+            [disabled]="pagination()!.page >= pagination()!.pageCount - 1"
+            class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Candidate Modal -->
+  <div
+    *ngIf="showAddModal()"
+    class="fixed inset-0 bg-black/62 flex items-center justify-center z-50"
+  >
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-medium text-gray-900">Add New Candidate</h3>
+        <button
+          (click)="closeAddModal()"
+          class="text-gray-400 hover:text-gray-500"
+        >
+          <svg
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Error Alert (moved here) -->
+      <div
+        *ngIf="error()"
+        class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6"
+        role="alert"
+      >
+        <p>{{ error() }}</p>
+      </div>
+
+      <form [formGroup]="candidateForm" (ngSubmit)="submitCandidate()">
+        <div class="mb-4">
+          <label for="name" class="block text-sm font-medium text-gray-700 mb-1"
+            >Full Name</label
+          >
+          <input
+            type="text"
+            id="name"
+            formControlName="name"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          />
+          <div
+            *ngIf="
+              candidateForm.get('name')?.invalid &&
+              candidateForm.get('name')?.touched
+            "
+            class="mt-1 text-sm text-red-600"
+          >
+            Name is required
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label
+            for="phoneNumber"
+            class="block text-sm font-medium text-gray-700 mb-1"
+            >Phone Number</label
+          >
+          <input
+            type="tel"
+            id="phoneNumber"
+            formControlName="phoneNumber"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          />
+          <div
+            *ngIf="
+              candidateForm.get('phoneNumber')?.invalid &&
+              candidateForm.get('phoneNumber')?.touched
+            "
+            class="mt-1 text-sm text-red-600"
+          >
+            <span *ngIf="candidateForm.get('phoneNumber')?.errors?.['required']"
+              >Phone number is required</span
+            >
+            <span *ngIf="candidateForm.get('phoneNumber')?.errors?.['pattern']"
+              >Please enter a valid phone number (E.164 format)</span
+            >
+          </div>
+        </div>
+
+        <div class="flex justify-end mt-6">
+          <button
+            type="button"
+            (click)="closeAddModal()"
+            class="mr-3 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            [disabled]="candidateForm.invalid"
+            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Add Candidate
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Send WhatsApp Modal -->
+  <div
+    *ngIf="showSendSmsModal()"
+    class="fixed inset-0 bg-black/62 flex items-center justify-center z-50"
+  >
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-medium text-gray-900">
+          Send WhatsApp to Candidate
+        </h3>
+        <button
+          (click)="closeSendSmsModal()"
+          class="text-gray-400 hover:text-gray-500"
+        >
+          <svg
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Error Alert (added here) -->
+      <div
+        *ngIf="error()"
+        class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6"
+        role="alert"
+      >
+        <p>{{ error() }}</p>
+      </div>
+
+      <div class="mb-6">
+        <p class="text-gray-700">
+          You are about to send a WhatsApp message with registration
+          instructions to:
+        </p>
+        <div class="mt-2 p-3 bg-gray-50 rounded-md">
+          <p class="font-medium">{{ selectedCandidate()?.name }}</p>
+          <p class="text-gray-600">{{ selectedCandidate()?.phoneNumber }}</p>
+        </div>
+
+        <p class="mt-4 text-sm text-gray-500">
+          The candidate will receive a WhatsApp message with a link to complete
+          their registration and upload required documents.
+        </p>
+      </div>
+
+      <div class="flex justify-end">
+        <button
+          type="button"
+          (click)="closeSendSmsModal()"
+          class="mr-3 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          (click)="sendSms()"
+          [disabled]="sendingSms()"
+          class="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <svg
+            *ngIf="sendingSms()"
+            class="animate-spin -ml-1 mr-2 h-5 w-5 text-white"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            ></circle>
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
+          <span class="font-medium">{{
+            sendingSms() ? "Sending..." : "Send WhatsApp"
+          }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Candidate Modal -->
+  <app-candidate-modal
+    [show]="showCandidateModal()"
+    [candidate]="selectedCandidateForModal()"
+    (close)="closeCandidateModal()"
+    (saved)="onCandidateSaved($event)"
+    (deleted)="onCandidateDeleted($event)"
+  ></app-candidate-modal>
+</div>

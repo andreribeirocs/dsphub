@@ -1,0 +1,232 @@
+<div *ngIf="show" class="fixed inset-0 bg-black/62 overflow-y-auto h-full w-full">
+  <div class="relative top-20 mx-auto p-5 border w-4xl shadow-lg rounded-md bg-white">
+    <div class="mt-3">
+      <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">
+        {{ isEditing ? 'Edit Candidate' : 'View Candidate' }}
+      </h3>
+      
+      <form [formGroup]="candidateForm" (ngSubmit)="onSubmit()" class="grid grid-cols-2 gap-4">
+        <!-- Left Column -->
+        <div class="col-span-1">
+          <!-- Name -->
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="name">
+              Name
+            </label>
+            <input
+              id="name"
+              type="text"
+              formControlName="name"
+              [readonly]="!isEditing"
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+
+          <!-- Phone -->
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="phoneNumber">
+              Phone Number
+            </label>
+            <input
+              id="phoneNumber"
+              type="text"
+              formControlName="phoneNumber"
+              [readonly]="!isEditing"
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+
+          <!-- Email -->
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="email">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              formControlName="email"
+              [readonly]="!isEditing"
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+
+          <!-- Address -->
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="address">
+              Address
+            </label>
+            <input
+              id="address"
+              type="text"
+              formControlName="address"
+              [readonly]="!isEditing"
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+
+          <!-- Status -->
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="status">
+              Status
+            </label>
+            <select
+              id="status"
+              formControlName="status"
+              [disabled]="!isEditing"
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            >
+              <option *ngFor="let status of statusOptions" [value]="status">
+                {{ statusLabels[status]?.label || status }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="col-span-1">
+          <!-- Insurance Number -->
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="insuranceNumber">
+              Insurance Number
+            </label>
+            <input
+              id="insuranceNumber"
+              type="text"
+              formControlName="insuranceNumber"
+              [readonly]="!isEditing"
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+            <div *ngIf="isEditing" class="mt-2">
+              <label class="block text-gray-700 text-sm font-bold mb-2" for="insuranceNumberImage">
+                Insurance Document
+              </label>
+              <input
+                id="insuranceNumberImage"
+                type="file"
+                accept="image/*"
+                (change)="onFileSelected($event, 'insuranceNumberImage')"
+                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              />
+            </div>
+            <div *ngIf="candidate?.insuranceNumberImage" class="mt-2">
+              <img [src]="candidate?.insuranceNumberImage || ''" alt="Insurance Document" class="max-w-full h-auto rounded" />
+            </div>
+          </div>
+
+          <!-- Driver License -->
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="driverLicense">
+              Driver License
+            </label>
+            <input
+              id="driverLicense"
+              type="text"
+              formControlName="driverLicense"
+              [readonly]="!isEditing"
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+            <div *ngIf="isEditing" class="mt-2">
+              <label class="block text-gray-700 text-sm font-bold mb-2" for="driverLicenseImage">
+                Driver License Document
+              </label>
+              <input
+                id="driverLicenseImage"
+                type="file"
+                accept="image/*"
+                (change)="onFileSelected($event, 'driverLicenseImage')"
+                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              />
+            </div>
+            <div *ngIf="candidate?.driverLicenseImage" class="mt-2">
+              <img [src]="candidate?.driverLicenseImage || ''" alt="Driver License Document" class="max-w-full h-auto rounded" />
+            </div>
+          </div>
+
+          <!-- Address Proof -->
+          <div class="mb-4">
+            <div *ngIf="isEditing">
+              <label class="block text-gray-700 text-sm font-bold mb-2" for="addressProofImage">
+                Address Proof Document
+              </label>
+              <input
+                id="addressProofImage"
+                type="file"
+                accept="image/*"
+                (change)="onFileSelected($event, 'addressProofImage')"
+                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              />
+            </div>
+            <div *ngIf="candidate?.addressProofImage" class="mt-2">
+              <img [src]="candidate?.addressProofImage || ''" alt="Address Proof Document" class="max-w-full h-auto rounded" />
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="notes">
+              Notes
+            </label>
+            <textarea
+              id="notes"
+              formControlName="notes"
+              [readonly]="!isEditing"
+              rows="3"
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            ></textarea>
+          </div>
+        </div>
+
+        <!-- Full Width Bottom Section -->
+        <div class="col-span-2">
+          <!-- Documents Count -->
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2">
+              Documents Uploaded
+            </label>
+            <p class="text-gray-600">{{ candidate?.documentsCount || 0 }} documents</p>
+          </div>
+
+          <!-- Error Message -->
+          <div *ngIf="error" class="mb-4 text-red-500 text-sm">
+            {{ error }}
+          </div>
+
+          <!-- Buttons -->
+          <div class="flex justify-end space-x-3">
+            <button
+              type="button"
+              (click)="onClose()"
+              class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            >
+              Close
+            </button>
+            <button
+              *ngIf="isEditing"
+              type="submit"
+              [disabled]="candidateForm.invalid || loading"
+              class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:opacity-50"
+            >
+              {{ loading ? 'Saving...' : 'Save Changes' }}
+            </button>
+            <button
+              *ngIf="!isEditing"
+              type="button"
+              (click)="startEditing()"
+              class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              (click)="onDelete()"
+              [disabled]="deleting"
+              class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:opacity-50"
+            >
+              {{ deleting ? 'Deleting...' : 'Delete' }}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div> 

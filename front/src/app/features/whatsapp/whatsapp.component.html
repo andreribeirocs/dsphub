@@ -1,0 +1,546 @@
+<div class="flex h-full bg-white rounded-lg shadow-lg overflow-hidden">
+  <!-- Conversations Sidebar -->
+  <div class="w-1/3 border-r border-gray-200 flex flex-col">
+    <!-- Header -->
+    <div class="p-4 border-b border-gray-200 bg-green-50">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+          <svg
+            class="w-6 h-6 mr-2 text-green-600"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.595"
+            />
+          </svg>
+          WhatsApp Messages @if (unreadCount() > 0) {
+          <span
+            class="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-1"
+          >
+            {{ unreadCount() }}
+          </span>
+          }
+        </h2>
+        <div class="flex items-center gap-2">
+          <!-- Connection Status -->
+          <div class="flex items-center">
+            @switch (connectionStatus()) { @case ('connected') {
+            <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span class="text-xs text-green-600 ml-1">Connected</span>
+            } @case ('connecting') {
+            <div class="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+            <span class="text-xs text-yellow-600 ml-1">Connecting</span>
+            } @case ('disconnected') {
+            <div class="w-2 h-2 bg-red-500 rounded-full"></div>
+            <span class="text-xs text-red-600 ml-1">Disconnected</span>
+            } }
+          </div>
+          <!-- New Conversation Button -->
+          <button
+            (click)="showNewConversation.set(true)"
+            class="p-1 text-green-600 hover:bg-green-100 rounded"
+            title="New Conversation"
+          >
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+              ></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="relative">
+        <svg
+          class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          ></path>
+        </svg>
+        <input
+          type="text"
+          placeholder="Search conversations..."
+          [value]="searchTerm()"
+          (input)="onSearchChange($event)"
+          class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+        />
+      </div>
+    </div>
+
+    <!-- Conversations List -->
+    <div class="flex-1 overflow-y-auto">
+      @if (isLoading()) {
+      <div class="flex items-center justify-center h-32">
+        <div
+          class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"
+        ></div>
+      </div>
+      } @else { @for (conversation of filteredConversations(); track
+      conversation.id) {
+      <div
+        (click)="selectConversation(conversation)"
+        [class]="
+          'p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ' +
+          (selectedConversation()?.id === conversation.id
+            ? 'bg-green-50 border-l-4 border-l-green-500'
+            : '')
+        "
+      >
+        <div class="flex items-center space-x-3">
+          <div class="flex-shrink-0">
+            @if (conversation.driverAvatar) {
+            <img
+              [src]="conversation.driverAvatar"
+              [alt]="conversation.driverName"
+              class="w-12 h-12 rounded-full"
+            />
+            } @else {
+            <div
+              class="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 font-medium"
+            >
+              {{ getInitials(conversation.driverName || "") }}
+            </div>
+            }
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <p class="text-sm font-medium text-gray-900 truncate">
+                {{ conversation?.driverName }}
+              </p>
+              <p class="text-xs text-gray-500">
+                {{ formatTime(conversation.lastMessageTime) }}
+              </p>
+            </div>
+            <div class="flex items-center justify-between">
+              <p class="text-sm text-gray-500 truncate">
+                {{ conversation.lastMessage || "No messages yet" }}
+              </p>
+              @if (conversation.unreadCount > 0) {
+              <span
+                class="bg-green-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center"
+              >
+                {{ conversation.unreadCount }}
+              </span>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+      } @empty {
+      <div class="p-8 text-center text-gray-500">
+        <svg
+          class="w-12 h-12 mx-auto mb-4 text-gray-300"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+          ></path>
+        </svg>
+        <p>No conversations found</p>
+        <button
+          (click)="showNewConversation.set(true)"
+          class="mt-2 text-green-600 hover:text-green-700 text-sm font-medium"
+        >
+          Start a new conversation
+        </button>
+      </div>
+      } }
+    </div>
+  </div>
+
+  <!-- Chat Area -->
+  <div class="flex-1 flex flex-col">
+    @if (selectedConversation()) {
+    <!-- Chat Header -->
+    <div class="p-4 border-b border-gray-200 bg-white">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          @if (selectedConversation()!.driverAvatar) {
+          <img
+            [src]="selectedConversation()!.driverAvatar"
+            [alt]="selectedConversation()!.driverName"
+            class="w-10 h-10 rounded-full"
+          />
+          } @else {
+          <div
+            class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 font-medium"
+          >
+            {{ getInitials(selectedConversation()!.driverName) }}
+          </div>
+          }
+          <div>
+            <h3 class="text-lg font-medium text-gray-900">
+              {{ selectedConversation()!.driverName }}
+            </h3>
+            <p class="text-sm text-gray-500">
+              {{ selectedConversation()!.driverPhone }}
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <!-- Send Template Message -->
+          <button
+            (click)="sendTemplateMessageToSelectedConversation()"
+            class="p-2 text-gray-400 hover:text-green-600 rounded-full hover:bg-gray-100"
+            title="Send Template Message (Hello there!)"
+          >
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              ></path>
+            </svg>
+          </button>
+          <!-- Quick Message Templates -->
+          <div class="relative">
+            <button
+              class="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+              title="Quick Messages"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                ></path>
+              </svg>
+            </button>
+          </div>
+          <!-- Delete Conversation -->
+          <button
+            (click)="deleteConversation(selectedConversation()!)"
+            class="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100"
+            title="Delete Conversation"
+          >
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              ></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+      @for (message of selectedConversation()!.messages; track message.id) {
+      <div
+        [class]="
+          'flex ' +
+          (message.direction === 'outbound' ? 'justify-end' : 'justify-start')
+        "
+      >
+        <div
+          [class]="
+            'max-w-xs lg:max-w-md px-4 py-2 rounded-lg ' +
+            (message.direction === 'outbound'
+              ? 'bg-green-500 text-white'
+              : 'bg-white text-gray-900 border border-gray-200')
+          "
+        >
+          <p class="text-sm">{{ message.body }}</p>
+          <div
+            [class]="
+              'flex items-center justify-between mt-1 ' +
+              (message.direction === 'outbound'
+                ? 'text-green-100'
+                : 'text-gray-500')
+            "
+          >
+            <span class="text-xs">{{ formatTime(message.timestamp) }}</span>
+            @if (message.direction === 'outbound') {
+            <svg
+              [class]="'w-4 h-4 ml-2 ' + getMessageStatusColor(message.status)"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              @switch (getMessageStatusIcon(message.status)) { @case ('check') {
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+              } @case ('check-check') {
+              <path
+                d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z"
+              />
+              } @case ('check-check-blue') {
+              <path
+                d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z"
+              />
+              } @case ('x') {
+              <path
+                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+              />
+              } @default {
+              <path
+                d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6Z"
+              />
+              } }
+            </svg>
+            }
+          </div>
+        </div>
+      </div>
+      } @empty {
+      <div class="text-center text-gray-500 py-8">
+        <svg
+          class="w-16 h-16 mx-auto mb-4 text-gray-300"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+          ></path>
+        </svg>
+        <p>No messages yet</p>
+        <p class="text-sm">Send a message to start the conversation</p>
+      </div>
+      }
+    </div>
+
+    <!-- Quick Message Templates -->
+    <div class="px-4 py-2 bg-gray-100 border-t border-gray-200">
+      <div class="flex space-x-2 overflow-x-auto">
+        <button
+          (click)="sendTemplateMessageToSelectedConversation()"
+          class="flex-shrink-0 px-3 py-1 bg-green-100 text-green-700 text-sm rounded-full border border-green-300 hover:bg-green-200 font-medium"
+        >
+          📋 Template Message
+        </button>
+        <button
+          (click)="
+            sendQuickMessage('Hello! This is a message from the dispatch team.')
+          "
+          class="flex-shrink-0 px-3 py-1 bg-white text-gray-700 text-sm rounded-full border border-gray-300 hover:bg-gray-50"
+        >
+          👋 Greeting
+        </button>
+        <button
+          (click)="
+            sendQuickMessage('Please confirm your availability for today.')
+          "
+          class="flex-shrink-0 px-3 py-1 bg-white text-gray-700 text-sm rounded-full border border-gray-300 hover:bg-gray-50"
+        >
+          ✅ Availability Check
+        </button>
+        <button
+          (click)="
+            sendQuickMessage(
+              'Your documents are expiring soon. Please update them.'
+            )
+          "
+          class="flex-shrink-0 px-3 py-1 bg-white text-gray-700 text-sm rounded-full border border-gray-300 hover:bg-gray-50"
+        >
+          📄 Document Reminder
+        </button>
+        <button
+          (click)="sendQuickMessage('Thank you for your service today!')"
+          class="flex-shrink-0 px-3 py-1 bg-white text-gray-700 text-sm rounded-full border border-gray-300 hover:bg-gray-50"
+        >
+          🙏 Thank You
+        </button>
+      </div>
+    </div>
+
+    <!-- Message Input -->
+    <div class="p-4 border-t border-gray-200 bg-white">
+      <div class="flex items-end space-x-2">
+        <div class="flex-1">
+          <textarea
+            [value]="newMessage()"
+            (input)="onNewMessageChange($event)"
+            (keypress)="onKeyPress($event)"
+            placeholder="Type a message..."
+            rows="2"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+          ></textarea>
+        </div>
+        <button
+          (click)="sendMessage()"
+          [disabled]="!newMessage().trim() || isLoading()"
+          class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+        >
+          @if (isLoading()) {
+          <div
+            class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"
+          ></div>
+          }
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+            ></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+    } @else {
+    <!-- No Conversation Selected -->
+    <div class="flex-1 flex items-center justify-center bg-gray-50">
+      <div class="text-center">
+        <svg
+          class="w-24 h-24 mx-auto mb-4 text-gray-300"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+          ></path>
+        </svg>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">
+          WhatsApp Messaging
+        </h3>
+        <p class="text-gray-500 mb-4">
+          Select a conversation to start messaging drivers
+        </p>
+        <button
+          (click)="showNewConversation.set(true)"
+          class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+        >
+          Start New Conversation
+        </button>
+      </div>
+    </div>
+    }
+  </div>
+</div>
+
+<!-- New Conversation Modal -->
+@if (showNewConversation()) {
+<div
+  class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+>
+  <div
+    class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white"
+  >
+    <div class="mt-3">
+      <h3 class="text-lg font-medium text-gray-900 mb-4">
+        Start New Conversation
+      </h3>
+
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2"
+          >Select Driver</label
+        >
+        <select
+          (change)="onDriverSelect($event)"
+          class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+        >
+          <option value="">Choose a driver...</option>
+          @for (driver of availableDrivers(); track driver.id) {
+          <option [value]="driver.id">
+            {{ driver.name }} ({{ driver.phone }})
+          </option>
+          }
+        </select>
+      </div>
+
+      <!-- Template Message Info -->
+      <div class="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+        <div class="flex items-start">
+          <svg
+            class="w-5 h-5 text-green-600 mt-0.5 mr-2 flex-shrink-0"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            ></path>
+          </svg>
+          <div>
+            <p class="text-sm font-medium text-green-800">Template Message</p>
+            <p class="text-sm text-green-700">
+              A "Hello there!" template message will be sent automatically to
+              initiate the conversation.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      @if (availableDrivers().length === 0) {
+      <p class="text-sm text-gray-500 mb-4">
+        All drivers already have active conversations.
+      </p>
+      }
+
+      <div class="flex justify-end space-x-2">
+        <button
+          (click)="
+            showNewConversation.set(false); selectedDriverForNewChat.set(null)
+          "
+          class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+        >
+          Cancel
+        </button>
+        <button
+          (click)="startNewConversation(selectedDriverForNewChat()!)"
+          [disabled]="!selectedDriverForNewChat()"
+          class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Start Conversation
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+}

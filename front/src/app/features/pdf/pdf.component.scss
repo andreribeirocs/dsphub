@@ -1,0 +1,41 @@
+.pdf-dashboard {
+  .upload-area {
+    transition: all 0.3s ease;
+
+    &:hover {
+      border-color: #3b82f6;
+      background-color: #eff6ff;
+    }
+
+    &.uploading {
+      border-color: #3b82f6;
+      background-color: #eff6ff;
+    }
+  }
+
+  .upload-progress {
+    .progress-bar {
+      transition: width 0.3s ease;
+    }
+  }
+
+  .results-section {
+    animation: fadeIn 0.5s ease-in;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .extracted-text {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    line-height: 1.5;
+  }
+}

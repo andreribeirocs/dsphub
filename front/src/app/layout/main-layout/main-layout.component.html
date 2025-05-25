@@ -1,0 +1,308 @@
+<!-- src/app/layout/main-layout/main-layout.component.html -->
+<div class="flex h-screen bg-gray-50">
+  <!-- Sidebar -->
+  <aside
+    class="fixed inset-y-0 z-10 flex flex-col flex-shrink-0 max-h-screen overflow-hidden transition-all duration-300 bg-white shadow-lg lg:z-auto lg:static lg:shadow-none"
+    [ngClass]="{
+      'w-64': isSidebarOpen(),
+      'w-16': !isSidebarOpen()
+    }"
+    [class.translate-x-0]="isSidebarOpen()"
+    [class.-translate-x-full]="!isSidebarOpen()"
+    [class.lg:translate-x-0]="true"
+  >
+    <div class="flex items-center justify-between flex-shrink-0 p-4">
+      @if (isSidebarOpen()) {
+      <a class="text-xl font-semibold">DSP Hub</a>
+      }
+
+      <button class="p-1 rounded-md" (click)="toggleSidebar()">
+        <svg
+          class="w-6 h-6"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 6h16M4 12h16M4 18h16"
+          />
+        </svg>
+      </button>
+    </div>
+
+    <nav class="flex-1 overflow-auto">
+      <ul class="p-2 overflow-auto">
+        <li>
+          <a
+            routerLink="/dashboard"
+            routerLinkActive="bg-primary-50 text-blue-600"
+            class="flex items-center p-3 text-gray-700 rounded-md hover:bg-primary-50 hover:text-blue-600"
+          >
+            <svg
+              class="w-5 h-5"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+              />
+            </svg>
+            <span class="ml-2" [class.hidden]="!isSidebarOpen()"
+              >Dashboard</span
+            >
+          </a>
+        </li>
+
+        @if (isRecruitmentManager) {
+        <li class="mt-2">
+          <a
+            routerLink="/recruitment"
+            routerLinkActive="bg-primary-50 text-blue-600"
+            class="flex items-center p-3 text-gray-700 rounded-md hover:bg-primary-50 hover:text-blue-600"
+          >
+            <svg
+              class="w-5 h-5"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+              />
+            </svg>
+            <span class="ml-2" [class.hidden]="!isSidebarOpen()"
+              >Recruitment</span
+            >
+          </a>
+        </li>
+
+        <li class="mt-2">
+          <a
+            routerLink="/candidates"
+            routerLinkActive="bg-primary-50 text-blue-600"
+            class="flex items-center p-3 text-gray-700 rounded-md hover:bg-primary-50 hover:text-blue-600"
+          >
+            <svg
+              class="w-5 h-5"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+              />
+            </svg>
+            <span class="ml-2" [class.hidden]="!isSidebarOpen()"
+              >Candidates</span
+            >
+          </a>
+        </li>
+
+        <!-- Driver Management Section -->
+        <li class="mt-2">
+          <a
+            routerLink="/drivers"
+            routerLinkActive="bg-primary-50 text-blue-600"
+            class="flex items-center p-3 text-gray-700 rounded-md hover:bg-primary-50 hover:text-blue-600"
+          >
+            <svg
+              class="w-5 h-5"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+              />
+            </svg>
+            <span class="ml-2" [class.hidden]="!isSidebarOpen()"
+              >Driver Management</span
+            >
+          </a>
+        </li>
+        } @if (isOnsiteManager) {
+        <li class="mt-2">
+          <a
+            routerLink="/route-template"
+            routerLinkActive="bg-primary-50 text-blue-600"
+            class="flex items-center p-3 text-gray-700 rounded-md hover:bg-primary-50 hover:text-blue-600"
+          >
+            <svg
+              class="w-5 h-5"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+              />
+            </svg>
+            <span class="ml-2" [class.hidden]="!isSidebarOpen()"
+              >Route Template</span
+            >
+          </a>
+        </li>
+
+        <li class="mt-2">
+          <a
+            routerLink="/daily-schedule"
+            routerLinkActive="bg-primary-50 text-blue-600"
+            class="flex items-center p-3 text-gray-700 rounded-md hover:bg-primary-50 hover:text-blue-600"
+          >
+            <svg
+              class="w-5 h-5"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            <span class="ml-2" [class.hidden]="!isSidebarOpen()"
+              >Daily Schedule</span
+            >
+          </a>
+        </li>
+        } @if (isFleetManager) {
+        <li class="mt-2">
+          <a
+            routerLink="/fleet"
+            routerLinkActive="bg-primary-50 text-blue-600"
+            class="flex items-center p-3 text-gray-700 rounded-md hover:bg-primary-50 hover:text-blue-600"
+          >
+            <svg
+              class="w-5 h-5"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+              />
+            </svg>
+            <span class="ml-2" [class.hidden]="!isSidebarOpen()"
+              >Fleet Management</span
+            >
+          </a>
+        </li>
+        } @if (isFinancialManager) {
+        <li class="mt-2">
+          <a
+            routerLink="/finances"
+            routerLinkActive="bg-primary-50 text-blue-600"
+            class="flex items-center p-3 text-gray-700 rounded-md hover:bg-primary-50 hover:text-blue-600"
+          >
+            <svg
+              class="w-5 h-5"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <span class="ml-2" [class.hidden]="!isSidebarOpen()">Finances</span>
+          </a>
+        </li>
+        }
+      </ul>
+    </nav>
+
+    <!-- Profile section moved to sidebar bottom -->
+    <div class="p-4">
+      <div class="relative">
+        <button
+          class="flex items-center w-full p-3 text-gray-700 rounded-md hover:bg-primary-50 hover:text-blue-600"
+          (click)="toggleProfileMenu()"
+        >
+          <svg
+            class="w-5 h-5"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <span class="ml-2" [class.hidden]="!isSidebarOpen()">{{
+            user?.name
+          }}</span>
+        </button>
+
+        <!-- Profile menu -->
+        <div
+          class="absolute bottom-full left-0 w-48 mb-2 origin-bottom-left bg-white rounded-md shadow-lg"
+          [class.hidden]="!isProfileMenuOpen()"
+        >
+          <div class="py-1">
+            <a
+              routerLink="/profile"
+              class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              (click)="isProfileMenuOpen.set(false)"
+            >
+              Your Profile
+            </a>
+            <a
+              href="#"
+              class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              (click)="logout()"
+            >
+              Sign out
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="flex flex-col flex-1 min-h-screen overflow-x-hidden">
+    <!-- Main content -->
+    <main class="flex-1 overflow-y-auto bg-gray-50 p-4 md:p-6">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>
