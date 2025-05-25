@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  DIRECTOR
+  MANAGER_FINANCIAL
+  MANAGER_FLEET
+  MANAGER_ONSITE
+  MANAGER_RECRUITMENT
+  DRIVER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+model User {
+  id               String     @id @default(uuid())
+  email            String     @unique
+  password         String
+  name             String
+  role             UserRole
+  status           UserStatus @default(ACTIVE)
+  phoneNumber      String?
+  lastLogin        DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  twoFactorEnabled Boolean    @default(false)
+  twoFactorSecret  String?
+  refreshToken     String?
+  driverProfile    Driver?
+  candidate        Candidate?
+}
+
+model Driver {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id])
+  name            String
+  phone           String
+  email           String
+  depot           String
+  address         String
+  status          String   @default("PENDING") // ACTIVE, PENDING, SUSPENDED
+  citizenship     String
+  passportExpiry  DateTime
+  licenseExpiry   DateTime
+  rtwExpiry       DateTime
+  points          Int      @default(0)
+  lastCheck       DateTime
+  nextCheck       DateTime
+  age             Int
+  hasEndorsements Boolean  @default(false)
+  joinDate        DateTime
+  completionRate  Float    @default(0)
+  rating          Float    @default(0)
+  totalTrips      Int      @default(0)
+
+  // Document statuses
+  passportStatus String @default("PENDING") // VALID, EXPIRING, EXPIRED, PENDING
+  licenseStatus  String @default("PENDING")
+  rtwStatus      String @default("PENDING")
+  medicalStatus  String @default("PENDING")
+  dbsStatus      String @default("PENDING")
+
+  // Existing fields
+  contractType        String?
+  licenseNumber       String?
+  insuranceNumber     String?
+  documents           Json?
+  onboardingComplete  Boolean   @default(false)
+  backgroundCheckDone Boolean   @default(false)
+  classroomComplete   Boolean   @default(false)
+  rideAlongDate       DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+enum CandidateStatus {
+  LEAD
+  SMS_SENT
+  FORM_COMPLETED
+  DOCUMENTS_UPLOADED
+  BACKGROUND_CHECK
+  APPROVED
+  CLASSROOM_SCHEDULED
+  CLASSROOM_COMPLETED
+  RIDE_ALONG_SCHEDULED
+  RIDE_ALONG_COMPLETED
+  ACTIVE_DRIVER
+  REJECTED
+}
+
+model Candidate {
+  id              String          @id @default(uuid())
+  name            String
+  email           String?
+  phoneNumber     String
+  status          CandidateStatus @default(LEAD)
+  source          String?
+  notes           String?
+  address         String?
+  insuranceNumber String?
+  driverLicense   String?
+  userId          String?         @unique
+  user            User?           @relation(fields: [userId], references: [id])
+  documents       Json?
+  smsToken        String?
+  tokenExpiry     DateTime?
+  classroomDate   DateTime?
+  rideAlongDate   DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
