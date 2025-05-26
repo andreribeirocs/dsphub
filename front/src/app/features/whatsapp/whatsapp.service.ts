@@ -1,20 +1,21 @@
-import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, Subject, BehaviorSubject } from 'rxjs';
-import { map, catchError } from 'rxjs/operators';
-import { of } from 'rxjs';
+import { Injectable } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { Observable, Subject, BehaviorSubject } from "rxjs";
+import { map, catchError } from "rxjs/operators";
+import { of } from "rxjs";
 import {
   WhatsAppMessage,
   WhatsAppConversation,
   MessageStatus,
   WhatsAppTemplate,
-} from './whatsapp.model';
+} from "./whatsapp.model";
+import { environment } from "../../../environments/environment";
 
 @Injectable({
-  providedIn: 'root',
+  providedIn: "root",
 })
 export class WhatsAppService {
-  private readonly API_BASE_URL = 'http://localhost:3002/whatsapp';
+  private readonly API_BASE_URL = environment.apiUrl + "/whatsapp";
 
   private messageSubject = new Subject<WhatsAppMessage>();
   private statusUpdateSubject = new Subject<{
@@ -22,29 +23,29 @@ export class WhatsAppService {
     status: MessageStatus;
   }>();
   private connectionSubject = new BehaviorSubject<
-    'connected' | 'disconnected' | 'connecting'
-  >('disconnected');
+    "connected" | "disconnected" | "connecting"
+  >("disconnected");
 
   constructor(private http: HttpClient) {}
 
   // Health check to verify backend connection
-  connect(): Observable<'connected' | 'disconnected' | 'connecting'> {
-    this.connectionSubject.next('connecting');
+  connect(): Observable<"connected" | "disconnected" | "connecting"> {
+    this.connectionSubject.next("connecting");
 
     return this.healthCheck().pipe(
       map(() => {
-        this.connectionSubject.next('connected');
-        return 'connected' as const;
+        this.connectionSubject.next("connected");
+        return "connected" as const;
       }),
       catchError(() => {
-        this.connectionSubject.next('disconnected');
-        return of('disconnected' as const);
+        this.connectionSubject.next("disconnected");
+        return of("disconnected" as const);
       })
     );
   }
 
   disconnect(): void {
-    this.connectionSubject.next('disconnected');
+    this.connectionSubject.next("disconnected");
   }
 
   // Send WhatsApp message via backend API (with automatic template handling)
@@ -59,11 +60,11 @@ export class WhatsAppService {
           if (response.success) {
             return response.message;
           } else {
-            throw new Error('Failed to send message');
+            throw new Error("Failed to send message");
           }
         }),
         catchError((error) => {
-          console.error('Error sending message:', error);
+          console.error("Error sending message:", error);
           throw error;
         })
       );
@@ -81,11 +82,11 @@ export class WhatsAppService {
           if (response.success) {
             return response.message;
           } else {
-            throw new Error('Failed to send template message');
+            throw new Error("Failed to send template message");
           }
         }),
         catchError((error) => {
-          console.error('Error sending template message:', error);
+          console.error("Error sending template message:", error);
           throw error;
         })
       );
@@ -94,7 +95,7 @@ export class WhatsAppService {
   // Send quick message template
   sendQuickMessage(
     to: string,
-    template: 'greeting' | 'availability' | 'document_reminder' | 'thank_you'
+    template: "greeting" | "availability" | "document_reminder" | "thank_you"
   ): Observable<WhatsAppMessage> {
     const url = `${this.API_BASE_URL}/quick-message`;
     const payload = { to, template };
@@ -106,11 +107,11 @@ export class WhatsAppService {
           if (response.success) {
             return response.message;
           } else {
-            throw new Error('Failed to send quick message');
+            throw new Error("Failed to send quick message");
           }
         }),
         catchError((error) => {
-          console.error('Error sending quick message:', error);
+          console.error("Error sending quick message:", error);
           throw error;
         })
       );
@@ -127,11 +128,11 @@ export class WhatsAppService {
           if (response.success) {
             return response.conversations;
           } else {
-            throw new Error('Failed to fetch conversations');
+            throw new Error("Failed to fetch conversations");
           }
         }),
         catchError((error) => {
-          console.error('Error fetching conversations:', error);
+          console.error("Error fetching conversations:", error);
           throw error;
         })
       );
@@ -148,11 +149,11 @@ export class WhatsAppService {
           if (response.success) {
             return response.conversation;
           } else {
-            throw new Error('Conversation not found');
+            throw new Error("Conversation not found");
           }
         }),
         catchError((error) => {
-          console.error('Error fetching conversation:', error);
+          console.error("Error fetching conversation:", error);
           throw error;
         })
       );
@@ -167,11 +168,11 @@ export class WhatsAppService {
         if (response.success) {
           return;
         } else {
-          throw new Error('Failed to mark conversation as read');
+          throw new Error("Failed to mark conversation as read");
         }
       }),
       catchError((error) => {
-        console.error('Error marking conversation as read:', error);
+        console.error("Error marking conversation as read:", error);
         throw error;
       })
     );
@@ -186,11 +187,11 @@ export class WhatsAppService {
         if (response.success) {
           return;
         } else {
-          throw new Error('Failed to delete conversation');
+          throw new Error("Failed to delete conversation");
         }
       }),
       catchError((error) => {
-        console.error('Error deleting conversation:', error);
+        console.error("Error deleting conversation:", error);
         throw error;
       })
     );
@@ -231,7 +232,7 @@ export class WhatsAppService {
 
   // Get connection status
   getConnectionStatus(): Observable<
-    'connected' | 'disconnected' | 'connecting'
+    "connected" | "disconnected" | "connecting"
   > {
     return this.connectionSubject.asObservable();
   }
