@@ -3,15 +3,16 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
-} from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { WhatsAppService } from '../shared/services/twilio.service';
-import { ConfigService } from '@nestjs/config';
-import { CreateCandidateDto } from './dto/create-candidate.dto';
-import { CompleteRegistrationDto } from './dto/complete-registration.dto';
-import { GetCandidatesDto } from './dto/get-candidates.dto';
-import { UpdateCandidateDto } from './dto/update-candidate.dto';
-import { nanoid } from 'nanoid';
+} from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { WhatsAppService } from "../shared/services/twilio.service";
+import { ConfigService } from "@nestjs/config";
+import { CreateCandidateDto } from "./dto/create-candidate.dto";
+import { CompleteRegistrationDto } from "./dto/complete-registration.dto";
+import { GetCandidatesDto } from "./dto/get-candidates.dto";
+import { UpdateCandidateDto } from "./dto/update-candidate.dto";
+import { Prisma } from "@prisma/client";
+import { nanoid } from "nanoid";
 
 @Injectable()
 export class RecruitmentService {
@@ -20,7 +21,7 @@ export class RecruitmentService {
   constructor(
     private prisma: PrismaService,
     private whatsappService: WhatsAppService,
-    private configService: ConfigService,
+    private configService: ConfigService
   ) {}
 
   async createCandidate(createCandidateDto: CreateCandidateDto) {
@@ -30,7 +31,7 @@ export class RecruitmentService {
 
     if (existingCandidate) {
       throw new BadRequestException(
-        'Candidate with this phone number already exists',
+        "Candidate with this phone number already exists"
       );
     }
 
@@ -43,7 +44,7 @@ export class RecruitmentService {
         ...createCandidateDto,
         smsToken,
         tokenExpiry,
-        status: 'LEAD',
+        status: "LEAD",
       },
     });
 
@@ -56,32 +57,32 @@ export class RecruitmentService {
     });
 
     if (!candidate) {
-      throw new NotFoundException('Candidate not found');
+      throw new NotFoundException("Candidate not found");
     }
 
     const registrationLink = `https://candidate.dsphub.co.uk/${candidate.smsToken}`;
 
     // Get the template SID from environment variables - now required for WhatsApp
     const templateSid = this.configService.get<string>(
-      'TWILIO_WHATSAPP_TEMPLATE_SID',
+      "TWILIO_WHATSAPP_TEMPLATE_SID"
     );
 
     if (!templateSid) {
       this.logger.error(
-        'TWILIO_WHATSAPP_TEMPLATE_SID is required for WhatsApp business messaging',
+        "TWILIO_WHATSAPP_TEMPLATE_SID is required for WhatsApp business messaging"
       );
       throw new BadRequestException(
-        'WhatsApp template not configured. Please set TWILIO_WHATSAPP_TEMPLATE_SID environment variable with your approved template SID.',
+        "WhatsApp template not configured. Please set TWILIO_WHATSAPP_TEMPLATE_SID environment variable with your approved template SID."
       );
     }
 
     // Validate template SID format (should start with HX)
-    if (!templateSid.startsWith('HX')) {
+    if (!templateSid.startsWith("HX")) {
       this.logger.error(
-        `Invalid template SID format: ${templateSid}. Template SID should start with 'HX'`,
+        `Invalid template SID format: ${templateSid}. Template SID should start with 'HX'`
       );
       throw new BadRequestException(
-        'Invalid WhatsApp template configuration. The template SID should start with "HX". Please check your Twilio Console for the correct template SID.',
+        'Invalid WhatsApp template configuration. The template SID should start with "HX". Please check your Twilio Console for the correct template SID.'
       );
     }
 
@@ -91,22 +92,22 @@ export class RecruitmentService {
     const smsSent = await this.whatsappService.sendWhatsAppTemplate(
       candidate.phoneNumber,
       templateSid,
-      templateVariables,
+      templateVariables
     );
 
     if (smsSent) {
       await this.prisma.candidate.update({
         where: { id: candidateId },
-        data: { status: 'SMS_SENT' },
+        data: { status: "SMS_SENT" },
       });
 
       return {
         success: true,
-        message: 'WhatsApp message sent successfully',
+        message: "WhatsApp message sent successfully",
         registrationLink,
       };
     } else {
-      throw new BadRequestException('Failed to send WhatsApp message');
+      throw new BadRequestException("Failed to send WhatsApp message");
     }
   }
 
@@ -121,7 +122,7 @@ export class RecruitmentService {
     });
 
     if (!candidate) {
-      throw new NotFoundException('Invalid or expired token');
+      throw new NotFoundException("Invalid or expired token");
     }
 
     return {
@@ -153,7 +154,7 @@ export class RecruitmentService {
     });
 
     if (!candidate) {
-      throw new NotFoundException('Invalid or expired token');
+      throw new NotFoundException("Invalid or expired token");
     }
 
     const documents = {
@@ -169,23 +170,24 @@ export class RecruitmentService {
         insuranceNumber,
         driverLicense,
         documents,
-        status: 'DOCUMENTS_UPLOADED',
+        status: "DOCUMENTS_UPLOADED",
         notes: comments || candidate.notes,
       },
     });
 
-    const { documents: _, ...result } = updatedCandidate;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { documents: _documents, ...result } = updatedCandidate;
 
     return {
       ...result,
-      message: 'Registration completed successfully',
+      message: "Registration completed successfully",
     };
   }
 
   async getAllCandidates(query: GetCandidatesDto) {
     const { page = 0, pageSize = 10, status, search } = query;
 
-    const where: any = {};
+    const where: Prisma.CandidateWhereInput = {};
 
     if (status) {
       where.status = status;
@@ -193,9 +195,9 @@ export class RecruitmentService {
 
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { phoneNumber: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: "insensitive" } },
+        { phoneNumber: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -205,7 +207,7 @@ export class RecruitmentService {
       const candidates = await this.prisma.candidate.findMany({
         where,
         orderBy: {
-          createdAt: 'desc',
+          createdAt: "desc",
         },
         skip: page * pageSize,
         take: pageSize,
@@ -220,15 +222,17 @@ export class RecruitmentService {
           pageCount: Math.ceil(total / pageSize),
         },
       };
-    } catch (error) {
-      this.logger.error(`Error retrieving candidates: ${error.message}`);
-      throw new BadRequestException('Failed to retrieve candidates');
+    } catch (error: unknown) {
+      this.logger.error(
+        `Error retrieving candidates: ${error instanceof Error ? error.message : String(error)}`
+      );
+      throw new BadRequestException("Failed to retrieve candidates");
     }
   }
 
   async getCandidateById(id: string) {
     if (!id) {
-      throw new BadRequestException('Candidate ID is required');
+      throw new BadRequestException("Candidate ID is required");
     }
 
     try {
@@ -242,7 +246,11 @@ export class RecruitmentService {
       }
 
       // Remove sensitive information
-      const { smsToken, tokenExpiry, ...safeCandidate } = candidate;
+      const {
+        smsToken: _smsToken,
+        tokenExpiry: _tokenExpiry,
+        ...safeCandidate
+      } = candidate;
 
       // Count documents if they exist
       const documentsCount = candidate.documents
@@ -261,21 +269,26 @@ export class RecruitmentService {
       }
 
       this.logger.error(
-        `Error retrieving candidate ${id}: ${error.message}`,
-        error.stack,
+        `Error retrieving candidate ${id}: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined
       );
 
-      if (error.code === 'P2023') {
-        throw new BadRequestException('Invalid candidate ID format');
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "P2023"
+      ) {
+        throw new BadRequestException("Invalid candidate ID format");
       }
 
-      throw new BadRequestException('Failed to retrieve candidate information');
+      throw new BadRequestException("Failed to retrieve candidate information");
     }
   }
 
   async updateCandidate(id: string, updateCandidateDto: UpdateCandidateDto) {
     if (!id) {
-      throw new BadRequestException('Candidate ID is required');
+      throw new BadRequestException("Candidate ID is required");
     }
 
     try {
@@ -303,7 +316,7 @@ export class RecruitmentService {
 
         if (duplicatePhone) {
           throw new BadRequestException(
-            'Phone number is already in use by another candidate',
+            "Phone number is already in use by another candidate"
           );
         }
       }
@@ -324,9 +337,9 @@ export class RecruitmentService {
 
       // Remove image fields from DTO as they'll be stored in documents
       const {
-        driverLicenseImage,
-        insuranceNumberImage,
-        addressProofImage,
+        driverLicenseImage: _driverLicenseImage,
+        insuranceNumberImage: _insuranceNumberImage,
+        addressProofImage: _addressProofImage,
         ...updateData
       } = updateCandidateDto;
 
@@ -340,7 +353,11 @@ export class RecruitmentService {
       });
 
       // Remove sensitive information
-      const { smsToken, tokenExpiry, ...safeCandidate } = updatedCandidate;
+      const {
+        smsToken: _smsToken2,
+        tokenExpiry: _tokenExpiry2,
+        ...safeCandidate
+      } = updatedCandidate;
 
       // Count documents if they exist
       const documentsCount = updatedCandidate.documents
@@ -363,21 +380,26 @@ export class RecruitmentService {
       }
 
       this.logger.error(
-        `Error updating candidate ${id}: ${error.message}`,
-        error.stack,
+        `Error updating candidate ${id}: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined
       );
 
-      if (error.code === 'P2023') {
-        throw new BadRequestException('Invalid candidate ID format');
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "P2023"
+      ) {
+        throw new BadRequestException("Invalid candidate ID format");
       }
 
-      throw new BadRequestException('Failed to update candidate information');
+      throw new BadRequestException("Failed to update candidate information");
     }
   }
 
   async deleteCandidate(id: string) {
     if (!id) {
-      throw new BadRequestException('Candidate ID is required');
+      throw new BadRequestException("Candidate ID is required");
     }
 
     try {
@@ -398,7 +420,7 @@ export class RecruitmentService {
 
       return {
         success: true,
-        message: 'Candidate deleted successfully',
+        message: "Candidate deleted successfully",
       };
     } catch (error) {
       if (
@@ -409,15 +431,20 @@ export class RecruitmentService {
       }
 
       this.logger.error(
-        `Error deleting candidate ${id}: ${error.message}`,
-        error.stack,
+        `Error deleting candidate ${id}: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined
       );
 
-      if (error.code === 'P2023') {
-        throw new BadRequestException('Invalid candidate ID format');
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "P2023"
+      ) {
+        throw new BadRequestException("Invalid candidate ID format");
       }
 
-      throw new BadRequestException('Failed to delete candidate');
+      throw new BadRequestException("Failed to delete candidate");
     }
   }
 }
