@@ -15,7 +15,7 @@ import { environment } from "../../../environments/environment";
   providedIn: "root",
 })
 export class WhatsAppService {
-  private readonly API_BASE_URL = environment.apiUrl + "/whatsapp";
+  private readonly API_BASE_URL = `${environment.apiUrl}/whatsapp`;
 
   private messageSubject = new Subject<WhatsAppMessage>();
   private statusUpdateSubject = new Subject<{
