@@ -1,11 +1,11 @@
-import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { environment } from '../../../environments/environment';
-import { Driver, DriverStats } from './drivers.model';
+import { Injectable } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { Observable } from "rxjs";
+import { environment } from "../../../environments/environment";
+import { Driver, DriverStats } from "./drivers.model";
 
 @Injectable({
-  providedIn: 'root',
+  providedIn: "root",
 })
 export class DriverService {
   private apiUrl = `${environment.apiUrl}/drivers`;
@@ -20,7 +20,7 @@ export class DriverService {
     return this.http.get<Driver>(`${this.apiUrl}/${id}`);
   }
 
-  createDriver(driver: Omit<Driver, 'id'>): Observable<Driver> {
+  createDriver(driver: Omit<Driver, "id">): Observable<Driver> {
     return this.http.post<Driver>(this.apiUrl, driver);
   }
 
@@ -34,5 +34,9 @@ export class DriverService {
 
   getStats(): Observable<DriverStats> {
     return this.http.get<DriverStats>(`${this.apiUrl}/stats`);
+  }
+
+  getDriverById(id: string): Observable<Driver> {
+    return this.http.get<Driver>(`${this.apiUrl}/${id}`);
   }
 }

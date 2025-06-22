@@ -1,5 +1,5 @@
-export type DriverStatus = 'ACTIVE' | 'PENDING' | 'SUSPENDED' | 'EXPIRED';
-export type DocumentStatus = 'valid' | 'expiring' | 'expired' | 'pending';
+export type DriverStatus = "ACTIVE" | "PENDING" | "SUSPENDED" | "EXPIRED";
+export type DocumentStatus = "valid" | "expiring" | "expired" | "pending";
 
 export interface Driver {
   id: string;
@@ -47,7 +47,7 @@ export interface ActivityItem {
   driver: string;
   action: string;
   time: string;
-  type: 'success' | 'warning' | 'pending' | 'info';
+  type: "success" | "warning" | "pending" | "info";
 }
 
 export interface DriverStats {
@@ -55,4 +55,45 @@ export interface DriverStats {
   active: number;
   expiring: number;
   pending: number;
+}
+
+export interface WeeklyPerformance {
+  week: number;
+  deliveries: number;
+  dcr: number;
+  dnrDpmo: number;
+  lorDpmo: number;
+  pod: number;
+  cc: number;
+  ce: number;
+  cdf: number;
+  overallScore: number;
+}
+
+export interface PerformanceMetrics {
+  currentWeek: {
+    deliveries: number;
+    dcr: number;
+    pod: number;
+    cdf: number;
+  };
+  weeklyTrends: {
+    dcr: number[];
+    pod: number[];
+    cc: number[];
+    cdf: number[];
+  };
+  weeklyDeliveries: number[];
+  weeklyPerformance: WeeklyPerformance[];
+  targets: {
+    dcr: number;
+    pod: number;
+    cc: number;
+    cdf: number;
+  };
+  improvementAreas: {
+    critical: string[];
+    performance: string[];
+    training: string[];
+  };
 }

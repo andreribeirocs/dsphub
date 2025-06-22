@@ -3,9 +3,54 @@
   <h1 class="text-2xl font-semibold text-gray-800 mb-6">Dashboard</h1>
 
   <div class="bg-white rounded-lg shadow p-6">
-    <h2 class="text-lg font-medium mb-4">Welcome, {{ user?.name }}</h2>
+    @if (loading) {
+    <!-- Loading state -->
+    <div class="flex items-center justify-center py-8">
+      <div
+        class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"
+      ></div>
+      <span class="ml-2 text-gray-600">Loading user profile...</span>
+    </div>
+    } @else if (hasTokenButNoUser) {
+    <!-- Error state with retry option -->
+    <div class="flex flex-col items-center justify-center py-8">
+      <div class="text-yellow-600 mb-4">
+        <svg
+          class="w-12 h-12"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 16.5c-.77.833.192 2.5 1.732 2.5z"
+          ></path>
+        </svg>
+      </div>
+      <h3 class="text-lg font-medium text-gray-900 mb-2">
+        Unable to load profile
+      </h3>
+      <p class="text-gray-600 mb-4 text-center">
+        There was an issue loading your profile data. This might be due to a
+        temporary network issue.
+      </p>
+      <button
+        (click)="retryLoadProfile()"
+        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+      >
+        Retry Loading Profile
+      </button>
+    </div>
+    } @else {
+    <!-- User content -->
+    <h2 class="text-lg font-medium mb-4">
+      Welcome, {{ user?.name || "User" }}
+    </h2>
     <p class="text-gray-600">
-      You are logged in as: <span class="font-medium">{{ user?.role }}</span>
+      You are logged in as:
+      <span class="font-medium">{{ user?.role || "Loading..." }}</span>
     </p>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
@@ -117,5 +162,6 @@
         </table>
       </div>
     </div>
+    }
   </div>
 </div>

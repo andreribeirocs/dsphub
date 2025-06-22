@@ -1,16 +1,26 @@
-<div *ngIf="show" class="fixed inset-0 bg-black/62 overflow-y-auto h-full w-full">
-  <div class="relative top-20 mx-auto p-5 border w-4xl shadow-lg rounded-md bg-white">
+<div
+  *ngIf="show"
+  class="fixed inset-0 bg-black/60 overflow-y-auto h-full w-full"
+>
+  <div class="relative top-20 mx-auto p-5 w-4xl shadow-lg rounded-md bg-white">
     <div class="mt-3">
       <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">
-        {{ isEditing ? 'Edit Candidate' : 'View Candidate' }}
+        {{ isEditing ? "Edit Candidate" : "View Candidate" }}
       </h3>
-      
-      <form [formGroup]="candidateForm" (ngSubmit)="onSubmit()" class="grid grid-cols-2 gap-4">
+
+      <form
+        [formGroup]="candidateForm"
+        (ngSubmit)="onSubmit()"
+        class="grid grid-cols-2 gap-4"
+      >
         <!-- Left Column -->
         <div class="col-span-1">
           <!-- Name -->
           <div class="mb-4">
-            <label class="block text-gray-700 text-sm font-bold mb-2" for="name">
+            <label
+              class="block text-gray-700 text-sm font-bold mb-2"
+              for="name"
+            >
               Name
             </label>
             <input
@@ -24,7 +34,10 @@
 
           <!-- Phone -->
           <div class="mb-4">
-            <label class="block text-gray-700 text-sm font-bold mb-2" for="phoneNumber">
+            <label
+              class="block text-gray-700 text-sm font-bold mb-2"
+              for="phoneNumber"
+            >
               Phone Number
             </label>
             <input
@@ -38,7 +51,10 @@
 
           <!-- Email -->
           <div class="mb-4">
-            <label class="block text-gray-700 text-sm font-bold mb-2" for="email">
+            <label
+              class="block text-gray-700 text-sm font-bold mb-2"
+              for="email"
+            >
               Email
             </label>
             <input
@@ -52,7 +68,10 @@
 
           <!-- Address -->
           <div class="mb-4">
-            <label class="block text-gray-700 text-sm font-bold mb-2" for="address">
+            <label
+              class="block text-gray-700 text-sm font-bold mb-2"
+              for="address"
+            >
               Address
             </label>
             <input
@@ -66,7 +85,10 @@
 
           <!-- Status -->
           <div class="mb-4">
-            <label class="block text-gray-700 text-sm font-bold mb-2" for="status">
+            <label
+              class="block text-gray-700 text-sm font-bold mb-2"
+              for="status"
+            >
               Status
             </label>
             <select
@@ -86,7 +108,10 @@
         <div class="col-span-1">
           <!-- Insurance Number -->
           <div class="mb-4">
-            <label class="block text-gray-700 text-sm font-bold mb-2" for="insuranceNumber">
+            <label
+              class="block text-gray-700 text-sm font-bold mb-2"
+              for="insuranceNumber"
+            >
               Insurance Number
             </label>
             <input
@@ -97,7 +122,10 @@
               class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             />
             <div *ngIf="isEditing" class="mt-2">
-              <label class="block text-gray-700 text-sm font-bold mb-2" for="insuranceNumberImage">
+              <label
+                class="block text-gray-700 text-sm font-bold mb-2"
+                for="insuranceNumberImage"
+              >
                 Insurance Document
               </label>
               <input
@@ -109,13 +137,20 @@
               />
             </div>
             <div *ngIf="candidate?.insuranceNumberImage" class="mt-2">
-              <img [src]="candidate?.insuranceNumberImage || ''" alt="Insurance Document" class="max-w-full h-auto rounded" />
+              <img
+                [src]="candidate?.insuranceNumberImage || ''"
+                alt="Insurance Document"
+                class="max-w-full h-auto rounded"
+              />
             </div>
           </div>
 
           <!-- Driver License -->
           <div class="mb-4">
-            <label class="block text-gray-700 text-sm font-bold mb-2" for="driverLicense">
+            <label
+              class="block text-gray-700 text-sm font-bold mb-2"
+              for="driverLicense"
+            >
               Driver License
             </label>
             <input
@@ -126,7 +161,10 @@
               class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             />
             <div *ngIf="isEditing" class="mt-2">
-              <label class="block text-gray-700 text-sm font-bold mb-2" for="driverLicenseImage">
+              <label
+                class="block text-gray-700 text-sm font-bold mb-2"
+                for="driverLicenseImage"
+              >
                 Driver License Document
               </label>
               <input
@@ -138,14 +176,21 @@
               />
             </div>
             <div *ngIf="candidate?.driverLicenseImage" class="mt-2">
-              <img [src]="candidate?.driverLicenseImage || ''" alt="Driver License Document" class="max-w-full h-auto rounded" />
+              <img
+                [src]="candidate?.driverLicenseImage || ''"
+                alt="Driver License Document"
+                class="max-w-full h-auto rounded"
+              />
             </div>
           </div>
 
           <!-- Address Proof -->
           <div class="mb-4">
             <div *ngIf="isEditing">
-              <label class="block text-gray-700 text-sm font-bold mb-2" for="addressProofImage">
+              <label
+                class="block text-gray-700 text-sm font-bold mb-2"
+                for="addressProofImage"
+              >
                 Address Proof Document
               </label>
               <input
@@ -157,13 +202,20 @@
               />
             </div>
             <div *ngIf="candidate?.addressProofImage" class="mt-2">
-              <img [src]="candidate?.addressProofImage || ''" alt="Address Proof Document" class="max-w-full h-auto rounded" />
+              <img
+                [src]="candidate?.addressProofImage || ''"
+                alt="Address Proof Document"
+                class="max-w-full h-auto rounded"
+              />
             </div>
           </div>
 
           <!-- Notes -->
           <div class="mb-4">
-            <label class="block text-gray-700 text-sm font-bold mb-2" for="notes">
+            <label
+              class="block text-gray-700 text-sm font-bold mb-2"
+              for="notes"
+            >
               Notes
             </label>
             <textarea
@@ -183,7 +235,9 @@
             <label class="block text-gray-700 text-sm font-bold mb-2">
               Documents Uploaded
             </label>
-            <p class="text-gray-600">{{ candidate?.documentsCount || 0 }} documents</p>
+            <p class="text-gray-600">
+              {{ candidate?.documentsCount || 0 }} documents
+            </p>
           </div>
 
           <!-- Error Message -->
@@ -206,7 +260,7 @@
               [disabled]="candidateForm.invalid || loading"
               class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:opacity-50"
             >
-              {{ loading ? 'Saving...' : 'Save Changes' }}
+              {{ loading ? "Saving..." : "Save Changes" }}
             </button>
             <button
               *ngIf="!isEditing"
@@ -222,11 +276,11 @@
               [disabled]="deleting"
               class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:opacity-50"
             >
-              {{ deleting ? 'Deleting...' : 'Delete' }}
+              {{ deleting ? "Deleting..." : "Delete" }}
             </button>
           </div>
         </div>
       </form>
     </div>
   </div>
-</div> 
+</div>

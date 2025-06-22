@@ -1,0 +1,418 @@
+import { Component, OnInit } from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { ActivatedRoute, Router } from "@angular/router";
+import { DriverService } from "./drivers.service";
+import { Driver, PerformanceMetrics } from "./drivers.model";
+import { ChartConfiguration, ChartType } from "chart.js";
+
+@Component({
+  selector: "app-driver-details",
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <div class="min-h-screen bg-gray-50 p-6">
+      <div class="max-w-7xl mx-auto space-y-8">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+          <button (click)="goBack()" class="p-2 rounded-full hover:bg-gray-200">
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+          </button>
+          <div class="flex-1 flex flex-col items-center">
+            <div class="flex items-center gap-4">
+              <div
+                class="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center"
+              >
+                <span class="text-blue-600 text-2xl font-bold">{{
+                  getInitials(driver?.name || "")
+                }}</span>
+              </div>
+              <div>
+                <h1 class="text-3xl font-bold text-gray-900">
+                  {{ driver?.name }}
+                </h1>
+                <div class="text-gray-500 text-sm">
+                  Driver ID: {{ driver?.id }}<br />
+                  Transporter ID: MC4E9EF062AE2<br />
+                  Age: {{ driver?.age }}
+                </div>
+              </div>
+            </div>
+          </div>
+          <button
+            (click)="editDriver()"
+            class="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              />
+            </svg>
+            Edit Driver
+          </button>
+        </div>
+
+        <!-- Top Info Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <!-- Contact Information -->
+          <div class="bg-white rounded-xl shadow p-6 flex flex-col gap-3">
+            <h2 class="text-xl font-semibold mb-2 flex items-center gap-2">
+              <svg
+                class="w-5 h-5 text-gray-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m9-4V7a4 4 0 00-8 0v3m8 4a4 4 0 01-8 0"
+                />
+              </svg>
+              Contact Information
+            </h2>
+            <div class="flex items-center gap-2 text-gray-700">
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                />
+              </svg>
+              {{ driver?.phone }}
+            </div>
+            <div class="flex items-center gap-2 text-gray-700">
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+              {{ driver?.email }}
+            </div>
+            <div class="flex items-center gap-2 text-gray-700">
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+              {{ driver?.address }}
+            </div>
+          </div>
+          <!-- Employment Details -->
+          <div class="bg-white rounded-xl shadow p-6 flex flex-col gap-3">
+            <h2 class="text-xl font-semibold mb-2">Employment Details</h2>
+            <div class="flex justify-between text-gray-700">
+              <span>Depot:</span><span>{{ driver?.depot }}</span>
+            </div>
+            <div class="flex justify-between text-gray-700">
+              <span>Status:</span
+              ><span
+                class="px-2 py-1 rounded-full text-xs font-semibold"
+                [ngClass]="getStatusBadgeClass(driver?.status || '')"
+                >{{ driver?.status }}</span
+              >
+            </div>
+            <div class="flex justify-between text-gray-700">
+              <span>Join Date:</span><span>{{ driver?.joinDate }}</span>
+            </div>
+            <div class="flex justify-between text-gray-700">
+              <span>Citizenship:</span><span>{{ driver?.citizenship }}</span>
+            </div>
+          </div>
+          <!-- Current Week Performance -->
+          <div class="bg-white rounded-xl shadow p-6 flex flex-col gap-3">
+            <h2 class="text-xl font-semibold mb-2">Current Week Performance</h2>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="text-center">
+                <div class="text-2xl font-bold text-blue-700">
+                  {{ performance?.currentWeek?.deliveries }}
+                </div>
+                <div class="text-xs text-gray-500">Delivered</div>
+              </div>
+              <div class="text-center">
+                <div class="text-2xl font-bold text-green-600">
+                  {{ performance?.currentWeek?.dcr }}%
+                </div>
+                <div class="text-xs text-gray-500">DCR</div>
+              </div>
+              <div class="text-center">
+                <div class="text-2xl font-bold text-purple-600">
+                  {{ performance?.currentWeek?.pod }}%
+                </div>
+                <div class="text-xs text-gray-500">POD</div>
+              </div>
+              <div class="text-center">
+                <div class="text-2xl font-bold text-orange-500">
+                  {{ performance?.currentWeek?.cdf }}%
+                </div>
+                <div class="text-xs text-gray-500">CDF</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Performance Charts -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+          <div class="bg-white rounded-xl shadow p-6">
+            <h2 class="text-lg font-semibold mb-2">
+              Weekly Delivery Performance
+            </h2>
+            <div class="text-xs text-gray-500 mb-4">
+              DCR, POD, CC, and CDF trends over the last 4 weeks
+            </div>
+            <!-- Line Chart Placeholder -->
+            <div
+              class="h-64 bg-gradient-to-br from-blue-50 to-green-50 rounded-lg flex items-center justify-center relative overflow-hidden"
+            >
+              <svg class="w-full h-full" viewBox="0 0 400 200">
+                <!-- Chart lines -->
+                <polyline
+                  points="50,150 150,120 250,110 350,100"
+                  fill="none"
+                  stroke="#16a34a"
+                  stroke-width="3"
+                  opacity="0.8"
+                />
+                <polyline
+                  points="50,160 150,140 250,135 350,130"
+                  fill="none"
+                  stroke="#a21caf"
+                  stroke-width="3"
+                  opacity="0.8"
+                />
+                <polyline
+                  points="50,180 150,160 250,160 350,160"
+                  fill="none"
+                  stroke="#0ea5e9"
+                  stroke-width="3"
+                  opacity="0.8"
+                />
+                <polyline
+                  points="50,170 150,155 250,180 350,150"
+                  fill="none"
+                  stroke="#f59e42"
+                  stroke-width="3"
+                  opacity="0.8"
+                />
+                <!-- Data points -->
+                <circle cx="50" cy="150" r="4" fill="#16a34a" />
+                <circle cx="150" cy="120" r="4" fill="#16a34a" />
+                <circle cx="250" cy="110" r="4" fill="#16a34a" />
+                <circle cx="350" cy="100" r="4" fill="#16a34a" />
+              </svg>
+              <div class="absolute bottom-4 right-4 text-xs text-gray-400">
+                <div class="flex gap-4">
+                  <span class="flex items-center gap-1"
+                    ><div class="w-3 h-0.5 bg-green-500"></div>
+                    DCR</span
+                  >
+                  <span class="flex items-center gap-1"
+                    ><div class="w-3 h-0.5 bg-purple-500"></div>
+                    POD</span
+                  >
+                  <span class="flex items-center gap-1"
+                    ><div class="w-3 h-0.5 bg-blue-500"></div>
+                    CC</span
+                  >
+                  <span class="flex items-center gap-1"
+                    ><div class="w-3 h-0.5 bg-orange-500"></div>
+                    CDF</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl shadow p-6">
+            <h2 class="text-lg font-semibold mb-2">Weekly Deliveries</h2>
+            <div class="text-xs text-gray-500 mb-4">
+              Number of deliveries completed each week
+            </div>
+            <!-- Bar Chart Placeholder -->
+            <div
+              class="h-64 bg-gradient-to-br from-cyan-50 to-blue-50 rounded-lg flex items-end justify-center relative p-4"
+            >
+              <div class="flex items-end gap-8 h-full">
+                <div
+                  class="bg-cyan-600 rounded-t-md flex-1 h-3/4 max-w-12 flex items-end justify-center"
+                >
+                  <span class="text-white text-xs font-semibold mb-2">868</span>
+                </div>
+                <div
+                  class="bg-cyan-600 rounded-t-md flex-1 h-full max-w-12 flex items-end justify-center"
+                >
+                  <span class="text-white text-xs font-semibold mb-2"
+                    >1160</span
+                  >
+                </div>
+                <div
+                  class="bg-cyan-600 rounded-t-md flex-1 h-5/6 max-w-12 flex items-end justify-center"
+                >
+                  <span class="text-white text-xs font-semibold mb-2"
+                    >1132</span
+                  >
+                </div>
+                <div
+                  class="bg-cyan-600 rounded-t-md flex-1 h-full max-w-12 flex items-end justify-center"
+                >
+                  <span class="text-white text-xs font-semibold mb-2"
+                    >1135</span
+                  >
+                </div>
+              </div>
+              <div
+                class="absolute bottom-2 left-4 right-4 flex justify-between text-xs text-gray-400"
+              >
+                <span>Week 1</span>
+                <span>Week 2</span>
+                <span>Week 3</span>
+                <span>Week 4</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `,
+  styles: [],
+})
+export class DriverDetailsComponent implements OnInit {
+  driver: Driver | null = null;
+  performance: PerformanceMetrics | null = null;
+
+  constructor(
+    private route: ActivatedRoute,
+    private router: Router,
+    private driverService: DriverService
+  ) {}
+
+  ngOnInit() {
+    const driverId = this.route.snapshot.paramMap.get("id");
+    if (driverId) {
+      this.loadDriverDetails(driverId);
+      this.loadMockPerformanceData();
+    }
+  }
+
+  loadDriverDetails(id: string) {
+    this.driverService.getDriverById(id).subscribe({
+      next: (driver) => {
+        this.driver = driver;
+      },
+      error: (error) => {
+        console.error("Error loading driver details:", error);
+      },
+    });
+  }
+
+  loadMockPerformanceData() {
+    // Mock data for Mario
+    this.performance = {
+      currentWeek: {
+        deliveries: 1135,
+        dcr: 99.91,
+        pod: 99.15,
+        cdf: 90.49,
+      },
+      weeklyTrends: {
+        dcr: [97.42, 99.66, 98.09, 99.91],
+        pod: [78.95, 99.7, 99.57, 99.15],
+        cc: [63.16, 100, 100, 100],
+        cdf: [87.61, 94.84, 74.97, 90.49],
+      },
+      weeklyDeliveries: [868, 1160, 1132, 1135],
+      weeklyPerformance: [], // Not used in this view
+      targets: {
+        dcr: 98.5,
+        pod: 95,
+        cc: 95,
+        cdf: 95,
+      },
+      improvementAreas: {
+        critical: [],
+        performance: [],
+        training: [],
+      },
+    };
+  }
+
+  goBack() {
+    this.router.navigate(["/drivers"]);
+  }
+
+  editDriver() {
+    if (this.driver) {
+      this.router.navigate(["/drivers", this.driver.id, "edit"]);
+    }
+  }
+
+  getInitials(name: string): string {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase();
+  }
+
+  getStatusBadgeClass(status: string): string {
+    switch (status?.toLowerCase()) {
+      case "active":
+        return "bg-green-100 text-green-800";
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "suspended":
+        return "bg-red-100 text-red-800";
+      case "expired":
+        return "bg-gray-100 text-gray-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  }
+}

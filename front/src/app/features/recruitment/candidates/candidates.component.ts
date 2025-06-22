@@ -1,16 +1,16 @@
 // src/app/features/recruitment/candidates/candidates.component.ts
-import { Component, OnInit, signal, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, signal, inject } from "@angular/core";
+import { CommonModule } from "@angular/common";
 import {
   FormsModule,
   ReactiveFormsModule,
   FormBuilder,
   FormGroup,
   Validators,
-} from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../../environments/environment';
-import { CandidateModalComponent } from './candidate-modal.component';
+} from "@angular/forms";
+import { HttpClient } from "@angular/common/http";
+import { environment } from "../../../../environments/environment";
+import { CandidateModalComponent } from "./candidate-modal.component";
 
 interface Candidate {
   id: string;
@@ -41,7 +41,7 @@ interface CandidateResponse {
 }
 
 @Component({
-  selector: 'app-candidates',
+  selector: "app-candidates",
   standalone: true,
   imports: [
     CommonModule,
@@ -49,7 +49,7 @@ interface CandidateResponse {
     ReactiveFormsModule,
     CandidateModalComponent,
   ],
-  templateUrl: './candidates.component.html',
+  templateUrl: "./candidates.component.html",
 })
 export class CandidatesComponent implements OnInit {
   candidates = signal<Candidate[]>([]);
@@ -60,46 +60,49 @@ export class CandidatesComponent implements OnInit {
   showAddModal = signal(false);
   showSendSmsModal = signal(false);
   showCandidateModal = signal(false);
+  showProfileOverlay = signal(false);
+  overlayVisible = signal(false);
 
   candidateForm: FormGroup;
   selectedCandidate = signal<Candidate | null>(null);
   sendingSms = signal(false);
   selectedCandidateForModal = signal<Candidate | null>(null);
+  selectedCandidateForProfile = signal<Candidate | null>(null);
 
   // Search and filter properties
-  searchTerm = '';
-  selectedStatus = '';
+  searchTerm = "";
+  selectedStatus = "";
   currentPage = 0;
   pageSize = 10;
 
   // Status options for dropdown
   statusOptions = [
-    'LEAD',
-    'SMS_SENT',
-    'FORM_COMPLETED',
-    'DOCUMENTS_UPLOADED',
-    'BACKGROUND_CHECK',
-    'APPROVED',
-    'REJECTED',
+    "LEAD",
+    "SMS_SENT",
+    "FORM_COMPLETED",
+    "DOCUMENTS_UPLOADED",
+    "BACKGROUND_CHECK",
+    "APPROVED",
+    "REJECTED",
   ];
 
   statusLabels: Record<string, { label: string; color: string }> = {
-    LEAD: { label: 'New Lead', color: 'bg-blue-100 text-blue-800' },
-    SMS_SENT: { label: 'SMS Sent', color: 'bg-yellow-100 text-yellow-800' },
+    LEAD: { label: "New Lead", color: "bg-blue-100 text-blue-800" },
+    SMS_SENT: { label: "SMS Sent", color: "bg-yellow-100 text-yellow-800" },
     FORM_COMPLETED: {
-      label: 'Form Completed',
-      color: 'bg-green-100 text-green-800',
+      label: "Form Completed",
+      color: "bg-green-100 text-green-800",
     },
     DOCUMENTS_UPLOADED: {
-      label: 'Docs Uploaded',
-      color: 'bg-indigo-100 text-indigo-800',
+      label: "Docs Uploaded",
+      color: "bg-indigo-100 text-indigo-800",
     },
     BACKGROUND_CHECK: {
-      label: 'Background Check',
-      color: 'bg-purple-100 text-purple-800',
+      label: "Background Check",
+      color: "bg-purple-100 text-purple-800",
     },
-    APPROVED: { label: 'Approved', color: 'bg-green-100 text-green-800' },
-    REJECTED: { label: 'Rejected', color: 'bg-red-100 text-red-800' },
+    APPROVED: { label: "Approved", color: "bg-green-100 text-green-800" },
+    REJECTED: { label: "Rejected", color: "bg-red-100 text-red-800" },
   };
 
   // Helper for template
@@ -110,9 +113,9 @@ export class CandidatesComponent implements OnInit {
 
   constructor() {
     this.candidateForm = this.fb.group({
-      name: ['', [Validators.required]],
+      name: ["", [Validators.required]],
       phoneNumber: [
-        '',
+        "",
         [Validators.required, Validators.pattern(/^\+?[1-9]\d{1,14}$/)],
       ],
     });
@@ -140,7 +143,7 @@ export class CandidatesComponent implements OnInit {
       params.search = this.searchTerm;
     }
 
-    console.log('Fetching candidates with params:', params);
+    console.log("Fetching candidates with params:", params);
 
     this.http
       .get<CandidateResponse>(`${environment.apiUrl}/recruitment/candidates`, {
@@ -154,10 +157,10 @@ export class CandidatesComponent implements OnInit {
           this.loading.set(false);
         },
         error: (err) => {
-          console.error('Failed to load candidates', err);
+          console.error("Failed to load candidates", err);
           this.error.set(
-            'Failed to load candidates: ' +
-              (err.error?.message || err.message || 'Unknown error')
+            "Failed to load candidates: " +
+              (err.error?.message || err.message || "Unknown error")
           );
           this.loading.set(false);
           this.candidates.set([]);
@@ -227,8 +230,8 @@ export class CandidatesComponent implements OnInit {
           this.loadCandidates();
         },
         error: (err) => {
-          console.error('Failed to add candidate', err);
-          this.error.set(err.error?.message || 'Failed to add candidate');
+          console.error("Failed to add candidate", err);
+          this.error.set(err.error?.message || "Failed to add candidate");
         },
       });
   }
@@ -262,9 +265,9 @@ export class CandidatesComponent implements OnInit {
         },
         error: (err) => {
           this.sendingSms.set(false);
-          console.error('Failed to send WhatsApp message', err);
+          console.error("Failed to send WhatsApp message", err);
           this.error.set(
-            err.error?.message || 'Failed to send WhatsApp message'
+            err.error?.message || "Failed to send WhatsApp message"
           );
         },
       });
@@ -300,5 +303,32 @@ export class CandidatesComponent implements OnInit {
       (c) => c.id !== candidateId
     );
     this.candidates.set(updatedCandidates);
+  }
+
+  openProfileOverlay(candidate: Candidate): void {
+    this.selectedCandidateForProfile.set(candidate);
+    this.showProfileOverlay.set(true);
+    // Trigger animation after DOM is updated
+    setTimeout(() => {
+      this.overlayVisible.set(true);
+    }, 10);
+  }
+
+  closeProfileOverlay(): void {
+    // Start closing animation
+    this.overlayVisible.set(false);
+    // Hide overlay after animation completes
+    setTimeout(() => {
+      this.showProfileOverlay.set(false);
+      this.selectedCandidateForProfile.set(null);
+    }, 300);
+  }
+
+  getInitials(name: string): string {
+    return name
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase())
+      .join("")
+      .substring(0, 2);
   }
 }
