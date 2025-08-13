@@ -5,25 +5,27 @@ import {
   signal,
   computed,
   inject,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Subject, takeUntil } from 'rxjs';
-import { WhatsAppService } from '../whatsapp/whatsapp.service';
-import { DriverService } from '../drivers/drivers.service';
-import { Driver } from '../drivers/drivers.model';
+  ChangeDetectionStrategy,
+} from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { Subject, takeUntil } from "rxjs";
+import { WhatsAppService } from "../whatsapp/whatsapp.service";
+import { DriverService } from "../drivers/drivers.service";
+import { Driver } from "../drivers/drivers.model";
 import {
   WhatsAppMessage,
   WhatsAppConversation,
   MessageStatus,
-} from './whatsapp.model';
+} from "./whatsapp.model";
 
 @Component({
-  selector: 'app-whatsapp-messaging',
+  selector: "app-whatsapp-messaging",
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './whatsapp.component.html',
-  styleUrls: ['./whatsapp.component.scss'],
+  templateUrl: "./whatsapp.component.html",
+  styleUrls: ["./whatsapp.component.scss"],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WhatsAppMessagingComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
@@ -34,13 +36,13 @@ export class WhatsAppMessagingComponent implements OnInit, OnDestroy {
   conversations = signal<WhatsAppConversation[]>([]);
   selectedConversation = signal<WhatsAppConversation | null>(null);
   drivers = signal<Driver[]>([]);
-  newMessage = signal('');
+  newMessage = signal("");
   isLoading = signal(false);
   showNewConversation = signal(false);
   selectedDriverForNewChat = signal<Driver | null>(null);
-  searchTerm = signal('');
-  connectionStatus = signal<'connected' | 'disconnected' | 'connecting'>(
-    'disconnected'
+  searchTerm = signal("");
+  connectionStatus = signal<"connected" | "disconnected" | "connecting">(
+    "disconnected"
   );
 
   // Computed values
@@ -99,14 +101,14 @@ export class WhatsAppMessagingComponent implements OnInit, OnDestroy {
           this.isLoading.set(false);
         },
         error: (error) => {
-          console.error('Error loading conversations:', error);
+          console.error("Error loading conversations:", error);
           this.isLoading.set(false);
         },
       });
   }
 
   private initializeWebSocket() {
-    this.connectionStatus.set('connecting');
+    this.connectionStatus.set("connecting");
 
     this.whatsappService
       .connect()
@@ -116,8 +118,8 @@ export class WhatsAppMessagingComponent implements OnInit, OnDestroy {
           this.connectionStatus.set(status);
         },
         error: (error) => {
-          console.error('WebSocket connection error:', error);
-          this.connectionStatus.set('disconnected');
+          console.error("WebSocket connection error:", error);
+          this.connectionStatus.set("disconnected");
         },
       });
 
@@ -231,11 +233,11 @@ export class WhatsAppMessagingComponent implements OnInit, OnDestroy {
             lastMessage: sentMessage.body,
             lastMessageTime: sentMessage.timestamp,
           });
-          this.newMessage.set('');
+          this.newMessage.set("");
           this.isLoading.set(false);
         },
         error: (error) => {
-          console.error('Error sending message:', error);
+          console.error("Error sending message:", error);
           this.isLoading.set(false);
         },
       });
@@ -248,7 +250,7 @@ export class WhatsAppMessagingComponent implements OnInit, OnDestroy {
       driverName: driver.name,
       driverAvatar: driver.avatar,
       messages: [],
-      lastMessage: '',
+      lastMessage: "",
       lastMessageTime: new Date(),
       unreadCount: 0,
     };
@@ -298,11 +300,11 @@ export class WhatsAppMessagingComponent implements OnInit, OnDestroy {
           this.isLoading.set(false);
         },
         error: (error) => {
-          console.error('Error sending template message:', error);
+          console.error("Error sending template message:", error);
           this.isLoading.set(false);
           // Show user-friendly error message
           alert(
-            'Failed to send template message. Please check your connection and try again.'
+            "Failed to send template message. Please check your connection and try again."
           );
         },
       });
@@ -339,38 +341,38 @@ export class WhatsAppMessagingComponent implements OnInit, OnDestroy {
 
   getMessageStatusIcon(status: MessageStatus): string {
     switch (status) {
-      case 'sent':
-        return 'check';
-      case 'delivered':
-        return 'check-check';
-      case 'read':
-        return 'check-check-blue';
-      case 'failed':
-        return 'x';
+      case "sent":
+        return "check";
+      case "delivered":
+        return "check-check";
+      case "read":
+        return "check-check-blue";
+      case "failed":
+        return "x";
       default:
-        return 'clock';
+        return "clock";
     }
   }
 
   getMessageStatusColor(status: MessageStatus): string {
     switch (status) {
-      case 'sent':
-        return 'text-gray-400';
-      case 'delivered':
-        return 'text-gray-600';
-      case 'read':
-        return 'text-blue-500';
-      case 'failed':
-        return 'text-red-500';
+      case "sent":
+        return "text-gray-400";
+      case "delivered":
+        return "text-gray-600";
+      case "read":
+        return "text-blue-500";
+      case "failed":
+        return "text-red-500";
       default:
-        return 'text-gray-300';
+        return "text-gray-300";
     }
   }
 
   formatTime(date: Date): string {
-    return new Intl.DateTimeFormat('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
     }).format(new Date(date));
   }
 
@@ -379,29 +381,29 @@ export class WhatsAppMessagingComponent implements OnInit, OnDestroy {
     const messageDate = new Date(date);
 
     if (messageDate.toDateString() === today.toDateString()) {
-      return 'Today';
+      return "Today";
     }
 
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
     if (messageDate.toDateString() === yesterday.toDateString()) {
-      return 'Yesterday';
+      return "Yesterday";
     }
 
-    return new Intl.DateTimeFormat('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
     }).format(messageDate);
   }
 
   getInitials(name: string): string {
-    if (!name) return '';
+    if (!name) return "";
     return name
-      .split(' ')
+      .split(" ")
       .map((n) => n[0])
-      .join('')
+      .join("")
       .toUpperCase();
   }
 
@@ -423,7 +425,7 @@ export class WhatsAppMessagingComponent implements OnInit, OnDestroy {
   }
 
   onKeyPress(event: KeyboardEvent) {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       this.sendMessage();
     }

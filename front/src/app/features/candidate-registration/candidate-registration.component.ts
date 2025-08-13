@@ -261,11 +261,13 @@ export class CandidateRegistrationComponent implements OnInit {
           (this.registrationForm.get("emergencyContactRelationship")?.valid ??
             false)
         );
-      case 4: // File Uploads
+      case 4: {
+        // File Uploads
         const requiredFiles = this.requiredDocuments.filter(
           (doc) => doc.required
         );
         return requiredFiles.every((doc) => this.uploadedFiles()[doc.key]);
+      }
       default:
         return false;
     }

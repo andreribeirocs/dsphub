@@ -94,10 +94,10 @@
     </div>
 
     <!-- Results Section -->
-    @if (extractedData()) {
+    @if (hasData()) {
     <div class="results-section space-y-6">
       <!-- DSP Summary Section -->
-      @if (extractedData().analysis.dspSummaryData?.isDSPSummary) {
+      @if (hasDspSummary()) {
       <div class="bg-white rounded-lg shadow-lg p-6">
         <div class="flex justify-between items-center mb-6">
           <h2 class="text-2xl font-semibold text-gray-900">
@@ -106,7 +106,7 @@
           <div class="flex items-center space-x-4">
             <span class="text-sm text-gray-600">
               Total Transporters:
-              {{ extractedData().analysis.dspSummaryData.totalTransporters }}
+              {{ totalTransporters() }}
             </span>
             <button
               (click)="downloadDSPData()"
@@ -131,51 +131,36 @@
         </div>
 
         <!-- Summary Statistics -->
-        @if (extractedData().analysis.dspSummaryData.summary) {
+        @if (dspSummary()) {
         <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
           <div class="bg-blue-50 p-4 rounded-lg">
             <p class="text-sm font-medium text-blue-900">Total Delivered</p>
             <p class="text-2xl font-bold text-blue-700">
-              {{
-                extractedData().analysis.dspSummaryData.summary.totalDelivered
-                  | number
-              }}
+              {{ dspSummary()?.totalDelivered | number }}
             </p>
           </div>
           <div class="bg-green-50 p-4 rounded-lg">
             <p class="text-sm font-medium text-green-900">Avg DCR</p>
             <p class="text-2xl font-bold text-green-700">
-              {{
-                extractedData().analysis.dspSummaryData.summary.averages.dcr
-                  | number : "1.2-2"
-              }}%
+              {{ avgDcr() | number : "1.2-2" }}%
             </p>
           </div>
           <div class="bg-purple-50 p-4 rounded-lg">
             <p class="text-sm font-medium text-purple-900">Avg POD</p>
             <p class="text-2xl font-bold text-purple-700">
-              {{
-                extractedData().analysis.dspSummaryData.summary.averages.pod
-                  | number : "1.2-2"
-              }}%
+              {{ avgPod() | number : "1.2-2" }}%
             </p>
           </div>
           <div class="bg-orange-50 p-4 rounded-lg">
             <p class="text-sm font-medium text-orange-900">High Performers</p>
             <p class="text-2xl font-bold text-orange-700">
-              {{
-                extractedData().analysis.dspSummaryData.summary.performance
-                  .highPerformers
-              }}
+              {{ highPerformers() }}
             </p>
           </div>
           <div class="bg-red-50 p-4 rounded-lg">
             <p class="text-sm font-medium text-red-900">Low Performers</p>
             <p class="text-2xl font-bold text-red-700">
-              {{
-                extractedData().analysis.dspSummaryData.summary.performance
-                  .lowPerformers
-              }}
+              {{ lowPerformers() }}
             </p>
           </div>
         </div>
@@ -234,8 +219,7 @@
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              @for (transporter of
-              extractedData().analysis.dspSummaryData.transporters; track
+              @for (transporter of transporters(); track
               transporter.transporterId) {
               <tr class="hover:bg-gray-50">
                 <td
@@ -347,24 +331,24 @@
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="bg-blue-50 p-4 rounded-lg">
             <p class="text-sm font-medium text-blue-900">Filename</p>
-            <p class="text-blue-700">{{ extractedData().filename }}</p>
+            <p class="text-blue-700">{{ filename() }}</p>
           </div>
           <div class="bg-green-50 p-4 rounded-lg">
             <p class="text-sm font-medium text-green-900">File Size</p>
             <p class="text-green-700">
-              {{ formatFileSize(extractedData().fileSize) }}
+              {{ formatFileSize(fileSize()) }}
             </p>
           </div>
           <div class="bg-purple-50 p-4 rounded-lg">
             <p class="text-sm font-medium text-purple-900">Pages</p>
             <p class="text-purple-700">
-              {{ extractedData().extractedData.numPages }}
+              {{ textData()?.numPages | number }}
             </p>
           </div>
           <div class="bg-orange-50 p-4 rounded-lg">
             <p class="text-sm font-medium text-orange-900">Words</p>
             <p class="text-orange-700">
-              {{ extractedData().extractedData.wordCount | number }}
+              {{ textData()?.wordCount | number }}
             </p>
           </div>
         </div>
@@ -383,20 +367,16 @@
             <div class="space-y-2">
               <div class="flex justify-between">
                 <span class="text-gray-600">Lines:</span>
-                <span class="font-medium">{{
-                  extractedData().analysis.lineCount | number
-                }}</span>
+                <span class="font-medium">{{ lineCount() | number }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-600">Sentences:</span>
-                <span class="font-medium">{{
-                  extractedData().analysis.sentenceCount | number
-                }}</span>
+                <span class="font-medium">{{ sentenceCount() | number }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-600">Characters:</span>
                 <span class="font-medium">{{
-                  extractedData().extractedData.characterCount | number
+                  textData()?.characterCount | number
                 }}</span>
               </div>
             </div>
@@ -410,27 +390,23 @@
             <div class="space-y-2">
               <div>
                 <span class="text-gray-600">Emails:</span>
-                <span class="font-medium ml-2">{{
-                  extractedData().analysis.extractedData.emails.length
-                }}</span>
+                <span class="font-medium ml-2">{{ emails().length }}</span>
               </div>
               <div>
                 <span class="text-gray-600">Phone Numbers:</span>
                 <span class="font-medium ml-2">{{
-                  extractedData().analysis.extractedData.phoneNumbers.length
+                  phoneNumbers().length
                 }}</span>
               </div>
               <div>
                 <span class="text-gray-600">URLs:</span>
-                <span class="font-medium ml-2">{{
-                  extractedData().analysis.extractedData.urls.length
-                }}</span>
+                <span class="font-medium ml-2">{{ urls().length }}</span>
               </div>
-              @if (extractedData().analysis.tableData?.tablesFound > 0) {
+              @if (tableData()?.tablesFound && tableData()!.tablesFound > 0) {
               <div>
                 <span class="text-gray-600">Tables Found:</span>
                 <span class="font-medium ml-2">{{
-                  extractedData().analysis.tableData.tablesFound
+                  tableData()!.tablesFound
                 }}</span>
               </div>
               }
@@ -441,8 +417,7 @@
           <div class="bg-gray-50 p-4 rounded-lg">
             <h3 class="text-lg font-medium text-gray-900 mb-3">Top Words</h3>
             <div class="space-y-1">
-              @for (word of extractedData().analysis.topWords.slice(0, 5); track
-              word.word) {
+              @for (word of topWords().slice(0, 5); track word.word) {
               <div class="flex justify-between text-sm">
                 <span class="text-gray-600">{{ word.word }}</span>
                 <span class="font-medium">{{ word.count }}</span>
@@ -454,9 +429,8 @@
       </div>
 
       <!-- Extracted Items -->
-      @if (extractedData().analysis.extractedData.emails.length > 0 ||
-      extractedData().analysis.extractedData.phoneNumbers.length > 0 ||
-      extractedData().analysis.extractedData.urls.length > 0) {
+      @if (emails().length > 0 || phoneNumbers().length > 0 || urls().length >
+      0) {
       <div class="bg-white rounded-lg shadow-lg p-6">
         <h2 class="text-xl font-semibold text-gray-900 mb-4">
           Extracted Items
@@ -464,14 +438,13 @@
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           <!-- Emails -->
-          @if (extractedData().analysis.extractedData.emails.length > 0) {
+          @if (emails().length > 0) {
           <div>
             <h3 class="text-lg font-medium text-gray-900 mb-3">
               Email Addresses
             </h3>
             <div class="space-y-2">
-              @for (email of extractedData().analysis.extractedData.emails;
-              track email) {
+              @for (email of emails(); track email) {
               <div
                 class="flex items-center justify-between bg-gray-50 p-2 rounded"
               >
@@ -489,15 +462,13 @@
           }
 
           <!-- Phone Numbers -->
-          @if (extractedData().analysis.extractedData.phoneNumbers.length > 0) {
+          @if (phoneNumbers().length > 0) {
           <div>
             <h3 class="text-lg font-medium text-gray-900 mb-3">
               Phone Numbers
             </h3>
             <div class="space-y-2">
-              @for (phone of
-              extractedData().analysis.extractedData.phoneNumbers; track phone)
-              {
+              @for (phone of phoneNumbers(); track phone) {
               <div
                 class="flex items-center justify-between bg-gray-50 p-2 rounded"
               >
@@ -515,12 +486,11 @@
           }
 
           <!-- URLs -->
-          @if (extractedData().analysis.extractedData.urls.length > 0) {
+          @if (urls().length > 0) {
           <div>
             <h3 class="text-lg font-medium text-gray-900 mb-3">URLs</h3>
             <div class="space-y-2">
-              @for (url of extractedData().analysis.extractedData.urls; track
-              url) {
+              @for (url of urls(); track url) {
               <div
                 class="flex items-center justify-between bg-gray-50 p-2 rounded"
               >
@@ -550,7 +520,7 @@
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-xl font-semibold text-gray-900">Extracted Text</h2>
           <button
-            (click)="copyToClipboard(extractedData().extractedData.text)"
+            (click)="copyToClipboard(textData()?.text || '')"
             class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             <svg
@@ -571,7 +541,7 @@
         </div>
         <div class="bg-gray-50 p-4 rounded-lg max-h-96 overflow-y-auto">
           <pre class="text-sm text-gray-700 whitespace-pre-wrap">{{
-            extractedData().extractedData.text
+            textData()?.text || ""
           }}</pre>
         </div>
       </div>

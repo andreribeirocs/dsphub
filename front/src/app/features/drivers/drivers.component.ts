@@ -1,4 +1,11 @@
-import { Component, OnInit, signal, computed } from "@angular/core";
+import {
+  Component,
+  signal,
+  computed,
+  inject,
+  effect,
+  ChangeDetectionStrategy,
+} from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { Router } from "@angular/router";
@@ -19,8 +26,12 @@ import { WhatsAppMessagingComponent } from "../whatsapp/whatsapp.component";
   imports: [CommonModule, FormsModule, WhatsAppMessagingComponent],
   templateUrl: "./drivers.component.html",
   styleUrls: ["./drivers.component.scss"],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DriversComponent implements OnInit {
+export class DriversComponent {
+  private readonly driverService = inject(DriverService);
+  private readonly router = inject(Router);
+
   // Signals for reactive state management
   drivers = signal<Driver[]>([]);
   searchTerm = signal("");
@@ -39,14 +50,13 @@ export class DriversComponent implements OnInit {
 
     return drivers.filter((driver) => {
       const matchesSearch =
+        search === "" ||
         driver.name.toLowerCase().includes(search) ||
         driver.email.toLowerCase().includes(search) ||
         driver.phone.includes(search);
 
-      const matchesStatus =
-        status === "all" ||
-        driver.status.toLowerCase() === status.toLowerCase();
-      const matchesDepot = depot === "all" || driver.depot.includes(depot);
+      const matchesStatus = status === "all" || driver.status === status;
+      const matchesDepot = depot === "all" || driver.depot === depot;
 
       return matchesSearch && matchesStatus && matchesDepot;
     });
@@ -55,7 +65,7 @@ export class DriversComponent implements OnInit {
   stats = signal<StatCard[]>([
     {
       title: "Total Drivers",
-      value: "247",
+      value: "124",
       change: "+12 this month",
       icon: "user",
       color: "text-blue-600",
@@ -63,15 +73,15 @@ export class DriversComponent implements OnInit {
     },
     {
       title: "Active Drivers",
-      value: "198",
-      change: "80% of total",
+      value: "98",
+      change: "79% of total",
       icon: "check-circle",
       color: "text-green-600",
       bgColor: "bg-green-100",
     },
     {
       title: "Expiring Soon",
-      value: "23",
+      value: "8",
       change: "Next 30 days",
       icon: "alert-circle",
       color: "text-orange-600",
@@ -79,7 +89,7 @@ export class DriversComponent implements OnInit {
     },
     {
       title: "Pending Review",
-      value: "26",
+      value: "5",
       change: "Requires action",
       icon: "file-text",
       color: "text-red-600",
@@ -90,57 +100,71 @@ export class DriversComponent implements OnInit {
   recentActivities = signal<ActivityItem[]>([
     {
       id: 1,
-      driver: "Jacob Morgan",
-      action: "License renewed",
+      driver: "John Smith",
+      action: "License Renewed - renewed until 2025",
       time: "2 hours ago",
       type: "success",
     },
     {
       id: 2,
-      driver: "Liam Davis",
-      action: "Medical certificate uploaded",
+      driver: "Sarah Johnson",
+      action: "Medical Check Due - required by next week",
       time: "4 hours ago",
-      type: "info",
+      type: "warning",
     },
     {
       id: 3,
-      driver: "Lewis Scott",
-      action: "Application submitted",
+      driver: "Mike Davis",
+      action: "Background Check Complete - verification completed",
       time: "1 day ago",
-      type: "pending",
+      type: "success",
     },
     {
       id: 4,
-      driver: "Daniel Stapley",
-      action: "Account suspended",
+      driver: "Emma Wilson",
+      action: "Document Upload - insurance document uploaded",
       time: "2 days ago",
+      type: "pending",
+    },
+    {
+      id: 5,
+      driver: "David Brown",
+      action: "Status Update - changed to active",
+      time: "3 days ago",
+      type: "success",
+    },
+    {
+      id: 6,
+      driver: "Lisa Garcia",
+      action: "Alert - multiple documents expiring soon",
+      time: "3 days ago",
       type: "warning",
     },
   ]);
 
-  constructor(private driverService: DriverService, private router: Router) {}
-
-  ngOnInit() {
+  // Effects for data loading
+  private readonly loadDataEffect = effect(() => {
     this.loadDrivers();
     this.loadStats();
-  }
+  });
 
   loadDrivers() {
     this.driverService.getDrivers().subscribe({
-      next: (drivers: any[]) => {
+      next: (drivers: unknown[]) => {
         // Transform the backend data to match frontend expectations
         const transformedDrivers = drivers.map((driver) =>
           this.transformDriverData(driver)
         );
         this.drivers.set(transformedDrivers);
       },
-      error: (error: any) => {
+      error: (error: unknown) => {
         console.error("Error loading drivers:", error);
       },
     });
   }
 
   // Transform backend driver data to frontend format
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   transformDriverData(backendDriver: any): Driver {
     return {
       id: backendDriver.id,
@@ -184,6 +208,7 @@ export class DriversComponent implements OnInit {
       case "EXPIRED":
         return "expired";
       case "PENDING":
+        return "pending";
       default:
         return "pending";
     }
@@ -236,6 +261,7 @@ export class DriversComponent implements OnInit {
           },
         ]);
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       error: (error: any) => {
         console.error("Error loading stats:", error);
       },
@@ -355,6 +381,7 @@ export class DriversComponent implements OnInit {
         this.loadDrivers();
         console.log("Driver deleted successfully");
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       error: (error: any) => {
         console.error("Error deleting driver:", error);
       },

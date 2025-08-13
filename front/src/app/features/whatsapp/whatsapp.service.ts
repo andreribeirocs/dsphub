@@ -1,4 +1,4 @@
-import { Injectable } from "@angular/core";
+import { Injectable, inject } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { Observable, Subject, BehaviorSubject } from "rxjs";
 import { map, catchError } from "rxjs/operators";
@@ -15,6 +15,7 @@ import { environment } from "../../../environments/environment";
   providedIn: "root",
 })
 export class WhatsAppService {
+  private readonly http = inject(HttpClient);
   private readonly API_BASE_URL = `${environment.apiUrl}/whatsapp`;
 
   private messageSubject = new Subject<WhatsAppMessage>();
@@ -25,8 +26,6 @@ export class WhatsAppService {
   private connectionSubject = new BehaviorSubject<
     "connected" | "disconnected" | "connecting"
   >("disconnected");
-
-  constructor(private http: HttpClient) {}
 
   // Health check to verify backend connection
   connect(): Observable<"connected" | "disconnected" | "connecting"> {
@@ -49,9 +48,12 @@ export class WhatsAppService {
   }
 
   // Send WhatsApp message via backend API (with automatic template handling)
-  sendMessage(to: string, body: string): Observable<WhatsAppMessage> {
+  sendMessage(
+    phoneNumber: string,
+    message: string
+  ): Observable<WhatsAppMessage> {
     const url = `${this.API_BASE_URL}/send`;
-    const payload = { to, body };
+    const payload = { to: phoneNumber, body: message };
 
     return this.http
       .post<{ success: boolean; message: WhatsAppMessage }>(url, payload)

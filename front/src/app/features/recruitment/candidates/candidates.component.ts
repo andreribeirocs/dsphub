@@ -1,16 +1,17 @@
 // src/app/features/recruitment/candidates/candidates.component.ts
-import { Component, OnInit, signal, inject } from "@angular/core";
+import { Component, signal, inject, effect } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import {
-  FormsModule,
-  ReactiveFormsModule,
   FormBuilder,
   FormGroup,
+  ReactiveFormsModule,
   Validators,
 } from "@angular/forms";
 import { HttpClient } from "@angular/common/http";
+import { Router } from "@angular/router";
 import { environment } from "../../../../environments/environment";
 import { CandidateModalComponent } from "./candidate-modal.component";
+import { FormsModule } from "@angular/forms";
 
 interface Candidate {
   id: string;
@@ -21,7 +22,7 @@ interface Candidate {
   address?: string;
   insuranceNumber?: string;
   driverLicense?: string;
-  documents?: any;
+  documents?: Record<string, unknown>;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -51,7 +52,7 @@ interface CandidateResponse {
   ],
   templateUrl: "./candidates.component.html",
 })
-export class CandidatesComponent implements OnInit {
+export class CandidatesComponent {
   candidates = signal<Candidate[]>([]);
   pagination = signal<PaginationInfo | null>(null);
   loading = signal(true);
@@ -63,7 +64,6 @@ export class CandidatesComponent implements OnInit {
   showProfileOverlay = signal(false);
   overlayVisible = signal(false);
 
-  candidateForm: FormGroup;
   selectedCandidate = signal<Candidate | null>(null);
   sendingSms = signal(false);
   selectedCandidateForModal = signal<Candidate | null>(null);
@@ -110,37 +110,37 @@ export class CandidatesComponent implements OnInit {
 
   private http = inject(HttpClient);
   private fb = inject(FormBuilder);
+  private router = inject(Router);
 
-  constructor() {
-    this.candidateForm = this.fb.group({
-      name: ["", [Validators.required]],
-      phoneNumber: [
-        "",
-        [Validators.required, Validators.pattern(/^\+?[1-9]\d{1,14}$/)],
-      ],
-    });
-  }
+  readonly candidateForm: FormGroup = this.fb.group({
+    name: ["", [Validators.required]],
+    phoneNumber: [
+      "",
+      [Validators.required, Validators.pattern(/^\+?[1-9]\d{1,14}$/)],
+    ],
+  });
 
-  ngOnInit(): void {
+  // Effect to load candidates on component initialization
+  private readonly loadCandidatesEffect = effect(() => {
     this.loadCandidates();
-  }
+  });
 
   loadCandidates(): void {
     this.loading.set(true);
     this.error.set(null);
 
     // Build query parameters
-    const params: any = {
+    const params: Record<string, string | number> = {
       page: this.currentPage,
       pageSize: this.pageSize,
     };
 
     if (this.selectedStatus) {
-      params.status = this.selectedStatus;
+      params["status"] = this.selectedStatus;
     }
 
     if (this.searchTerm) {
-      params.search = this.searchTerm;
+      params["search"] = this.searchTerm;
     }
 
     console.log("Fetching candidates with params:", params);
@@ -197,7 +197,7 @@ export class CandidatesComponent implements OnInit {
 
     // Otherwise show a window of pages around current page
     let start = Math.max(0, currentPage - 2);
-    let end = Math.min(pageCount - 1, start + 4);
+    const end = Math.min(pageCount - 1, start + 4);
 
     // Adjust start if we're near the end
     if (end - start < 4 && start > 0) {
@@ -330,5 +330,9 @@ export class CandidatesComponent implements OnInit {
       .map((word) => word.charAt(0).toUpperCase())
       .join("")
       .substring(0, 2);
+  }
+
+  viewCandidateDetails(candidate: Candidate): void {
+    this.router.navigate(["/candidates", candidate.id]);
   }
 }

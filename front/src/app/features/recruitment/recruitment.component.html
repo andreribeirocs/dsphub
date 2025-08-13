@@ -17,10 +17,8 @@
     </p>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div
-        *ngFor="let step of recruitmentSteps"
-        class="border rounded-lg p-4 hover:shadow-md transition-shadow"
-      >
+      @for (step of recruitmentSteps; track step.title) {
+      <div class="border rounded-lg p-4 hover:shadow-md transition-shadow">
         <div class="flex items-start">
           <div class="bg-primary-100 p-3 rounded-full mr-4">
             <svg
@@ -44,6 +42,7 @@
           </div>
         </div>
       </div>
+      }
     </div>
 
     <div class="mt-8 border-t pt-6">

@@ -1,2 +1,130 @@
 /* You can add global styles to this file, and also import other style files */
 @use "tailwindcss";
+
+@layer base {
+  :root {
+    /* Background and foreground */
+    --background: 255 255 255;
+    --foreground: 15 23 42;
+    
+    /* Card */
+    --card: 255 255 255;
+    --card-foreground: 15 23 42;
+    
+    /* Popover */
+    --popover: 255 255 255;
+    --popover-foreground: 15 23 42;
+    
+    /* Primary */
+    --primary: 15 23 42;
+    --primary-foreground: 248 250 252;
+    
+    /* Secondary */
+    --secondary: 241 245 249;
+    --secondary-foreground: 15 23 42;
+    
+    /* Muted */
+    --muted: 241 245 249;
+    --muted-foreground: 100 116 139;
+    
+    /* Accent */
+    --accent: 241 245 249;
+    --accent-foreground: 15 23 42;
+    
+    /* Destructive */
+    --destructive: 239 68 68;
+    --destructive-foreground: 248 250 252;
+    
+    /* Border */
+    --border: 226 232 240;
+    --input: 226 232 240;
+    --ring: 15 23 42;
+    
+    /* Chart */
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    
+    /* Radius */
+    --radius: 0.5rem;
+    
+    /* Sidebar specific variables */
+    --sidebar: 250 250 250;
+    --sidebar-foreground: 15 23 42;
+    --sidebar-primary: 15 23 42;
+    --sidebar-primary-foreground: 248 250 252;
+    --sidebar-accent: 241 245 249;
+    --sidebar-accent-foreground: 15 23 42;
+    --sidebar-border: 226 232 240;
+    --sidebar-ring: 59 130 246;
+  }
+ 
+  .dark {
+    /* Background and foreground */
+    --background: 15 23 42;
+    --foreground: 248 250 252;
+    
+    /* Card */
+    --card: 15 23 42;
+    --card-foreground: 248 250 252;
+    
+    /* Popover */
+    --popover: 15 23 42;
+    --popover-foreground: 248 250 252;
+    
+    /* Primary */
+    --primary: 248 250 252;
+    --primary-foreground: 15 23 42;
+    
+    /* Secondary */
+    --secondary: 51 65 85;
+    --secondary-foreground: 248 250 252;
+    
+    /* Muted */
+    --muted: 51 65 85;
+    --muted-foreground: 148 163 184;
+    
+    /* Accent */
+    --accent: 51 65 85;
+    --accent-foreground: 248 250 252;
+    
+    /* Destructive */
+    --destructive: 153 27 27;
+    --destructive-foreground: 248 250 252;
+    
+    /* Border */
+    --border: 51 65 85;
+    --input: 51 65 85;
+    --ring: 203 213 225;
+    
+    /* Chart */
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    
+    /* Sidebar specific variables */
+    --sidebar: 30 41 59;
+    --sidebar-foreground: 241 245 249;
+    --sidebar-primary: 248 250 252;
+    --sidebar-primary-foreground: 15 23 42;
+    --sidebar-accent: 51 65 85;
+    --sidebar-accent-foreground: 241 245 249;
+    --sidebar-border: 51 65 85;
+    --sidebar-ring: 59 130 246;
+  }
+}
+
+/* Base styles without @apply directives */
+* {
+  border-color: #e5e7eb;
+}
+
+body {
+  background-color: #ffffff;
+  color: #111827;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}

@@ -2,7 +2,7 @@
 import { inject, Injectable } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { BehaviorSubject, Observable, throwError } from "rxjs";
-import { catchError, tap, switchMap } from "rxjs/operators";
+import { catchError, tap } from "rxjs/operators";
 import { environment } from "../../environments/environment";
 import { Router } from "@angular/router";
 
@@ -56,7 +56,7 @@ export class AuthService {
           localStorage.removeItem("refresh_token");
           localStorage.removeItem("user");
         }
-      } catch (error) {
+      } catch {
         console.log("Invalid token format, clearing tokens...");
         localStorage.removeItem("token");
         localStorage.removeItem("refresh_token");
@@ -76,13 +76,13 @@ export class AuthService {
           this.currentUserSubject.next(user);
           this.loadingSubject.next(false);
         },
-        error: (error) => {
-          console.error("Failed to load user profile:", error);
+        error: (err) => {
+          console.error("Failed to load user profile:", err);
           this.loadingSubject.next(false);
 
           // Only logout if it's an authentication error (401/403)
           // For other errors (network issues, server errors), keep the user logged in
-          if (error.status === 401 || error.status === 403) {
+          if (err.status === 401 || err.status === 403) {
             console.log("Authentication error - logging out");
             this.logout();
           } else {
@@ -150,8 +150,8 @@ export class AuthService {
         const payload = JSON.parse(atob(token.split(".")[1]));
         console.log("Current token payload:", payload);
         console.log("Token contains:", Object.keys(payload));
-      } catch (error) {
-        console.error("Failed to decode token:", error);
+      } catch (err) {
+        console.error("Failed to decode token:", err);
       }
     } else {
       console.log("No token found");
@@ -164,7 +164,7 @@ export class AuthService {
       .post<AuthResponse>(`${this.API_URL}/refresh`, { token: refreshToken })
       .pipe(
         tap((response) => this.handleAuth(response)),
-        catchError((error) => {
+        catchError(() => {
           this.logout();
           return throwError(
             () => new Error("Session expired. Please login again.")
@@ -217,11 +217,11 @@ export class AuthService {
           this.currentUserSubject.next(user);
           this.loadingSubject.next(false);
         },
-        error: (error) => {
-          console.error("Failed to retry user profile load:", error);
+        error: (err) => {
+          console.error("Failed to retry user profile load:", err);
           this.loadingSubject.next(false);
 
-          if (error.status === 401 || error.status === 403) {
+          if (err.status === 401 || err.status === 403) {
             this.logout();
           } else {
             this.currentUserSubject.next(null);

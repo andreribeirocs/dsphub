@@ -1,7 +1,5 @@
-<div
-  *ngIf="show"
-  class="fixed inset-0 bg-black/60 overflow-y-auto h-full w-full"
->
+@if (show()) {
+<div class="fixed inset-0 bg-black/60 overflow-y-auto h-full w-full">
   <div class="relative top-20 mx-auto p-5 w-4xl shadow-lg rounded-md bg-white">
     <div class="mt-3">
       <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">
@@ -97,9 +95,11 @@
               [disabled]="!isEditing"
               class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             >
-              <option *ngFor="let status of statusOptions" [value]="status">
-                {{ statusLabels[status]?.label || status }}
+              @for (status of statusOptions; track status) {
+              <option [value]="status">
+                {{ statusLabels[status].label || status }}
               </option>
+              }
             </select>
           </div>
         </div>
@@ -121,7 +121,8 @@
               [readonly]="!isEditing"
               class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             />
-            <div *ngIf="isEditing" class="mt-2">
+            @if (isEditing) {
+            <div class="mt-2">
               <label
                 class="block text-gray-700 text-sm font-bold mb-2"
                 for="insuranceNumberImage"
@@ -136,13 +137,15 @@
                 class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
               />
             </div>
-            <div *ngIf="candidate?.insuranceNumberImage" class="mt-2">
+            } @if (candidate()?.insuranceNumberImage) {
+            <div class="mt-2">
               <img
-                [src]="candidate?.insuranceNumberImage || ''"
+                [src]="candidate()?.insuranceNumberImage || ''"
                 alt="Insurance Document"
                 class="max-w-full h-auto rounded"
               />
             </div>
+            }
           </div>
 
           <!-- Driver License -->
@@ -160,7 +163,8 @@
               [readonly]="!isEditing"
               class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             />
-            <div *ngIf="isEditing" class="mt-2">
+            @if (isEditing) {
+            <div class="mt-2">
               <label
                 class="block text-gray-700 text-sm font-bold mb-2"
                 for="driverLicenseImage"
@@ -175,18 +179,21 @@
                 class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
               />
             </div>
-            <div *ngIf="candidate?.driverLicenseImage" class="mt-2">
+            } @if (candidate()?.driverLicenseImage) {
+            <div class="mt-2">
               <img
-                [src]="candidate?.driverLicenseImage || ''"
+                [src]="candidate()?.driverLicenseImage || ''"
                 alt="Driver License Document"
                 class="max-w-full h-auto rounded"
               />
             </div>
+            }
           </div>
 
           <!-- Address Proof -->
           <div class="mb-4">
-            <div *ngIf="isEditing">
+            @if (isEditing) {
+            <div>
               <label
                 class="block text-gray-700 text-sm font-bold mb-2"
                 for="addressProofImage"
@@ -201,13 +208,15 @@
                 class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
               />
             </div>
-            <div *ngIf="candidate?.addressProofImage" class="mt-2">
+            } @if (candidate()?.addressProofImage) {
+            <div class="mt-2">
               <img
-                [src]="candidate?.addressProofImage || ''"
+                [src]="candidate()?.addressProofImage || ''"
                 alt="Address Proof Document"
                 class="max-w-full h-auto rounded"
               />
             </div>
+            }
           </div>
 
           <!-- Notes -->
@@ -232,18 +241,20 @@
         <div class="col-span-2">
           <!-- Documents Count -->
           <div class="mb-4">
-            <label class="block text-gray-700 text-sm font-bold mb-2">
+            <h4 class="block text-gray-700 text-sm font-bold mb-2">
               Documents Uploaded
-            </label>
+            </h4>
             <p class="text-gray-600">
-              {{ candidate?.documentsCount || 0 }} documents
+              {{ candidate()?.documentsCount || 0 }} documents
             </p>
           </div>
 
           <!-- Error Message -->
-          <div *ngIf="error" class="mb-4 text-red-500 text-sm">
+          @if (error) {
+          <div class="mb-4 text-red-500 text-sm">
             {{ error }}
           </div>
+          }
 
           <!-- Buttons -->
           <div class="flex justify-end space-x-3">
@@ -254,22 +265,30 @@
             >
               Close
             </button>
+            @if (isEditing) {
             <button
-              *ngIf="isEditing"
               type="submit"
               [disabled]="candidateForm.invalid || loading"
               class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:opacity-50"
             >
               {{ loading ? "Saving..." : "Save Changes" }}
             </button>
+            } @else {
             <button
-              *ngIf="!isEditing"
               type="button"
-              (click)="startEditing()"
+              (click)="navigateToDetail()"
               class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
             >
-              Edit
+              View Details
             </button>
+            <button
+              type="button"
+              (click)="startEditing()"
+              class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            >
+              Quick Edit
+            </button>
+            }
             <button
               type="button"
               (click)="onDelete()"
@@ -284,3 +303,4 @@
     </div>
   </div>
 </div>
+}

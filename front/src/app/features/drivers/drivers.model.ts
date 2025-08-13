@@ -1,9 +1,15 @@
-export type DriverStatus = "ACTIVE" | "PENDING" | "SUSPENDED" | "EXPIRED";
+export type DriverStatus =
+  | "ACTIVE"
+  | "PENDING"
+  | "SUSPENDED"
+  | "EXPIRED"
+  | "INACTIVE";
 export type DocumentStatus = "valid" | "expiring" | "expired" | "pending";
 
 export interface Driver {
   id: string;
   name: string;
+  transporterId?: string;
   avatar?: string;
   phone: string;
   email: string;

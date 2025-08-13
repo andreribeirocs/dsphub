@@ -16,7 +16,7 @@ import { environment } from "../../environments/environment";
 export interface AuthResponse {
   access_token: string;
   refresh_token: string;
-  user: any;
+  user: Record<string, unknown>;
 }
 
 @Injectable()
@@ -46,7 +46,7 @@ export class AuthInterceptor implements HttpInterceptor {
     );
   }
 
-  private addToken(request: HttpRequest<any>, token: string) {
+  private addToken(request: HttpRequest<unknown>, token: string) {
     return request.clone({
       setHeaders: {
         Authorization: `Bearer ${token}`,
@@ -54,7 +54,7 @@ export class AuthInterceptor implements HttpInterceptor {
     });
   }
 
-  private handle401Error(request: HttpRequest<any>, next: HttpHandler) {
+  private handle401Error(request: HttpRequest<unknown>, next: HttpHandler) {
     if (!this.isRefreshing) {
       this.isRefreshing = true;
       this.refreshTokenSubject.next(null);

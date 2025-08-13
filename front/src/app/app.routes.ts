@@ -58,11 +58,24 @@ export const routes: Routes = [
       },
       {
         path: "candidates",
-        loadComponent: () =>
-          import("./features/recruitment/candidates/candidates.component").then(
-            (m) => m.CandidatesComponent
-          ),
-        data: { roles: ["DIRECTOR", "MANAGER_RECRUITMENT"] },
+        children: [
+          {
+            path: "",
+            loadComponent: () =>
+              import(
+                "./features/recruitment/candidates/candidates.component"
+              ).then((m) => m.CandidatesComponent),
+            data: { roles: ["DIRECTOR", "MANAGER_RECRUITMENT"] },
+          },
+          {
+            path: ":id",
+            loadComponent: () =>
+              import(
+                "./features/recruitment/candidates/candidate-detail.component"
+              ).then((m) => m.CandidateDetailComponent),
+            data: { roles: ["DIRECTOR", "MANAGER_RECRUITMENT"] },
+          },
+        ],
       },
       {
         path: "drivers",
@@ -75,11 +88,61 @@ export const routes: Routes = [
               ),
           },
           {
+            path: "schedule",
+            loadComponent: () =>
+              import("./features/drivers/driver-schedule.component").then(
+                (m) => m.DriverScheduleComponent
+              ),
+          },
+          {
             path: ":id",
             loadComponent: () =>
               import("./features/drivers/driver-details.component").then(
                 (m) => m.DriverDetailsComponent
               ),
+          },
+        ],
+      },
+      {
+        path: "payments",
+        loadComponent: () =>
+          import("./features/payments/payment-dashboard.component").then(
+            (m) => m.PaymentDashboardComponent
+          ),
+        data: {
+          roles: [
+            "DIRECTOR",
+            "MANAGER_FINANCIAL",
+            "MANAGER_FLEET",
+            "MANAGER_ONSITE",
+          ],
+        },
+      },
+      {
+        path: "daily-payment",
+        loadComponent: () =>
+          import("./features/payments/daily-payment.component").then(
+            (m) => m.DailyPaymentComponent
+          ),
+        data: {
+          roles: [
+            "DIRECTOR",
+            "MANAGER_FINANCIAL",
+            "MANAGER_FLEET",
+            "MANAGER_ONSITE",
+          ],
+        },
+      },
+      {
+        path: "vans",
+        children: [
+          {
+            path: "",
+            loadComponent: () =>
+              import("./features/vans/van-dashboard.component").then(
+                (m) => m.VanDashboardComponent
+              ),
+            data: { roles: ["DIRECTOR", "MANAGER_FLEET"] },
           },
         ],
       },

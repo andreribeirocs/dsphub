@@ -1,0 +1,7 @@
+<div
+  class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 space-y-2 flex flex-col items-center"
+>
+  @for (alert of alertService.alerts(); track alert.id) {
+  <app-alert [alert]="alert" (closed)="alertService.removeAlert(alert.id)" />
+  }
+</div>

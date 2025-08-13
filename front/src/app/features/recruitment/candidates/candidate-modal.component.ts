@@ -1,8 +1,21 @@
-import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../../environments/environment';
+import {
+  Component,
+  input,
+  output,
+  inject,
+  ChangeDetectionStrategy,
+  effect,
+} from "@angular/core";
+import { CommonModule } from "@angular/common";
+import {
+  FormBuilder,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators,
+} from "@angular/forms";
+import { HttpClient } from "@angular/common/http";
+import { Router } from "@angular/router";
+import { environment } from "../../../../environments/environment";
 
 interface Candidate {
   id: string;
@@ -16,7 +29,7 @@ interface Candidate {
   driverLicense?: string;
   driverLicenseImage?: string;
   addressProofImage?: string;
-  documents?: any;
+  documents?: Record<string, unknown>;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -24,76 +37,97 @@ interface Candidate {
 }
 
 @Component({
-  selector: 'app-candidate-modal',
+  selector: "app-candidate-modal",
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
-  templateUrl: './candidate-modal.component.html'
+  templateUrl: "./candidate-modal.component.html",
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CandidateModalComponent {
-  @Input() show = false;
-  @Input() candidate: Candidate | null = null;
-  @Output() close = new EventEmitter<void>();
-  @Output() saved = new EventEmitter<Candidate>();
-  @Output() deleted = new EventEmitter<string>();
+  readonly show = input(false);
+  readonly candidate = input<Candidate | null>(null);
+  readonly closeModal = output<void>();
+  readonly saved = output<Candidate>();
+  readonly deleted = output<string>();
 
-  candidateForm: FormGroup;
   isEditing = false;
   loading = false;
   error: string | null = null;
   deleting = false;
 
   statusOptions = [
-    'LEAD',
-    'SMS_SENT',
-    'FORM_COMPLETED',
-    'DOCUMENTS_UPLOADED',
-    'BACKGROUND_CHECK',
-    'APPROVED',
-    'REJECTED',
+    "LEAD",
+    "SMS_SENT",
+    "FORM_COMPLETED",
+    "DOCUMENTS_UPLOADED",
+    "BACKGROUND_CHECK",
+    "APPROVED",
+    "REJECTED",
   ];
 
   statusLabels: Record<string, { label: string; color: string }> = {
-    LEAD: { label: 'New Lead', color: 'bg-blue-100 text-blue-800' },
-    SMS_SENT: { label: 'SMS Sent', color: 'bg-yellow-100 text-yellow-800' },
-    FORM_COMPLETED: { label: 'Form Completed', color: 'bg-green-100 text-green-800' },
-    DOCUMENTS_UPLOADED: { label: 'Docs Uploaded', color: 'bg-indigo-100 text-indigo-800' },
-    BACKGROUND_CHECK: { label: 'Background Check', color: 'bg-purple-100 text-purple-800' },
-    APPROVED: { label: 'Approved', color: 'bg-green-100 text-green-800' },
-    REJECTED: { label: 'Rejected', color: 'bg-red-100 text-red-800' },
+    LEAD: { label: "New Lead", color: "bg-blue-100 text-blue-800" },
+    SMS_SENT: { label: "SMS Sent", color: "bg-yellow-100 text-yellow-800" },
+    FORM_COMPLETED: {
+      label: "Form Completed",
+      color: "bg-green-100 text-green-800",
+    },
+    DOCUMENTS_UPLOADED: {
+      label: "Docs Uploaded",
+      color: "bg-indigo-100 text-indigo-800",
+    },
+    BACKGROUND_CHECK: {
+      label: "Background Check",
+      color: "bg-purple-100 text-purple-800",
+    },
+    APPROVED: { label: "Approved", color: "bg-green-100 text-green-800" },
+    REJECTED: { label: "Rejected", color: "bg-red-100 text-red-800" },
   };
 
   private fb = inject(FormBuilder);
   private http = inject(HttpClient);
+  private router = inject(Router);
 
-  constructor() {
-    this.candidateForm = this.fb.group({
-      name: ['', [Validators.required]],
-      phoneNumber: ['', [Validators.required, Validators.pattern(/^\+?[1-9]\d{1,14}$/)]],
-      email: ['', [Validators.email]],
-      address: [''],
-      insuranceNumber: [''],
-      insuranceNumberImage: [''],
-      driverLicense: [''],
-      driverLicenseImage: [''],
-      addressProofImage: [''],
-      notes: [''],
-      status: ['', [Validators.required]],
-    });
-  }
+  readonly candidateForm: FormGroup = this.fb.group({
+    name: ["", [Validators.required]],
+    phoneNumber: [
+      "",
+      [Validators.required, Validators.pattern(/^\+?[1-9]\d{1,14}$/)],
+    ],
+    email: ["", [Validators.email]],
+    address: [""],
+    insuranceNumber: [""],
+    insuranceNumberImage: [""],
+    driverLicense: [""],
+    driverLicenseImage: [""],
+    addressProofImage: [""],
+    notes: [""],
+    status: ["", [Validators.required]],
+  });
 
-  ngOnChanges(): void {
-    if (this.candidate) {
-      this.candidateForm.patchValue(this.candidate);
+  // Effect to handle candidate changes
+  private readonly candidateEffect = effect(() => {
+    const candidate = this.candidate();
+    if (candidate) {
+      this.candidateForm.patchValue(candidate);
       this.isEditing = false;
     }
-  }
+  });
 
   startEditing(): void {
     this.isEditing = true;
   }
 
+  navigateToDetail(): void {
+    const candidate = this.candidate();
+    if (candidate) {
+      this.router.navigate(["/candidates", candidate.id]);
+      this.onClose();
+    }
+  }
+
   onClose(): void {
-    this.close.emit();
+    this.closeModal.emit();
     this.isEditing = false;
     this.error = null;
   }
@@ -105,8 +139,8 @@ export class CandidateModalComponent {
     try {
       const base64 = await this.convertToBase64(file);
       this.candidateForm.patchValue({ [field]: base64 });
-    } catch (error) {
-      this.error = 'Failed to process the image';
+    } catch {
+      this.error = "Failed to process the image";
     }
   }
 
@@ -115,23 +149,51 @@ export class CandidateModalComponent {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
+      reader.onerror = (error) => reject(error);
     });
   }
 
+  onDelete(): void {
+    const candidate = this.candidate();
+    if (!candidate) return;
+
+    if (confirm("Are you sure you want to delete this candidate?")) {
+      this.deleting = true;
+      this.error = null;
+
+      this.http
+        .delete(`${environment.apiUrl}/recruitment/candidates/${candidate.id}`)
+        .subscribe({
+          next: () => {
+            this.deleting = false;
+            this.deleted.emit(candidate.id);
+            this.onClose();
+          },
+          error: (err) => {
+            this.deleting = false;
+            this.error = err.error?.message || "Failed to delete candidate";
+          },
+        });
+    }
+  }
+
   onSubmit(): void {
-    if (this.candidateForm.invalid || !this.candidate) return;
+    const candidate = this.candidate();
+    if (this.candidateForm.invalid || !candidate) return;
 
     this.loading = true;
     this.error = null;
 
     const updatedCandidate = {
-      ...this.candidate,
+      ...candidate,
       ...this.candidateForm.value,
     };
 
     this.http
-      .patch<Candidate>(`${environment.apiUrl}/recruitment/candidates/${this.candidate.id}`, updatedCandidate)
+      .patch<Candidate>(
+        `${environment.apiUrl}/recruitment/candidates/${candidate.id}`,
+        updatedCandidate
+      )
       .subscribe({
         next: (response) => {
           this.loading = false;
@@ -141,31 +203,16 @@ export class CandidateModalComponent {
         },
         error: (err) => {
           this.loading = false;
-          this.error = err.error?.message || 'Failed to update candidate';
+          this.error = err.error?.message || "Failed to update candidate";
         },
       });
   }
 
-  onDelete(): void {
-    if (!this.candidate) return;
-
-    if (confirm('Are you sure you want to delete this candidate? This action cannot be undone.')) {
-      this.deleting = true;
-      this.error = null;
-
-      this.http
-        .delete(`${environment.apiUrl}/recruitment/candidates/${this.candidate.id}`)
-        .subscribe({
-          next: () => {
-            this.deleting = false;
-            this.deleted.emit(this.candidate?.id);
-            this.onClose();
-          },
-          error: (err) => {
-            this.deleting = false;
-            this.error = err.error?.message || 'Failed to delete candidate';
-          },
-        });
-    }
+  getStatusLabel(status: string): string {
+    return this.statusLabels[status]?.label || status;
   }
-} 
+
+  getStatusColor(status: string): string {
+    return this.statusLabels[status]?.color || "bg-gray-100 text-gray-800";
+  }
+}

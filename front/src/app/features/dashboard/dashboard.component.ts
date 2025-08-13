@@ -1,7 +1,8 @@
-import { Component, OnInit, OnDestroy } from "@angular/core";
+import { Component, inject, computed } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { Subscription } from "rxjs";
+import { toSignal } from "@angular/core/rxjs-interop";
 import { AuthService, User } from "../../../core/services/auth.service";
+import { AlertService } from "../../shared/services/alert.service";
 
 @Component({
   selector: "app-dashboard",
@@ -9,45 +10,48 @@ import { AuthService, User } from "../../../core/services/auth.service";
   imports: [CommonModule],
   templateUrl: "./dashboard.component.html",
 })
-export class DashboardComponent implements OnInit, OnDestroy {
-  constructor(private authService: AuthService) {}
+export class DashboardComponent {
+  private readonly authService = inject(AuthService);
+  private readonly alertService = inject(AlertService);
 
-  user: User | null = null;
-  loading = false;
-  private userSubscription?: Subscription;
-  private loadingSubscription?: Subscription;
+  // Convert observables to signals
+  readonly user = toSignal(this.authService.currentUser$, {
+    initialValue: null as User | null,
+  });
+  readonly loading = toSignal(this.authService.loading$, {
+    initialValue: false,
+  });
 
-  ngOnInit(): void {
-    // Subscribe to loading state
-    this.loadingSubscription = this.authService.loading$.subscribe(
-      (loading) => {
-        this.loading = loading;
-      }
-    );
-
-    // Subscribe to the user observable to get updates when user data is loaded
-    this.userSubscription = this.authService.currentUser$.subscribe((user) => {
-      this.user = user;
-    });
-  }
-
-  ngOnDestroy(): void {
-    // Clean up subscriptions to prevent memory leaks
-    if (this.userSubscription) {
-      this.userSubscription.unsubscribe();
-    }
-    if (this.loadingSubscription) {
-      this.loadingSubscription.unsubscribe();
-    }
-  }
+  // Computed property for better logic encapsulation
+  readonly hasTokenButNoUser = computed(
+    () => !!this.authService.token && !this.user() && !this.loading()
+  );
 
   // Method to retry loading user profile
   retryLoadProfile(): void {
     this.authService.retryLoadUserProfile();
   }
 
-  // Check if user is logged in but profile data is missing
-  get hasTokenButNoUser(): boolean {
-    return !!this.authService.token && !this.user && !this.loading;
+  // Test methods for the new ngx-sonner alerts
+  testSuccessAlert(): void {
+    this.alertService.showSuccess(
+      "Success!",
+      "This is a success message using ngx-sonner positioned at top-center!"
+    );
+  }
+
+  testErrorAlert(): void {
+    this.alertService.showError(
+      "Error!",
+      "This is an error message with top-center positioning"
+    );
+  }
+
+  testWarningAlert(): void {
+    this.alertService.showWarning("Warning!", "This is a warning message");
+  }
+
+  testInfoAlert(): void {
+    this.alertService.showInfo("Info", "This is an info message");
   }
 }
