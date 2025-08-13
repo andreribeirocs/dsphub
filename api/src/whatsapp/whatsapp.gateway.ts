@@ -6,16 +6,33 @@ import {
   SubscribeMessage,
   MessageBody,
   ConnectedSocket,
-} from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
-import { Server, Socket } from 'socket.io';
-import { WhatsAppMessage } from './whatsapp.service';
+} from "@nestjs/websockets";
+import { Logger } from "@nestjs/common";
+import { Server, Socket } from "socket.io";
+import { WhatsAppMessage } from "./whatsapp.service";
+
+// Get allowed origins from environment or use secure defaults
+const getAllowedOrigins = (): string | string[] => {
+  if (process.env.CORS_ORIGIN) {
+    return process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim());
+  }
+
+  // Development defaults only in non-production
+  if (process.env.NODE_ENV !== "production") {
+    return ["http://localhost:4200", "http://localhost:3000"];
+  }
+
+  // No origins allowed in production without explicit configuration
+  return [];
+};
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: getAllowedOrigins(),
+    credentials: true,
+    methods: ["GET", "POST"],
   },
-  namespace: '/whatsapp',
+  namespace: "/whatsapp",
 })
 export class WhatsAppGateway
   implements OnGatewayConnection, OnGatewayDisconnect
@@ -23,75 +40,84 @@ export class WhatsAppGateway
   @WebSocketServer()
   server: Server;
 
-  private logger: Logger = new Logger('WhatsAppGateway');
+  private logger: Logger = new Logger("WhatsAppGateway");
 
   handleConnection(client: Socket) {
     this.logger.log(`Client connected: ${client.id}`);
-    client.emit('connection_status', 'connected');
+    client.emit("connection_status", "connected");
   }
 
   handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
   }
 
-  @SubscribeMessage('join_room')
+  @SubscribeMessage("join_room")
   handleJoinRoom(
     @MessageBody() data: { phoneNumber: string },
-    @ConnectedSocket() client: Socket,
-  ) {
+    @ConnectedSocket() client: Socket
+  ): void {
     const room = `conversation_${data.phoneNumber}`;
-    client.join(room);
+    void client.join(room);
     this.logger.log(`Client ${client.id} joined room: ${room}`);
-    client.emit('room_joined', { room });
+    client.emit("room_joined", { room });
   }
 
-  @SubscribeMessage('leave_room')
+  @SubscribeMessage("leave_room")
   handleLeaveRoom(
     @MessageBody() data: { phoneNumber: string },
-    @ConnectedSocket() client: Socket,
-  ) {
+    @ConnectedSocket() client: Socket
+  ): void {
     const room = `conversation_${data.phoneNumber}`;
-    client.leave(room);
+    void client.leave(room);
     this.logger.log(`Client ${client.id} left room: ${room}`);
-    client.emit('room_left', { room });
+    client.emit("room_left", { room });
   }
 
-  @SubscribeMessage('typing_start')
+  @SubscribeMessage("typing_start")
   handleTypingStart(
     @MessageBody() data: { phoneNumber: string },
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: Socket
   ) {
     const room = `conversation_${data.phoneNumber}`;
-    client.to(room).emit('user_typing', { phoneNumber: data.phoneNumber });
+    client.to(room).emit("user_typing", { phoneNumber: data.phoneNumber });
   }
 
-  @SubscribeMessage('typing_stop')
+  @SubscribeMessage("typing_stop")
   handleTypingStop(
     @MessageBody() data: { phoneNumber: string },
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: Socket
   ) {
     const room = `conversation_${data.phoneNumber}`;
     client
       .to(room)
-      .emit('user_stopped_typing', { phoneNumber: data.phoneNumber });
+      .emit("user_stopped_typing", { phoneNumber: data.phoneNumber });
   }
 
-  // Emit new message to all connected clients
-  emitMessage(message: WhatsAppMessage) {
-    this.server.emit('new_message', message);
-    this.logger.log(`Emitted new message: ${message.id}`);
+  // Emit new message to all clients in conversation room
+  emitNewMessage(phoneNumber: string, message: WhatsAppMessage): void {
+    const room = `conversation_${phoneNumber}`;
+    this.server.to(room).emit("new_message", message);
+    this.logger.debug(`Emitted new message to room: ${room}`);
   }
 
-  // Emit message status update
-  emitStatusUpdate(update: { messageId: string; status: string }) {
-    this.server.emit('message_status_update', update);
-    this.logger.log(`Emitted status update for message: ${update.messageId}`);
+  // Emit message status update to all clients in conversation room
+  emitMessageStatusUpdate(
+    phoneNumber: string,
+    messageId: string,
+    status: string
+  ): void {
+    const room = `conversation_${phoneNumber}`;
+    this.server.to(room).emit("message_status_update", { messageId, status });
+    this.logger.debug(
+      `Emitted status update for message ${messageId} to room: ${room}`
+    );
   }
 
-  // Emit conversation update
-  emitConversationUpdate(conversation: { id: string; [key: string]: any }) {
-    this.server.emit('conversation_update', conversation);
-    this.logger.log(`Emitted conversation update: ${conversation.id}`);
+  // Emit conversation update to all clients
+  emitConversationUpdate(phoneNumber: string): void {
+    const room = `conversation_${phoneNumber}`;
+    this.server.to(room).emit("conversation_update", { phoneNumber });
+    this.logger.debug(`Emitted conversation update to room: ${room}`);
   }
 
   // Emit to specific conversation room
@@ -103,9 +129,9 @@ export class WhatsAppGateway
 
   // Broadcast connection status
   broadcastConnectionStatus(
-    status: 'connected' | 'disconnected' | 'connecting',
+    status: "connected" | "disconnected" | "connecting"
   ) {
-    this.server.emit('connection_status', status);
+    this.server.emit("connection_status", status);
     this.logger.log(`Broadcasted connection status: ${status}`);
   }
 }

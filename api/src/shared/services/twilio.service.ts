@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as twilio from 'twilio';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import * as twilio from "twilio";
 
 interface TwilioError {
   message?: string;
@@ -16,20 +16,20 @@ export class WhatsAppService {
   private isDev: boolean;
 
   constructor(private configService: ConfigService) {
-    this.isDev = this.configService.get<string>('NODE_ENV') !== 'production';
+    this.isDev = this.configService.get<string>("NODE_ENV") !== "production";
 
-    const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
-    const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
+    const accountSid = this.configService.get<string>("TWILIO_ACCOUNT_SID");
+    const authToken = this.configService.get<string>("TWILIO_AUTH_TOKEN");
 
     if (!accountSid || !authToken) {
       this.logger.error(
-        'Twilio credentials are missing. Check your environment variables.',
+        "Twilio credentials are missing. Check your environment variables."
       );
       return;
     }
 
     this.logger.debug(
-      `Initializing Twilio WhatsApp with SID: ${accountSid.substring(0, 5)}...`,
+      `Initializing Twilio WhatsApp with SID: ${accountSid.substring(0, 5)}...`
     );
 
     try {
@@ -41,22 +41,22 @@ export class WhatsAppService {
           .fetch()
           .then((account) =>
             this.logger.log(
-              `Twilio WhatsApp account authenticated: ${account.friendlyName}`,
-            ),
+              `Twilio WhatsApp account authenticated: ${account.friendlyName}`
+            )
           )
           .catch((err: unknown) => {
             const errorMessage =
-              err instanceof Error ? err.message : 'Unknown error';
+              err instanceof Error ? err.message : "Unknown error";
             this.logger.error(
-              `Twilio WhatsApp authentication test failed: ${errorMessage}`,
+              `Twilio WhatsApp authentication test failed: ${errorMessage}`
             );
           });
       }
     } catch (error: unknown) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
+        error instanceof Error ? error.message : "Unknown error";
       this.logger.error(
-        `Failed to initialize Twilio WhatsApp client: ${errorMessage}`,
+        `Failed to initialize Twilio WhatsApp client: ${errorMessage}`
       );
     }
   }
@@ -64,7 +64,7 @@ export class WhatsAppService {
   async sendWhatsAppMessage(to: string, body: string): Promise<boolean> {
     if (
       this.isDev &&
-      this.configService.get<string>('TWILIO_MOCK') === 'true'
+      this.configService.get<string>("TWILIO_MOCK") === "true"
     ) {
       this.logger.log(`[MOCK WHATSAPP] To: ${to}, Message: ${body}`);
       return true;
@@ -72,31 +72,31 @@ export class WhatsAppService {
 
     if (!this.client) {
       this.logger.error(
-        'Twilio WhatsApp client not initialized. Cannot send WhatsApp message.',
+        "Twilio WhatsApp client not initialized. Cannot send WhatsApp message."
       );
       return false;
     }
 
     try {
       const fromNumber = this.configService.get<string>(
-        'TWILIO_WHATSAPP_NUMBER',
+        "TWILIO_WHATSAPP_NUMBER"
       );
 
       if (!fromNumber) {
         this.logger.error(
-          'TWILIO_WHATSAPP_NUMBER is not defined in environment variables',
+          "TWILIO_WHATSAPP_NUMBER is not defined in environment variables"
         );
         return false;
       }
 
       // Format phone numbers for WhatsApp (must include whatsapp: prefix)
-      const whatsappTo = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
-      const whatsappFrom = fromNumber.startsWith('whatsapp:')
+      const whatsappTo = to.startsWith("whatsapp:") ? to : `whatsapp:${to}`;
+      const whatsappFrom = fromNumber.startsWith("whatsapp:")
         ? fromNumber
         : `whatsapp:${fromNumber}`;
 
       this.logger.log(
-        `Sending WhatsApp message to ${whatsappTo} from ${whatsappFrom}`,
+        `Sending WhatsApp message to ${whatsappTo} from ${whatsappFrom}`
       );
 
       const message = await this.client.messages.create({
@@ -109,11 +109,11 @@ export class WhatsAppService {
       return true;
     } catch (error: unknown) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
+        error instanceof Error ? error.message : "Unknown error";
       this.logger.error(`Failed to send WhatsApp message: ${errorMessage}`);
 
       // Handle Twilio-specific error properties with type safety
-      if (error && typeof error === 'object') {
+      if (error && typeof error === "object") {
         const twilioError = error as TwilioError;
 
         if (twilioError.code) {
@@ -131,8 +131,8 @@ export class WhatsAppService {
 
       if (this.isDev) {
         this.logger.error(
-          'Full error details:',
-          JSON.stringify(error, null, 2),
+          "Full error details:",
+          JSON.stringify(error, null, 2)
         );
       }
 
@@ -143,45 +143,45 @@ export class WhatsAppService {
   async sendWhatsAppTemplate(
     to: string,
     templateSid: string,
-    contentVariables: string[],
+    contentVariables: string[]
   ): Promise<boolean> {
     if (
       this.isDev &&
-      this.configService.get<string>('TWILIO_MOCK') === 'true'
+      this.configService.get<string>("TWILIO_MOCK") === "true"
     ) {
       this.logger.log(
-        `[MOCK WHATSAPP TEMPLATE] To: ${to}, Template: ${templateSid}, Variables: ${JSON.stringify(contentVariables)}`,
+        `[MOCK WHATSAPP TEMPLATE] To: ${to}, Template: ${templateSid}, Variables: ${JSON.stringify(contentVariables)}`
       );
       return true;
     }
 
     if (!this.client) {
       this.logger.error(
-        'Twilio WhatsApp client not initialized. Cannot send WhatsApp template.',
+        "Twilio WhatsApp client not initialized. Cannot send WhatsApp template."
       );
       return false;
     }
 
     try {
       const fromNumber = this.configService.get<string>(
-        'TWILIO_WHATSAPP_NUMBER',
+        "TWILIO_WHATSAPP_NUMBER"
       );
 
       if (!fromNumber) {
         this.logger.error(
-          'TWILIO_WHATSAPP_NUMBER is not defined in environment variables',
+          "TWILIO_WHATSAPP_NUMBER is not defined in environment variables"
         );
         return false;
       }
 
       // Format phone numbers for WhatsApp (must include whatsapp: prefix)
-      const whatsappTo = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
-      const whatsappFrom = fromNumber.startsWith('whatsapp:')
+      const whatsappTo = to.startsWith("whatsapp:") ? to : `whatsapp:${to}`;
+      const whatsappFrom = fromNumber.startsWith("whatsapp:")
         ? fromNumber
         : `whatsapp:${fromNumber}`;
 
       this.logger.log(
-        `Sending WhatsApp template to ${whatsappTo} from ${whatsappFrom}, Template: ${templateSid}`,
+        `Sending WhatsApp template to ${whatsappTo} from ${whatsappFrom}, Template: ${templateSid}`
       );
 
       // Format contentVariables as an object with numbered keys (required format for Twilio)
@@ -191,7 +191,7 @@ export class WhatsAppService {
       });
 
       // Log the complete request payload
-      this.logger.debug('WhatsApp template request payload:', {
+      this.logger.debug("WhatsApp template request payload:", {
         from: whatsappFrom,
         to: whatsappTo,
         contentSid: templateSid,
@@ -207,7 +207,7 @@ export class WhatsAppService {
 
       // Log the successful response
       this.logger.log(`WhatsApp template sent successfully: ${message.sid}`);
-      this.logger.debug('WhatsApp template response:', {
+      this.logger.debug("WhatsApp template response:", {
         sid: message.sid,
         status: message.status,
         direction: message.direction,
@@ -217,11 +217,11 @@ export class WhatsAppService {
       return true;
     } catch (error: unknown) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
+        error instanceof Error ? error.message : "Unknown error";
       this.logger.error(`Failed to send WhatsApp template: ${errorMessage}`);
 
       // Handle Twilio-specific error properties with type safety
-      if (error && typeof error === 'object') {
+      if (error && typeof error === "object") {
         const twilioError = error as TwilioError;
 
         if (twilioError.code) {
@@ -239,8 +239,8 @@ export class WhatsAppService {
 
       if (this.isDev) {
         this.logger.error(
-          'Full error details:',
-          JSON.stringify(error, null, 2),
+          "Full error details:",
+          JSON.stringify(error, null, 2)
         );
       }
 
@@ -254,23 +254,23 @@ export class WhatsAppService {
     }
 
     try {
-      const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
+      const accountSid = this.configService.get<string>("TWILIO_ACCOUNT_SID");
       if (!accountSid) {
         throw new Error(
-          'TWILIO_ACCOUNT_SID is not defined in environment variables',
+          "TWILIO_ACCOUNT_SID is not defined in environment variables"
         );
       }
       const account = await this.client.api.accounts(accountSid).fetch();
 
       this.logger.log(
-        `Verified Twilio WhatsApp account: ${account.friendlyName}`,
+        `Verified Twilio WhatsApp account: ${account.friendlyName}`
       );
       return true;
     } catch (error: unknown) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
+        error instanceof Error ? error.message : "Unknown error";
       this.logger.error(
-        `WhatsApp credential verification failed: ${errorMessage}`,
+        `WhatsApp credential verification failed: ${errorMessage}`
       );
       return false;
     }

@@ -38,12 +38,76 @@ model User {
   refreshToken     String?
   driverProfile    Driver?
   candidate        Candidate?
+
+  // New session management relationships
+  sessions         UserSession[]
+  loginAttempts    LoginAttempt[]
+  suspiciousLogins SuspiciousLogin[]
+
+  // Payment system relationships
+  routePriceUpdates     RoutePrice[]
+  paymentHistoryChanges PaymentHistory[]
+  processedPayments     DriverPayment[]
+
+  // Indexes for performance
+  @@index([role])
+  @@index([status])
+  @@index([lastLogin])
+  @@index([createdAt])
+}
+
+enum RouteType {
+  FULL_ROUTE
+  HIDE_ALONG
+  TRAINING_DAY
+  SAME_DAY
+  NURSERY_ROUTE
+  EXTRAS
+}
+
+model RoutePrice {
+  id            String    @id @default(uuid())
+  routeType     RouteType @unique
+  dailyRate     Decimal   @db.Decimal(8, 2)
+  lastUpdated   DateTime  @default(now())
+  updatedBy     String // User ID who updated the price
+  updatedByUser User      @relation(fields: [updatedBy], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // History tracking
+  priceHistory PaymentHistory[]
+
+  @@index([routeType])
+  @@index([lastUpdated])
+  @@index([updatedBy])
+  @@map("route_prices")
+}
+
+model PaymentHistory {
+  id            String     @id @default(uuid())
+  routePriceId  String
+  routePrice    RoutePrice @relation(fields: [routePriceId], references: [id], onDelete: Cascade)
+  routeType     RouteType
+  oldRate       Decimal?   @db.Decimal(8, 2) // null for initial creation
+  newRate       Decimal    @db.Decimal(8, 2)
+  changeReason  String? // Optional reason for the change
+  changedBy     String // User ID who made the change
+  changedByUser User       @relation(fields: [changedBy], references: [id])
+  changeDate    DateTime   @default(now())
+
+  @@index([routePriceId])
+  @@index([routeType])
+  @@index([changeDate])
+  @@index([changedBy])
+  @@map("payment_history")
 }
 
 model Driver {
   id              String   @id @default(uuid())
   userId          String   @unique
   user            User     @relation(fields: [userId], references: [id])
+  transporterId   String   @unique // New field: unique transporter ID like A12UAMGEOZD80X
   name            String
   phone           String
   email           String
@@ -76,12 +140,67 @@ model Driver {
   licenseNumber       String?
   insuranceNumber     String?
   documents           Json?
-  onboardingComplete  Boolean   @default(false)
-  backgroundCheckDone Boolean   @default(false)
-  classroomComplete   Boolean   @default(false)
+  onboardingComplete  Boolean          @default(false)
+  backgroundCheckDone Boolean          @default(false)
+  classroomComplete   Boolean          @default(false)
   rideAlongDate       DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  schedules           DriverSchedule[]
+
+  // Payment relationships
+  paymentRecords DriverPayment[]
+
+  // Indexes for performance
+  @@index([status])
+  @@index([depot])
+  @@index([email])
+  @@index([phone])
+  @@index([transporterId]) // New index
+  @@index([passportExpiry])
+  @@index([licenseExpiry])
+  @@index([rtwExpiry])
+  @@index([nextCheck])
+  @@index([joinDate])
+  @@index([createdAt])
+  @@index([status, depot]) // Composite index for filtering
+  @@index([depot, status]) // Alternative composite index
+}
+
+model DriverPayment {
+  id              String    @id @default(uuid())
+  driverId        String
+  driver          Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  workDate        DateTime  @db.Date
+  routeType       RouteType
+  // Optional route code provided by Amazon sheet (e.g., CA_A270)
+  routeCode       String?
+  dailyRate       Decimal   @db.Decimal(8, 2)
+  hoursWorked     Decimal?  @db.Decimal(4, 2) // Optional: actual hours worked
+  // Adjustments to the base daily rate
+  extraAmount     Decimal?  @db.Decimal(8, 2)
+  deductionAmount Decimal?  @db.Decimal(8, 2)
+  vanCharge       Decimal?  @db.Decimal(8, 2)
+  totalPaid       Decimal   @db.Decimal(8, 2) // Calculated: dailyRate * (hoursWorked/standardHours) or just dailyRate
+  isPaid          Boolean   @default(false)
+  paidDate        DateTime?
+  paidBy          String? // User ID who processed the payment
+  paidByUser      User?     @relation(fields: [paidBy], references: [id])
+  // For tracing origin (e.g., day sheet name "Thu 25-07-13")
+  sourceSheet     String?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([driverId, workDate]) // Prevent duplicate payments for same driver on same date
+  @@index([driverId])
+  @@index([workDate])
+  @@index([routeType])
+  @@index([isPaid])
+  @@index([paidDate])
+  @@index([paidBy])
+  @@index([workDate, routeType]) // Composite index for financial reports
+  @@map("driver_payments")
 }
 
 enum CandidateStatus {
@@ -97,6 +216,16 @@ enum CandidateStatus {
   RIDE_ALONG_COMPLETED
   ACTIVE_DRIVER
   REJECTED
+}
+
+enum ScheduleStatus {
+  FULL_ROUTE
+  OFF
+  HOLIDAY
+  RIDE_ALONG
+  TRAINING_DAY
+  SAME_DAY
+  NURSERY_ROUTE
 }
 
 model Candidate {
@@ -119,4 +248,415 @@ model Candidate {
   rideAlongDate   DateTime?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+
+  // Indexes for performance
+  @@index([phoneNumber])
+  @@index([email])
+  @@index([status])
+  @@index([smsToken])
+  @@index([tokenExpiry])
+  @@index([createdAt])
+  @@index([status, createdAt]) // Composite index for filtering
+  @@index([classroomDate])
+  @@index([rideAlongDate])
+}
+
+model DriverSchedule {
+  id        String         @id @default(uuid())
+  driverId  String
+  driver    Driver         @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  date      DateTime       @db.Date
+  status    ScheduleStatus
+  startTime String?
+  endTime   String?
+  notes     String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([driverId, date])
+  @@index([date])
+  @@index([status])
+  @@index([driverId, date]) // Already covered by unique constraint but explicit for clarity
+  @@index([date, status]) // Composite index for filtering schedules
+  @@map("driver_schedules")
+}
+
+// New models for session management and security
+
+model UserSession {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Session identification
+  sessionToken String @unique
+  refreshToken String @unique
+
+  // Device and location information
+  deviceInfo String? // User agent string
+  ipAddress  String?
+  location   String? // Derived from IP (city, country)
+
+  // Session metadata
+  isActive     Boolean  @default(true)
+  lastActivity DateTime @default(now())
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  // Security flags
+  isRevoked     Boolean   @default(false)
+  revokedAt     DateTime?
+  revokedReason String? // "logout", "suspicious", "expired", "admin"
+
+  @@index([userId])
+  @@index([sessionToken])
+  @@index([refreshToken])
+  @@index([isActive])
+  @@index([expiresAt])
+  @@index([userId, isActive])
+  @@map("user_sessions")
+}
+
+model RevokedToken {
+  id        String   @id @default(uuid())
+  token     String   @unique // JTI (JWT ID) or token hash
+  tokenType String // "access" or "refresh"
+  userId    String?
+  reason    String? // "logout", "suspicious", "compromised", "admin"
+  revokedAt DateTime @default(now())
+  expiresAt DateTime // When the token would naturally expire
+
+  @@index([token])
+  @@index([expiresAt])
+  @@index([userId])
+  @@map("revoked_tokens")
+}
+
+model LoginAttempt {
+  id     String  @id @default(uuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Attempt details
+  email     String
+  success   Boolean
+  ipAddress String?
+  userAgent String?
+  location  String?
+
+  // Security analysis
+  riskScore   Int   @default(0) // 0-100 risk assessment
+  riskFactors Json? // Array of risk factors detected
+
+  // Timing
+  attemptedAt DateTime @default(now())
+
+  @@index([email])
+  @@index([success])
+  @@index([attemptedAt])
+  @@index([ipAddress])
+  @@index([email, success, attemptedAt])
+  @@map("login_attempts")
+}
+
+model SuspiciousLogin {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Suspicious activity details
+  activityType String // "new_device", "new_location", "unusual_time", "rapid_requests"
+  description  String
+  riskScore    Int // 0-100
+
+  // Context information
+  ipAddress String?
+  userAgent String?
+  location  String?
+  sessionId String?
+
+  // Investigation status
+  status         String    @default("pending") // "pending", "investigated", "false_positive", "confirmed"
+  investigatedBy String?
+  investigatedAt DateTime?
+  notes          String?
+
+  // Timing
+  detectedAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([status])
+  @@index([detectedAt])
+  @@index([riskScore])
+  @@index([userId, status])
+  @@map("suspicious_logins")
+}
+
+model SecurityEvent {
+  id String @id @default(uuid())
+
+  // Event classification
+  eventType   String // "login_failure", "session_hijack", "token_theft", "brute_force"
+  severity    String // "low", "medium", "high", "critical"
+  description String
+
+  // Context
+  userId    String?
+  ipAddress String?
+  userAgent String?
+  endpoint  String?
+
+  // Additional data
+  metadata Json?
+
+  // Investigation
+  status     String    @default("open") // "open", "investigating", "resolved", "false_positive"
+  assignedTo String?
+  resolvedAt DateTime?
+
+  // Timing
+  occurredAt DateTime @default(now())
+
+  @@index([eventType])
+  @@index([severity])
+  @@index([status])
+  @@index([occurredAt])
+  @@index([userId])
+  @@map("security_events")
+}
+
+// Van Management System Models
+
+enum VanStatus {
+  BOOKED
+  DELIVERED
+  TBC
+  AVAILABLE
+  MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+enum VanCondition {
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+  NEEDS_ATTENTION
+}
+
+enum ContractStatus {
+  ACTIVE
+  REMOVED
+  BROKEN_DOWN
+  SUSPENDED
+  EXPIRED
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  OVERDUE
+}
+
+enum MaintenancePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Van {
+  id           String       @id @default(uuid())
+  vanNumber    String       @unique // Van ID like "03", "04", etc.
+  registration String       @unique
+  make         String // Mercedes, Ford, Peugeot
+  model        String // eSPRINTER L2 20, Transit, Boxer
+  year         Int?
+  status       VanStatus    @default(AVAILABLE)
+  condition    VanCondition @default(GOOD)
+
+  // MOT and compliance
+  motExpiry   DateTime?
+  motReminder Boolean   @default(true)
+
+  // Contract and rental information
+  contractId    String?
+  contract      Contract? @relation(fields: [contractId], references: [id])
+  monthlyRental Decimal?  @db.Decimal(8, 2)
+
+  // Vehicle details
+  vin          String? @unique
+  engineNumber String?
+  fuelType     String? // Diesel, Electric, Hybrid
+  capacity     String? // L2 20, etc.
+
+  // Operational details
+  depot          String?
+  assignedDriver String? // Driver name or ID
+  mileage        Int?      @default(0)
+  lastService    DateTime?
+  nextService    DateTime?
+
+  // Additional information
+  comments         String?
+  insuranceDetails Json? // Insurance policy details
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  maintenanceRecords MaintenanceRecord[]
+
+  // Indexes for performance
+  @@index([vanNumber])
+  @@index([registration])
+  @@index([status])
+  @@index([condition])
+  @@index([motExpiry])
+  @@index([contractId])
+  @@index([depot])
+  @@index([status, condition])
+  @@index([depot, status])
+  @@map("vans")
+}
+
+model Contract {
+  id         String         @id @default(uuid())
+  name       String         @unique // Amazon, DX, Spare
+  depot      String // DP01, DS01, Dartford Crawley
+  hireName   String // Marcos, etc.
+  rentalRate Decimal        @db.Decimal(8, 2) // Monthly rental amount
+  status     ContractStatus @default(ACTIVE)
+
+  // Insurance and supplier details
+  hasInsurance Boolean @default(false)
+  supplier     String? // Enterprise, Switch, Northgate
+
+  // Contract terms
+  startDate DateTime
+  endDate   DateTime?
+
+  // Contact information
+  contactEmail String?
+  contactPhone String?
+
+  // Additional details
+  description String?
+  terms       Json? // Contract terms and conditions
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  vans Van[]
+
+  // Indexes
+  @@index([name])
+  @@index([depot])
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([depot, status])
+  @@map("contracts")
+}
+
+model MaintenanceRecord {
+  id    String @id @default(uuid())
+  vanId String
+  van   Van    @relation(fields: [vanId], references: [id], onDelete: Cascade)
+
+  // Maintenance details
+  type        String // MOT, Service, Repair, Inspection
+  description String
+  status      MaintenanceStatus   @default(SCHEDULED)
+  priority    MaintenancePriority @default(MEDIUM)
+
+  // Scheduling
+  scheduledDate DateTime
+  completedDate DateTime?
+
+  // Cost information
+  estimatedCost Decimal? @db.Decimal(8, 2)
+  actualCost    Decimal? @db.Decimal(8, 2)
+
+  // Workshop details
+  workshop        String? // Workshop/garage name
+  workshopContact String?
+
+  // Parts and labor
+  partsUsed  Json? // Array of parts used
+  laborHours Decimal? @db.Decimal(4, 2)
+
+  // Documentation
+  notes         String?
+  invoiceNumber String?
+  warrantyUntil DateTime?
+
+  // Reminders and alerts
+  reminderSent Boolean @default(false)
+  isOverdue    Boolean @default(false)
+
+  // Assigned personnel
+  assignedTo String? // Technician or responsible person
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indexes
+  @@index([vanId])
+  @@index([status])
+  @@index([priority])
+  @@index([scheduledDate])
+  @@index([type])
+  @@index([vanId, status])
+  @@index([scheduledDate, status])
+  @@map("maintenance_records")
+}
+
+model Part {
+  id       String  @id @default(uuid())
+  name     String // Part name/description
+  category String? // Mirror, Tyre, Engine, etc.
+
+  // Vehicle compatibility
+  fordPrice     Decimal? @db.Decimal(8, 2)
+  mercedesPrice Decimal? @db.Decimal(8, 2)
+  peugeotPrice  Decimal? @db.Decimal(8, 2)
+
+  // Part details
+  partNumber  String?
+  supplier    String?
+  description String?
+
+  // Inventory management
+  stockLevel    Int @default(0)
+  minStockLevel Int @default(0)
+  maxStockLevel Int @default(100)
+
+  // Part specifications
+  weight       Decimal? @db.Decimal(8, 3)
+  dimensions   String? // Length x Width x Height
+  warrantyDays Int?     @default(365)
+
+  // Pricing and availability
+  isActive    Boolean  @default(true)
+  lastUpdated DateTime @default(now())
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indexes
+  @@index([name])
+  @@index([category])
+  @@index([partNumber])
+  @@index([isActive])
+  @@index([stockLevel])
+  @@index([category, isActive])
+  @@map("parts")
 }

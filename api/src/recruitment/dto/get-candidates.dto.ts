@@ -1,12 +1,12 @@
-import { IsOptional, IsString, IsEnum, IsInt, Min, Max } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { CandidateStatus } from '@prisma/client';
+import { IsOptional, IsString, IsEnum, IsInt, Min, Max } from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
+import { Type } from "class-transformer";
+import { CandidateStatus } from "@prisma/client";
 
 export class GetCandidatesDto {
   @ApiProperty({
     required: false,
-    description: 'Page number (zero-based)',
+    description: "Page number (zero-based)",
     default: 0,
   })
   @IsOptional()
@@ -17,7 +17,7 @@ export class GetCandidatesDto {
 
   @ApiProperty({
     required: false,
-    description: 'Page size',
+    description: "Page size",
     default: 10,
   })
   @IsOptional()
@@ -29,7 +29,7 @@ export class GetCandidatesDto {
 
   @ApiProperty({
     required: false,
-    description: 'Candidate status filter',
+    description: "Candidate status filter",
     enum: CandidateStatus,
   })
   @IsOptional()
@@ -38,7 +38,7 @@ export class GetCandidatesDto {
 
   @ApiProperty({
     required: false,
-    description: 'Search by name or phone number',
+    description: "Search by name or phone number",
   })
   @IsOptional()
   @IsString()

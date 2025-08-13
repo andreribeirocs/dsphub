@@ -1,40 +1,48 @@
 import {
   Controller,
-  Post,
   Get,
+  Post,
+  Delete,
   Body,
   Param,
-  Delete,
-  HttpCode,
-  HttpStatus,
-  Logger,
+  UseGuards,
   BadRequestException,
   NotFoundException,
-  UseGuards,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { WhatsAppService, TwilioWebhookPayload } from './whatsapp.service';
-import { SendMessageDto, QuickMessageDto } from './dto/send-message.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/auth/guards/roles.guard';
+  Logger,
+  HttpCode,
+  HttpStatus,
+} from "@nestjs/common";
+import { SecureErrorUtil } from "../shared/utils/secure-error.util";
+import { WhatsAppService } from "./whatsapp.service";
+import { TwilioWebhookPayload } from "./whatsapp.service";
+import { SendMessageDto } from "./dto/send-message.dto";
+import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
+import { RolesGuard } from "src/auth/guards/roles.guard";
+import {
+  ThrottleStrict,
+  ThrottleModerate,
+} from "src/auth/decorators/throttle.decorator";
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from "@nestjs/swagger";
 
-@ApiTags('whatsapp')
+@ApiTags("whatsapp")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('whatsapp')
+@Controller("whatsapp")
 export class WhatsAppController {
   private readonly logger = new Logger(WhatsAppController.name);
 
   constructor(private readonly whatsAppService: WhatsAppService) {}
 
-  @Post('send')
-  @ApiOperation({ summary: 'Send a WhatsApp message' })
-  @ApiResponse({ status: 201, description: 'Message sent successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid request data' })
+  @Post("send")
+  @ApiOperation({ summary: "Send a WhatsApp message" })
+  @ApiResponse({ status: 201, description: "Message sent successfully" })
+  @ApiResponse({ status: 400, description: "Invalid request data" })
+  @ApiResponse({ status: 429, description: "Too many requests." })
+  @ThrottleStrict()
   async sendMessage(@Body() sendMessageDto: SendMessageDto) {
     try {
       if (!sendMessageDto.to || !sendMessageDto.body) {
         throw new BadRequestException(
-          'Phone number and message body are required',
+          "Phone number and message body are required"
         );
       }
 
@@ -46,24 +54,24 @@ export class WhatsAppController {
         message,
       };
     } catch (error) {
-      this.logger.error('Failed to send message:', error);
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      throw new BadRequestException(errorMessage);
+      throw SecureErrorUtil.handleExternalServiceError(error, 'WhatsApp', 'send message');
     }
   }
 
-  @Post('webhook')
+  @Post("webhook")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Handle Twilio webhook for incoming messages and status updates',
+    summary: "Handle Twilio webhook for incoming messages and status updates",
   })
-  @ApiResponse({ status: 200, description: 'Webhook processed successfully' })
-  async handleWebhook(@Body() payload: TwilioWebhookPayload) {
+  @ApiResponse({ status: 200, description: "Webhook processed successfully" })
+  handleWebhook(@Body() payload: TwilioWebhookPayload): {
+    success: boolean;
+    error?: string;
+  } {
     try {
       this.logger.log(
-        'Received Twilio webhook:',
-        JSON.stringify(payload, null, 2),
+        "Received Twilio webhook:",
+        JSON.stringify(payload, null, 2)
       );
 
       // Handle different types of webhooks
@@ -77,190 +85,158 @@ export class WhatsAppController {
 
       return { success: true };
     } catch (error) {
-      this.logger.error('Error processing webhook:', error);
-      return { success: false, error: error.message };
+      this.logger.error("Error processing webhook:", error);
+      
+      // Don't expose internal errors to webhook callers - return generic response
+      return { success: false, error: "Webhook processing failed" };
     }
   }
 
-  @Get('conversations')
-  @ApiOperation({ summary: 'Get all WhatsApp conversations' })
-  @ApiResponse({
-    status: 200,
-    description: 'Conversations retrieved successfully',
-  })
+  @Get("conversations")
+  @ApiOperation({ summary: "Get all WhatsApp conversations" })
+  @ApiResponse({ status: 200, description: "List of conversations" })
   getConversations() {
     try {
       const conversations = this.whatsAppService.getConversations();
       return {
         success: true,
-        conversations,
+        data: conversations,
+        total: conversations.length,
       };
     } catch (error) {
-      this.logger.error('Failed to get conversations:', error);
-      throw new BadRequestException(error.message);
+      throw SecureErrorUtil.createSecureError(error, 'WhatsApp.getConversations', 'Failed to retrieve conversations');
     }
   }
 
-  @Get('conversations/:phoneNumber')
-  @ApiOperation({ summary: 'Get a specific conversation by phone number' })
-  @ApiResponse({
-    status: 200,
-    description: 'Conversation retrieved successfully',
-  })
-  @ApiResponse({ status: 404, description: 'Conversation not found' })
-  getConversation(@Param('phoneNumber') phoneNumber: string) {
+  @Get("conversations/:phoneNumber")
+  @ApiOperation({ summary: "Get a specific conversation" })
+  @ApiResponse({ status: 200, description: "Conversation details" })
+  @ApiResponse({ status: 404, description: "Conversation not found" })
+  getConversation(@Param("phoneNumber") phoneNumber: string) {
     try {
       const conversation = this.whatsAppService.getConversation(phoneNumber);
 
       if (!conversation) {
         throw new NotFoundException(
-          `Conversation with ${phoneNumber} not found`,
+          `Conversation with ${phoneNumber} not found`
         );
       }
 
       return {
         success: true,
-        conversation,
+        data: conversation,
       };
     } catch (error) {
-      this.logger.error(
-        `Failed to get conversation for ${phoneNumber}:`,
-        error,
-      );
       if (error instanceof NotFoundException) {
         throw error;
       }
-      throw new BadRequestException(error.message);
+
+      throw SecureErrorUtil.createSecureError(error, 'WhatsApp.getConversation', 'Failed to retrieve conversation');
     }
   }
 
-  @Post('conversations/:phoneNumber/read')
-  @ApiOperation({ summary: 'Mark conversation as read' })
-  @ApiResponse({ status: 200, description: 'Conversation marked as read' })
-  markAsRead(@Param('phoneNumber') phoneNumber: string) {
-    try {
-      this.whatsAppService.markConversationAsRead(phoneNumber);
-      return {
-        success: true,
-        message: 'Conversation marked as read',
-      };
-    } catch (error) {
-      this.logger.error(
-        `Failed to mark conversation as read for ${phoneNumber}:`,
-        error,
-      );
-      throw new BadRequestException(error.message);
-    }
-  }
-
-  @Delete('conversations/:phoneNumber')
-  @ApiOperation({ summary: 'Delete a conversation' })
-  @ApiResponse({
-    status: 200,
-    description: 'Conversation deleted successfully',
-  })
-  @ApiResponse({ status: 404, description: 'Conversation not found' })
-  deleteConversation(@Param('phoneNumber') phoneNumber: string) {
-    try {
-      const deleted = this.whatsAppService.deleteConversation(phoneNumber);
-
-      if (!deleted) {
-        throw new NotFoundException(
-          `Conversation with ${phoneNumber} not found`,
-        );
-      }
-
-      return {
-        success: true,
-        message: 'Conversation deleted successfully',
-      };
-    } catch (error) {
-      this.logger.error(
-        `Failed to delete conversation for ${phoneNumber}:`,
-        error,
-      );
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new BadRequestException(error.message);
-    }
-  }
-
-  @Post('quick-message')
-  @ApiOperation({ summary: 'Send a quick message template' })
-  @ApiResponse({ status: 201, description: 'Quick message sent successfully' })
-  async sendQuickMessage(@Body() body: QuickMessageDto) {
-    try {
-      const templates = {
-        greeting: 'Hello! This is a message from the dispatch team.',
-        availability: 'Please confirm your availability for today.',
-        document_reminder:
-          'Your documents are expiring soon. Please update them.',
-        thank_you: 'Thank you for your service today!',
-      };
-
-      const messageBody = templates[body.template];
-
-      if (!messageBody) {
-        throw new BadRequestException('Invalid template type');
-      }
-
-      const message = await this.whatsAppService.sendMessage({
-        to: body.to,
-        body: messageBody,
-      });
-
-      return {
-        success: true,
-        message,
-      };
-    } catch (error) {
-      this.logger.error('Failed to send quick message:', error);
-      throw new BadRequestException(error.message);
-    }
-  }
-
-  @Post('send-template')
-  @ApiOperation({
-    summary: 'Send a WhatsApp template message to initiate conversation',
+  @Post("template")
+  @ApiOperation({ summary: "Send a WhatsApp template message" })
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        to: { type: "string", description: "Recipient phone number" },
+        templateSid: { type: "string", description: "Template SID" },
+        variables: {
+          type: "array",
+          items: { type: "string" },
+          description: "Template variables",
+        },
+      },
+      required: ["to", "templateSid"],
+    },
   })
   @ApiResponse({
     status: 201,
-    description: 'Template message sent successfully',
+    description: "Template message sent successfully",
   })
-  @ApiResponse({ status: 400, description: 'Invalid request data' })
-  async sendTemplateMessage(@Body() body: { to: string }) {
+  @ApiResponse({ status: 400, description: "Invalid request data" })
+  @ApiResponse({ status: 429, description: "Too many requests." })
+  @ThrottleStrict()
+  async sendTemplateMessage(
+    @Body() body: { to: string; templateSid: string; variables?: string[] }
+  ) {
     try {
-      if (!body.to) {
-        throw new BadRequestException('Phone number is required');
+      if (!body.to || !body.templateSid) {
+        throw new BadRequestException(
+          "Phone number and template SID are required"
+        );
       }
 
-      const message = await this.whatsAppService.sendTemplateMessageManually(
+      const success = await this.whatsAppService.sendWhatsAppTemplate(
         body.to,
+        body.templateSid,
+        body.variables || []
       );
+
+      if (!success) {
+        throw new BadRequestException("Failed to send template message");
+      }
+
       this.logger.log(`Template message sent to ${body.to}`);
 
       return {
         success: true,
-        message,
+        message: "Template message sent successfully",
       };
     } catch (error) {
-      this.logger.error('Failed to send template message:', error);
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      throw new BadRequestException(errorMessage);
+      throw SecureErrorUtil.handleExternalServiceError(error, 'WhatsApp', 'send template message');
     }
   }
 
-  @Get('health')
-  @ApiOperation({ summary: 'Health check for WhatsApp service' })
-  @ApiResponse({ status: 200, description: 'Service is healthy' })
+  @Get("health")
+  @ApiOperation({ summary: "Health check for WhatsApp service" })
+  @ApiResponse({ status: 200, description: "Service is healthy" })
   healthCheck() {
     return {
-      success: true,
-      status: 'healthy',
+      status: "ok",
+      service: "WhatsApp",
       timestamp: new Date().toISOString(),
-      service: 'WhatsApp API',
+      features: {
+        messaging: true,
+        templates: true,
+        webhooks: true,
+        conversations: true,
+      },
+    };
+  }
+
+  @Get("templates")
+  @ApiOperation({ summary: "Get available message templates" })
+  @ApiResponse({ status: 200, description: "List of available templates" })
+  getTemplates() {
+    // In a real implementation, this would fetch from Twilio or a database
+    const templates = [
+      {
+        id: "greeting",
+        name: "Greeting Message",
+        content: "Hello, welcome to our service!",
+        variables: [],
+      },
+      {
+        id: "registration_link",
+        name: "Registration Link",
+        content: "Please complete your registration: {{1}}",
+        variables: ["registration_url"],
+      },
+      {
+        id: "document_reminder",
+        name: "Document Reminder",
+        content:
+          "Please upload your {{1}} document to complete your application.",
+        variables: ["document_type"],
+      },
+    ];
+
+    return {
+      success: true,
+      data: templates,
     };
   }
 }

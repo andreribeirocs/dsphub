@@ -5,61 +5,61 @@ import {
   Matches,
   IsEnum,
   IsBase64,
-} from 'class-validator';
-import { CandidateStatus } from '@prisma/client';
-import { ApiProperty } from '@nestjs/swagger';
+} from "class-validator";
+import { CandidateStatus } from "@prisma/client";
+import { ApiProperty } from "@nestjs/swagger";
 
 export class UpdateCandidateDto {
   @ApiProperty({
-    description: 'Candidate name',
+    description: "Candidate name",
     required: false,
-    example: 'John Doe',
+    example: "John Doe",
   })
   @IsString()
   @IsOptional()
   name?: string;
 
   @ApiProperty({
-    description: 'Phone number in international format',
+    description: "Phone number in international format",
     required: false,
-    example: '+447123456789',
+    example: "+447123456789",
   })
   @IsString()
   @IsOptional()
   @Matches(/^\+?[1-9]\d{1,14}$/, {
-    message: 'Phone number must be a valid international format',
+    message: "Phone number must be a valid international format",
   })
   phoneNumber?: string;
 
   @ApiProperty({
-    description: 'Email address',
+    description: "Email address",
     required: false,
-    example: 'john@example.com',
+    example: "john@example.com",
   })
   @IsEmail()
   @IsOptional()
   email?: string;
 
   @ApiProperty({
-    description: 'Physical address',
+    description: "Physical address",
     required: false,
-    example: '123 Main St, London',
+    example: "123 Main St, London",
   })
   @IsString()
   @IsOptional()
   address?: string;
 
   @ApiProperty({
-    description: 'Insurance policy number',
+    description: "Insurance policy number",
     required: false,
-    example: 'INS123456',
+    example: "INS123456",
   })
   @IsString()
   @IsOptional()
   insuranceNumber?: string;
 
   @ApiProperty({
-    description: 'Insurance document image in base64 format',
+    description: "Insurance document image in base64 format",
     required: false,
   })
   @IsBase64()
@@ -67,16 +67,16 @@ export class UpdateCandidateDto {
   insuranceNumberImage?: string;
 
   @ApiProperty({
-    description: 'Driver license number',
+    description: "Driver license number",
     required: false,
-    example: 'DL123456',
+    example: "DL123456",
   })
   @IsString()
   @IsOptional()
   driverLicense?: string;
 
   @ApiProperty({
-    description: 'Driver license image in base64 format',
+    description: "Driver license image in base64 format",
     required: false,
   })
   @IsBase64()
@@ -84,7 +84,7 @@ export class UpdateCandidateDto {
   driverLicenseImage?: string;
 
   @ApiProperty({
-    description: 'Address proof document in base64 format',
+    description: "Address proof document in base64 format",
     required: false,
   })
   @IsBase64()
@@ -92,19 +92,19 @@ export class UpdateCandidateDto {
   addressProofImage?: string;
 
   @ApiProperty({
-    description: 'Additional notes about the candidate',
+    description: "Additional notes about the candidate",
     required: false,
-    example: 'Passed background check on 2024-03-20',
+    example: "Passed background check on 2024-03-20",
   })
   @IsString()
   @IsOptional()
   notes?: string;
 
   @ApiProperty({
-    description: 'Current status of the candidate',
+    description: "Current status of the candidate",
     required: false,
     enum: CandidateStatus,
-    example: 'APPROVED',
+    example: "APPROVED",
   })
   @IsEnum(CandidateStatus)
   @IsOptional()

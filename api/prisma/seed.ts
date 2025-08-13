@@ -1,17 +1,27 @@
-import { PrismaClient, UserRole } from '@prisma/client';
-import { hash } from 'bcrypt';
+import { PrismaClient, UserRole } from "@prisma/client";
+import { hash } from "bcrypt";
 
 const prisma = new PrismaClient();
 
-const depots = ['London', 'Manchester', 'Birmingham', 'Liverpool', 'Glasgow'];
-const statuses = ['ACTIVE', 'PENDING', 'INACTIVE', 'SUSPENDED'];
-const contractTypes = ['FULL_TIME', 'PART_TIME', 'CONTRACTOR'];
-const citizenship = ['UK', 'EU', 'Non-EU'];
+const depots = ["London", "Manchester", "Birmingham", "Liverpool", "Glasgow"];
+const statuses = ["ACTIVE", "PENDING", "INACTIVE", "SUSPENDED"];
+const contractTypes = ["FULL_TIME", "PART_TIME", "CONTRACTOR"];
+const citizenship = ["UK", "EU", "Non-EU"];
 
 function getRandomDate(start: Date, end: Date) {
   return new Date(
-    start.getTime() + Math.random() * (end.getTime() - start.getTime()),
+    start.getTime() + Math.random() * (end.getTime() - start.getTime())
   );
+}
+
+function generateTransporterId(): string {
+  // Generate a unique transporter ID like A12UAMGEOZD80X
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let result = "";
+  for (let i = 0; i < 14; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }
 
 function getRandomElement<T>(array: T[]): T {
@@ -20,73 +30,85 @@ function getRandomElement<T>(array: T[]): T {
 
 function generateRandomName() {
   const firstNames = [
-    'John',
-    'Jane',
-    'Michael',
-    'Sarah',
-    'David',
-    'Emma',
-    'James',
-    'Lisa',
-    'Robert',
-    'Maria',
+    "John",
+    "Jane",
+    "Michael",
+    "Sarah",
+    "David",
+    "Emma",
+    "James",
+    "Lisa",
+    "Robert",
+    "Maria",
   ];
   const lastNames = [
-    'Smith',
-    'Johnson',
-    'Williams',
-    'Brown',
-    'Jones',
-    'Garcia',
-    'Miller',
-    'Davis',
-    'Rodriguez',
-    'Martinez',
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Rodriguez",
+    "Martinez",
   ];
   return `${getRandomElement(firstNames)} ${getRandomElement(lastNames)}`;
 }
 
 function generateRandomEmail(name: string, index: number) {
-  const domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com'];
-  const sanitizedName = name.toLowerCase().replace(' ', '.');
+  const domains = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com"];
+  const sanitizedName = name.toLowerCase().replace(" ", ".");
   return `${sanitizedName}${index}@${getRandomElement(domains)}`;
 }
 
 function generateRandomPhone() {
   return `07${Math.floor(Math.random() * 1000000000)
     .toString()
-    .padStart(9, '0')}`;
+    .padStart(9, "0")}`;
 }
 
 // Generate document status based on expiry date
 function generateDocumentStatus(expiryDate: Date): string {
   const now = new Date();
   const diffInDays = Math.ceil(
-    (expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+    (expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
   );
 
   if (diffInDays < 0) {
-    return 'EXPIRED';
+    return "EXPIRED";
   } else if (diffInDays <= 30) {
-    return 'EXPIRING';
+    return "EXPIRING";
   } else if (Math.random() < 0.1) {
-    return 'PENDING'; // 10% chance of pending
+    return "PENDING"; // 10% chance of pending
   } else {
-    return 'VERIFIED';
+    return "VERIFIED";
   }
 }
 
 async function main() {
   try {
-    // Create admin user if not exists
-    const adminPassword = await hash('admin123', 10);
+    // Create admin users if not exists
+    const adminPassword = await hash("admin123", 10);
     await prisma.user.upsert({
-      where: { email: 'admin@example.com' },
+      where: { email: "admin@example.com" },
       update: {},
       create: {
-        email: 'admin@example.com',
+        email: "admin@example.com",
         password: adminPassword,
-        name: 'Admin User',
+        name: "Admin User",
+        role: UserRole.DIRECTOR,
+      },
+    });
+
+    // Create Triun admin user
+    await prisma.user.upsert({
+      where: { email: "admin@triun.com" },
+      update: {},
+      create: {
+        email: "admin@triun.com",
+        password: adminPassword,
+        name: "Triun Admin",
         role: UserRole.DIRECTOR,
       },
     });
@@ -94,18 +116,18 @@ async function main() {
     // Create specific drivers first
     const specificDrivers = [
       {
-        name: 'Mario Candido',
-        phone: '+5562992317121',
-        email: 'mario.candido@example.com',
+        name: "Mario Candido",
+        phone: "+5562992317121",
+        email: "mario.candido@example.com",
       },
       {
-        name: 'Andre Ribeiro',
-        phone: '+447403162161',
-        email: 'andre.ribeiro@example.com',
+        name: "Andre Ribeiro",
+        phone: "+447403162161",
+        email: "andre.ribeiro@example.com",
       },
     ];
 
-    console.log('Creating specific drivers...');
+    console.log("Creating specific drivers...");
     for (let i = 0; i < specificDrivers.length; i++) {
       const driverData = specificDrivers[i];
       const status = getRandomElement(statuses);
@@ -120,23 +142,23 @@ async function main() {
       // Generate expiry dates with some variety (some past, some near future, some far future)
       const passportExpiry = getRandomDate(
         new Date(2023, 0, 1),
-        new Date(2026, 11, 31),
+        new Date(2026, 11, 31)
       );
       const licenseExpiry = getRandomDate(
         new Date(2023, 6, 1),
-        new Date(2026, 5, 31),
+        new Date(2026, 5, 31)
       );
       const rtwExpiry = getRandomDate(
         new Date(2023, 0, 1),
-        new Date(2025, 11, 31),
+        new Date(2025, 11, 31)
       );
       const medicalExpiry = getRandomDate(
         new Date(2023, 0, 1),
-        new Date(2025, 11, 31),
+        new Date(2025, 11, 31)
       );
       const dbsExpiry = getRandomDate(
         new Date(2023, 0, 1),
-        new Date(2026, 11, 31),
+        new Date(2026, 11, 31)
       );
 
       const lastCheck = getRandomDate(new Date(2023, 0, 1), now);
@@ -150,7 +172,7 @@ async function main() {
       const dbsStatus = generateDocumentStatus(dbsExpiry);
 
       // Create user for driver
-      const userPassword = await hash('password123', 10);
+      const userPassword = await hash("password123", 10);
       const user = await prisma.user.create({
         data: {
           email: driverData.email,
@@ -163,12 +185,13 @@ async function main() {
       // Create driver
       await prisma.driver.create({
         data: {
+          transporterId: generateTransporterId(),
           name: driverData.name,
           email: driverData.email,
           phone: driverData.phone,
           status,
           depot,
-          address: `${Math.floor(Math.random() * 100)} ${getRandomElement(['High Street', 'Main Road', 'Church Lane', 'Park Avenue'])}`,
+          address: `${Math.floor(Math.random() * 100)} ${getRandomElement(["High Street", "Main Road", "Church Lane", "Park Avenue"])}`,
           citizenship: citizenshipType,
           contractType,
           passportExpiry,
@@ -206,7 +229,7 @@ async function main() {
       });
 
       console.log(
-        `Created specific driver ${i + 1}/${specificDrivers.length}: ${driverData.name} (${driverData.phone}) - Documents: P:${passportStatus}, L:${licenseStatus}, R:${rtwStatus}, M:${medicalStatus}, D:${dbsStatus}`,
+        `Created specific driver ${i + 1}/${specificDrivers.length}: ${driverData.name} (${driverData.phone}) - Documents: P:${passportStatus}, L:${licenseStatus}, R:${rtwStatus}, M:${medicalStatus}, D:${dbsStatus}`
       );
     }
 
@@ -230,23 +253,23 @@ async function main() {
       // Generate expiry dates with some variety (some past, some near future, some far future)
       const passportExpiry = getRandomDate(
         new Date(2023, 0, 1),
-        new Date(2026, 11, 31),
+        new Date(2026, 11, 31)
       );
       const licenseExpiry = getRandomDate(
         new Date(2023, 6, 1),
-        new Date(2026, 5, 31),
+        new Date(2026, 5, 31)
       );
       const rtwExpiry = getRandomDate(
         new Date(2023, 0, 1),
-        new Date(2025, 11, 31),
+        new Date(2025, 11, 31)
       );
       const medicalExpiry = getRandomDate(
         new Date(2023, 0, 1),
-        new Date(2025, 11, 31),
+        new Date(2025, 11, 31)
       );
       const dbsExpiry = getRandomDate(
         new Date(2023, 0, 1),
-        new Date(2026, 11, 31),
+        new Date(2026, 11, 31)
       );
 
       const lastCheck = getRandomDate(new Date(2023, 0, 1), now);
@@ -260,7 +283,7 @@ async function main() {
       const dbsStatus = generateDocumentStatus(dbsExpiry);
 
       // Create user for driver
-      const userPassword = await hash('password123', 10);
+      const userPassword = await hash("password123", 10);
       const user = await prisma.user.create({
         data: {
           email,
@@ -273,12 +296,13 @@ async function main() {
       // Create driver
       await prisma.driver.create({
         data: {
+          transporterId: generateTransporterId(),
           name,
           email,
           phone,
           status,
           depot,
-          address: `${Math.floor(Math.random() * 100)} ${getRandomElement(['High Street', 'Main Road', 'Church Lane', 'Park Avenue'])}`,
+          address: `${Math.floor(Math.random() * 100)} ${getRandomElement(["High Street", "Main Road", "Church Lane", "Park Avenue"])}`,
           citizenship: citizenshipType,
           contractType,
           passportExpiry,
@@ -316,13 +340,13 @@ async function main() {
       });
 
       console.log(
-        `Created random driver ${i + 1}/${remainingDrivers}: ${name} - Documents: P:${passportStatus}, L:${licenseStatus}, R:${rtwStatus}, M:${medicalStatus}, D:${dbsStatus}`,
+        `Created random driver ${i + 1}/${remainingDrivers}: ${name} - Documents: P:${passportStatus}, L:${licenseStatus}, R:${rtwStatus}, M:${medicalStatus}, D:${dbsStatus}`
       );
     }
 
-    console.log('Seed completed successfully');
+    console.log("Seed completed successfully");
   } catch (error) {
-    console.error('Error during seeding:', error);
+    console.error("Error during seeding:", error);
     throw error;
   } finally {
     await prisma.$disconnect();

@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Logger,
 } from "@nestjs/common";
+import { SecureErrorUtil } from "../shared/utils/secure-error.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { WhatsAppService } from "../shared/services/twilio.service";
 import { ConfigService } from "@nestjs/config";
@@ -14,16 +15,27 @@ import { UpdateCandidateDto } from "./dto/update-candidate.dto";
 import { Prisma } from "@prisma/client";
 import { nanoid } from "nanoid";
 
+// Constants
+const SMS_TOKEN_LENGTH = 7;
+const TOKEN_EXPIRY_HOURS = 48;
+const DEFAULT_PAGE_SIZE = 10;
+
 @Injectable()
 export class RecruitmentService {
   private readonly logger = new Logger(RecruitmentService.name);
 
   constructor(
-    private prisma: PrismaService,
-    private whatsappService: WhatsAppService,
-    private configService: ConfigService
+    private readonly prisma: PrismaService,
+    private readonly whatsappService: WhatsAppService,
+    private readonly configService: ConfigService
   ) {}
 
+  /**
+   * Create a new candidate in the system
+   * @param createCandidateDto - Candidate creation data
+   * @returns Created candidate object
+   * @throws BadRequestException if candidate already exists
+   */
   async createCandidate(createCandidateDto: CreateCandidateDto) {
     const existingCandidate = await this.prisma.candidate.findFirst({
       where: { phoneNumber: createCandidateDto.phoneNumber },
@@ -35,9 +47,9 @@ export class RecruitmentService {
       );
     }
 
-    const smsToken = nanoid(7);
+    const smsToken = nanoid(SMS_TOKEN_LENGTH);
     const tokenExpiry = new Date();
-    tokenExpiry.setHours(tokenExpiry.getHours() + 48);
+    tokenExpiry.setHours(tokenExpiry.getHours() + TOKEN_EXPIRY_HOURS);
 
     const candidate = await this.prisma.candidate.create({
       data: {
@@ -125,22 +137,48 @@ export class RecruitmentService {
       throw new NotFoundException("Invalid or expired token");
     }
 
+    // Check if candidate has already completed registration
+    if (
+      candidate.status === "DOCUMENTS_UPLOADED" ||
+      candidate.status === "BACKGROUND_CHECK" ||
+      candidate.status === "APPROVED"
+    ) {
+      return {
+        candidateId: candidate.id,
+        name: candidate.name,
+        phone: candidate.phoneNumber,
+        alreadyCompleted: true,
+        status: candidate.status,
+        completedAt: candidate.updatedAt,
+      };
+    }
+
     return {
       candidateId: candidate.id,
       name: candidate.name,
       phone: candidate.phoneNumber,
+      alreadyCompleted: false,
     };
   }
 
   async completeRegistration(completeRegistrationDto: CompleteRegistrationDto) {
     const {
       token,
+      email,
+      dateOfBirth,
       address,
+      postalCode,
       insuranceNumber,
       driverLicense,
+      driverLicenseExpiry,
+      emergencyContactName,
+      emergencyContactPhone,
+      emergencyContactRelationship,
       driverLicenseImage,
       insuranceImage,
       addressProofImage,
+      passportImage,
+      rightToWorkImage,
       comments,
     } = completeRegistrationDto;
 
@@ -157,35 +195,64 @@ export class RecruitmentService {
       throw new NotFoundException("Invalid or expired token");
     }
 
+    // Prepare documents object with all uploaded files
     const documents = {
       driverLicenseImage,
       insuranceImage,
       addressProofImage,
+      ...(passportImage && { passportImage }),
+      ...(rightToWorkImage && { rightToWorkImage }),
+    };
+
+    // Prepare additional data for the candidate record
+    const additionalData = {
+      dateOfBirth: new Date(dateOfBirth),
+      postalCode,
+      driverLicenseExpiry: new Date(driverLicenseExpiry),
+      emergencyContact: {
+        name: emergencyContactName,
+        phone: emergencyContactPhone,
+        relationship: emergencyContactRelationship,
+      },
     };
 
     const updatedCandidate = await this.prisma.candidate.update({
       where: { id: candidate.id },
       data: {
+        email: email || candidate.email,
         address,
         insuranceNumber,
         driverLicense,
-        documents,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        documents: {
+          ...documents,
+          additionalData,
+        } as any,
         status: "DOCUMENTS_UPLOADED",
         notes: comments || candidate.notes,
       },
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { documents: _documents, ...result } = updatedCandidate;
+    const {
+      documents: candidateDocuments,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      smsToken,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      tokenExpiry,
+      ...result
+    } = updatedCandidate;
 
     return {
       ...result,
       message: "Registration completed successfully",
+      documentsUploaded: candidateDocuments
+        ? Object.keys(candidateDocuments as Record<string, unknown>).length
+        : 0,
     };
   }
 
   async getAllCandidates(query: GetCandidatesDto) {
-    const { page = 0, pageSize = 10, status, search } = query;
+    const { page = 0, pageSize = DEFAULT_PAGE_SIZE, status, search } = query;
 
     const where: Prisma.CandidateWhereInput = {};
 
@@ -223,10 +290,7 @@ export class RecruitmentService {
         },
       };
     } catch (error: unknown) {
-      this.logger.error(
-        `Error retrieving candidates: ${error instanceof Error ? error.message : String(error)}`
-      );
-      throw new BadRequestException("Failed to retrieve candidates");
+      throw SecureErrorUtil.handleDatabaseError(error, "retrieve candidates");
     }
   }
 
@@ -246,11 +310,8 @@ export class RecruitmentService {
       }
 
       // Remove sensitive information
-      const {
-        smsToken: _smsToken,
-        tokenExpiry: _tokenExpiry,
-        ...safeCandidate
-      } = candidate;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { smsToken, tokenExpiry, ...safeCandidate } = candidate;
 
       // Count documents if they exist
       const documentsCount = candidate.documents
@@ -277,6 +338,7 @@ export class RecruitmentService {
         typeof error === "object" &&
         error !== null &&
         "code" in error &&
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         error.code === "P2023"
       ) {
         throw new BadRequestException("Invalid candidate ID format");
@@ -322,7 +384,7 @@ export class RecruitmentService {
       }
 
       // Prepare documents object
-      const documents = {
+      const updatedDocuments = {
         ...((existingCandidate.documents as Record<string, unknown>) || {}),
         ...(updateCandidateDto.driverLicenseImage && {
           driverLicenseImage: updateCandidateDto.driverLicenseImage,
@@ -337,9 +399,12 @@ export class RecruitmentService {
 
       // Remove image fields from DTO as they'll be stored in documents
       const {
-        driverLicenseImage: _driverLicenseImage,
-        insuranceNumberImage: _insuranceNumberImage,
-        addressProofImage: _addressProofImage,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        driverLicenseImage,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        insuranceNumberImage,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        addressProofImage,
         ...updateData
       } = updateCandidateDto;
 
@@ -348,16 +413,13 @@ export class RecruitmentService {
         where: { id },
         data: {
           ...updateData,
-          documents,
+          documents: updatedDocuments,
         },
       });
 
       // Remove sensitive information
-      const {
-        smsToken: _smsToken2,
-        tokenExpiry: _tokenExpiry2,
-        ...safeCandidate
-      } = updatedCandidate;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { smsToken, tokenExpiry, ...safeCandidate } = updatedCandidate;
 
       // Count documents if they exist
       const documentsCount = updatedCandidate.documents
@@ -388,6 +450,7 @@ export class RecruitmentService {
         typeof error === "object" &&
         error !== null &&
         "code" in error &&
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         error.code === "P2023"
       ) {
         throw new BadRequestException("Invalid candidate ID format");
@@ -439,6 +502,7 @@ export class RecruitmentService {
         typeof error === "object" &&
         error !== null &&
         "code" in error &&
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         error.code === "P2023"
       ) {
         throw new BadRequestException("Invalid candidate ID format");

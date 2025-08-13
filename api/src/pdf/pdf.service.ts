@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import * as pdfParse from 'pdf-parse';
+import { Injectable } from "@nestjs/common";
+import * as pdfParse from "pdf-parse";
 
 // --- BEGIN TYPE DEFINITIONS FOR PDF.JS INTERNALS ---
 interface PdfJsTextItem {
@@ -44,7 +44,7 @@ async function customPageRenderer(pageData: PdfJsPageProxy): Promise<string> {
   const items: PdfJsTextItem[] = textContent.items;
 
   if (!items || items.length === 0) {
-    return '';
+    return "";
   }
 
   items.sort((a: PdfJsTextItem, b: PdfJsTextItem) => {
@@ -55,7 +55,7 @@ async function customPageRenderer(pageData: PdfJsPageProxy): Promise<string> {
     return 0;
   });
 
-  let S = '';
+  let S = "";
   let lastY = -1;
   let lastX = -1;
   let lastWidth = 0;
@@ -67,7 +67,7 @@ async function customPageRenderer(pageData: PdfJsPageProxy): Promise<string> {
     if (item.str.trim().length === 0) {
       // Handle purely whitespace items that might represent actual spaces
       if (
-        item.str.includes(' ') &&
+        item.str.includes(" ") &&
         lastY !== -1 &&
         Math.abs(item.transform[5] - lastY) <
           item.height * yHeightFractionForNewLine &&
@@ -75,10 +75,10 @@ async function customPageRenderer(pageData: PdfJsPageProxy): Promise<string> {
       ) {
         if (
           S.length > 0 &&
-          S[S.length - 1] !== ' ' &&
-          S[S.length - 1] !== '\n'
+          S[S.length - 1] !== " " &&
+          S[S.length - 1] !== "\n"
         ) {
-          S += ' ';
+          S += " ";
         }
       }
       continue;
@@ -94,12 +94,12 @@ async function customPageRenderer(pageData: PdfJsPageProxy): Promise<string> {
         Math.abs(currentY - lastY) >
         item.height * yHeightFractionForNewLine
       ) {
-        S += '\n' + item.str;
+        S += "\n" + item.str;
       } else {
         const neededSpace = currentX - (lastX + lastWidth);
         const minSpaceToInsertChar = item.width * xWidthFractionForSpace;
         if (neededSpace > minSpaceToInsertChar) {
-          S += ' ' + item.str;
+          S += " " + item.str;
         } else {
           S += item.str;
         }
@@ -140,10 +140,11 @@ export class PdfService {
         max: 0, // Process all pages
       };
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       const data = (await pdfParse(buffer, options)) as ParsedPdfData;
 
-      console.log('PDF text extracted, length:', data.text.length);
-      console.log('First 500 characters:', data.text.substring(0, 500));
+      console.log("PDF text extracted, length:", data.text.length);
+      console.log("First 500 characters:", data.text.substring(0, 500));
 
       return {
         text: data.text,
@@ -157,18 +158,18 @@ export class PdfService {
         extractedAt: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('PDF parsing error:', error);
-      throw new Error(
-        `Failed to extract text from PDF: ${(error as Error).message}`,
-      );
+      console.error("PDF parsing error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to extract text from PDF: ${errorMessage}`);
     }
   }
 
   analyzePdfContent(text: string): any {
-    console.log('Analyzing PDF content, text length:', text.length);
+    console.log("Analyzing PDF content, text length:", text.length);
 
     // Basic content analysis
-    const lines = text.split('\n').filter((line) => line.trim().length > 0);
+    const lines = text.split("\n").filter((line) => line.trim().length > 0);
     const words = text.split(/\s+/).filter((word) => word.length > 0);
     const sentences = text
       .split(/[.!?]+/)
@@ -186,10 +187,12 @@ export class PdfService {
     const urls = text.match(urlRegex) || [];
 
     // Extract tabular data
-    const tableData: any = this.extractTableData(text);
-    const dspSummaryData: any = this.extractDSPSummaryData(text);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const tableData = this.extractTableData(text);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const dspSummaryData = this.extractDSPSummaryData(text);
 
-    console.log('DSP Summary Data:', JSON.stringify(dspSummaryData, null, 2));
+    console.log("DSP Summary Data:", JSON.stringify(dspSummaryData, null, 2));
 
     return {
       lineCount: lines.length,
@@ -201,14 +204,16 @@ export class PdfService {
         urls: [...new Set(urls)],
       },
       topWords: this.getTopWords(words, 10),
-      tableData: tableData as any,
-      dspSummaryData: dspSummaryData as any,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      tableData: tableData,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      dspSummaryData: dspSummaryData,
     };
   }
 
   private extractTableData(text: string): any {
     const lines = text
-      .split('\n')
+      .split("\n")
       .map((line) => line.trim())
       .filter((line) => line.length > 0);
     const tables: TableData[] = [];
@@ -225,15 +230,15 @@ export class PdfService {
       if (potentialColumns.length >= 3) {
         // Check if this could be a header row
         const hasNumericPattern = potentialColumns.some((col) =>
-          /\d/.test(col),
+          /\d/.test(col)
         );
         const hasHeaderPattern = potentialColumns.some(
           (col) =>
             /^[A-Z][A-Z\s]+$/i.test(col.trim()) ||
-            col.includes('ID') ||
-            col.includes('DCR') ||
-            col.includes('POD') ||
-            col.includes('%'),
+            col.includes("ID") ||
+            col.includes("DCR") ||
+            col.includes("POD") ||
+            col.includes("%")
         );
 
         if (hasHeaderPattern || (currentTable && hasNumericPattern)) {
@@ -274,9 +279,9 @@ export class PdfService {
   }
 
   private extractDSPSummaryData(text: string): any {
-    console.log('Extracting DSP Summary Data...');
+    console.log("Extracting DSP Summary Data...");
     const lines = text
-      .split('\n')
+      .split("\n")
       .map((line) => line.trim())
       .filter((line) => line.length > 0);
     const transporterData: TransporterRecord[] = [];
@@ -284,21 +289,21 @@ export class PdfService {
 
     // Look for DSP Weekly Summary with more flexible patterns (existing logic)
     const isDSPSummary =
-      text.toLowerCase().includes('dsp weekly summary') ||
-      text.toLowerCase().includes('transporter id') ||
-      (text.toLowerCase().includes('dcr') &&
-        text.toLowerCase().includes('pod')) ||
-      text.includes('Contact Compliance') ||
+      text.toLowerCase().includes("dsp weekly summary") ||
+      text.toLowerCase().includes("transporter id") ||
+      (text.toLowerCase().includes("dcr") &&
+        text.toLowerCase().includes("pod")) ||
+      text.includes("Contact Compliance") ||
       /A[0-9A-Z]{10,}/.test(text); // Pattern for transporter IDs
 
-    console.log('Is DSP Summary:', isDSPSummary);
-    console.log('Text includes checks:', {
-      dspWeeklySummary: text.toLowerCase().includes('dsp weekly summary'),
-      transporterId: text.toLowerCase().includes('transporter id'),
+    console.log("Is DSP Summary:", isDSPSummary);
+    console.log("Text includes checks:", {
+      dspWeeklySummary: text.toLowerCase().includes("dsp weekly summary"),
+      transporterId: text.toLowerCase().includes("transporter id"),
       dcrAndPod:
-        text.toLowerCase().includes('dcr') &&
-        text.toLowerCase().includes('pod'),
-      contactCompliance: text.includes('Contact Compliance'),
+        text.toLowerCase().includes("dcr") &&
+        text.toLowerCase().includes("pod"),
+      contactCompliance: text.includes("Contact Compliance"),
       transporterIdPattern: /A[0-9A-Z]{10,}/.test(text),
     });
 
@@ -311,54 +316,54 @@ export class PdfService {
 
     // Expected column patterns for DSP summary (remains useful for return structure)
     const expectedColumns = [
-      'Transporter ID',
-      'Delivered',
-      'DCR',
-      'DNR DPMO',
-      'LoR DPMO',
-      'POD',
-      'CC',
-      'CE',
-      'CDF',
+      "Transporter ID",
+      "Delivered",
+      "DCR",
+      "DNR DPMO",
+      "LoR DPMO",
+      "POD",
+      "CC",
+      "CE",
+      "CDF",
     ];
     // let headerFound = false; // This flag is no longer the primary gate for data parsing
 
-    console.log('Processing lines for DSP data...');
+    console.log("Processing lines for DSP data...");
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
       // Skip empty lines and known non-data headers more robustly (existing logic)
       if (
         !line ||
-        line.toLowerCase().includes('dsp weekly summary') ||
-        line.toLowerCase().includes('dsp weekly scorecard') ||
-        line.toLowerCase().includes('scorecard metric definitions') ||
-        line.toLowerCase().includes('metricsresource links') ||
-        line.toLowerCase().includes('announcements') ||
-        line.toLowerCase().includes('resources') ||
-        line.toLowerCase().includes('overall standingkey focus areas') ||
-        line.toLowerCase().includes('questions?') ||
-        (line.toLowerCase().includes('contact compliance') &&
-          !line.toLowerCase().startsWith('a') &&
+        line.toLowerCase().includes("dsp weekly summary") ||
+        line.toLowerCase().includes("dsp weekly scorecard") ||
+        line.toLowerCase().includes("scorecard metric definitions") ||
+        line.toLowerCase().includes("metricsresource links") ||
+        line.toLowerCase().includes("announcements") ||
+        line.toLowerCase().includes("resources") ||
+        line.toLowerCase().includes("overall standingkey focus areas") ||
+        line.toLowerCase().includes("questions?") ||
+        (line.toLowerCase().includes("contact compliance") &&
+          !line.toLowerCase().startsWith("a") &&
           !line.match(/^([A-Z][A-Z0-9]{10}|[A-Z][A-Z0-9]{13})\s/) && // Make sure it's not a data line starting with A* ID
           !line.match(/^(\d+(?:\.\d+)?%)/)) ||
-        (line.toLowerCase().includes('photo on delivery') &&
-          !line.toLowerCase().startsWith('a') &&
+        (line.toLowerCase().includes("photo on delivery") &&
+          !line.toLowerCase().startsWith("a") &&
           !line.match(/^([A-Z][A-Z0-9]{10}|[A-Z][A-Z0-9]{13})\s/) &&
           !line.match(/^(\d+(?:\.\d+)?%)/)) ||
-        (line.toLowerCase().includes('customer escalations') &&
-          !line.toLowerCase().startsWith('a') &&
+        (line.toLowerCase().includes("customer escalations") &&
+          !line.toLowerCase().startsWith("a") &&
           !line.match(/^([A-Z][A-Z0-9]{10}|[A-Z][A-Z0-9]{13})\s/) &&
           !line.match(/^(\d+(?:\.\d+)?%)/)) ||
-        (line.toLowerCase().includes('customer delivery feedback') &&
-          !line.toLowerCase().startsWith('a') &&
+        (line.toLowerCase().includes("customer delivery feedback") &&
+          !line.toLowerCase().startsWith("a") &&
           !line.match(/^([A-Z][A-Z0-9]{10}|[A-Z][A-Z0-9]{13})\s/) &&
           !line.match(/^(\d+(?:\.\d+)?%)/)) ||
-        line.toLowerCase().includes('positive delivery experience rate') ||
-        line.startsWith('Page ') ||
-        line.startsWith('*') || // Comments or notes
-        line.startsWith('- Discuss with') ||
-        line.startsWith('#Transporter IDDaily Limit')
+        line.toLowerCase().includes("positive delivery experience rate") ||
+        line.startsWith("Page ") ||
+        line.startsWith("*") || // Comments or notes
+        line.startsWith("- Discuss with") ||
+        line.startsWith("#Transporter IDDaily Limit")
       ) {
         // console.log(`Skipping explicitly ignored line ${i}: "${line}"`);
         continue;
@@ -367,14 +372,14 @@ export class PdfService {
       // Check for header row - store if found, but it no longer gates data parsing
       if (
         detectedHeaders.length === 0 && // Only capture the first header like this
-        line.toLowerCase().includes('transporter id') &&
-        line.toLowerCase().includes('delivered') &&
-        line.toLowerCase().includes('dcr') &&
+        line.toLowerCase().includes("transporter id") &&
+        line.toLowerCase().includes("delivered") &&
+        line.toLowerCase().includes("dcr") &&
         !/^[A-Z]([A-Z0-9]{10}|[A-Z0-9]{13})\s/.test(line) // Make sure it's not a data line itself that happens to contain these words
       ) {
         detectedHeaders = [...expectedColumns]; // Use predefined, or could parse `line` for actuals
         console.log(
-          `Actual DSP Table Header DETECTED on line ${i}: "${line}". Using predefined expectedHeaders.`,
+          `Actual DSP Table Header DETECTED on line ${i}: "${line}". Using predefined expectedHeaders.`
         );
         // Do not 'continue' here, as a line could theoretically be a header AND data (unlikely)
         // or data lines might appear before this specific header instance.
@@ -406,13 +411,13 @@ export class PdfService {
         // Check if the line consists only of the ID, which is not a valid data line for further parsing
         if (lineForParsing.trim() === idPart.trim()) {
           console.log(
-            `extractDSPSummaryData: SKIPPING line (index ${i}) - ID is entire line. Line content: "${line}"`,
+            `extractDSPSummaryData: SKIPPING line (index ${i}) - ID is entire line. Line content: "${line}"`
           );
           continue;
         }
 
         console.log(
-          `extractDSPSummaryData: Potential data line (line ${i}): "${lineForParsing}" (ID detected: "${idPart}")`,
+          `extractDSPSummaryData: Potential data line (line ${i}): "${lineForParsing}" (ID detected: "${idPart}")`
         );
         const transporterRecord = this.parseTransporterLine(lineForParsing);
 
@@ -420,31 +425,31 @@ export class PdfService {
           transporterData.push(transporterRecord);
         } else {
           console.warn(
-            `extractDSPSummaryData: Failed to parse potential transporter line ${i} (parseTransporterLine returned null): "${lineForParsing}"`,
+            `extractDSPSummaryData: Failed to parse potential transporter line ${i} (parseTransporterLine returned null): "${lineForParsing}"`
           );
         }
       } else {
         // This block is for lines that were not caught by the explicit skip logic above,
         // and also do not match the (startsWithCapLetter && ID pattern).
         if (line.trim().length > 0) {
-          let reason = '';
+          let reason = "";
           if (!startsWithCapLetter)
-            reason += 'Does not start with a capital letter. ';
+            reason += "Does not start with a capital letter. ";
           // If it starts with a capital letter, but hasIDPattern is false (from the two-step check), then it failed both 14 and 11 char ID patterns.
           else if (startsWithCapLetter && !hasIDPattern)
             reason +=
-              'Fails ID pattern (not 11 or 14 chars starting with A-Z). ';
+              "Fails ID pattern (not 11 or 14 chars starting with A-Z). ";
 
           if (reason) {
             if (
               !(
-                line.toLowerCase().includes('transporter id') &&
-                line.toLowerCase().includes('delivered') &&
-                line.toLowerCase().includes('dcr')
+                line.toLowerCase().includes("transporter id") &&
+                line.toLowerCase().includes("delivered") &&
+                line.toLowerCase().includes("dcr")
               )
             ) {
               console.log(
-                `extractDSPSummaryData: SKIPPING line (index ${i}) not matching data pattern. Reason: ${reason}Line content: "${line.substring(0, 100)}"...`,
+                `extractDSPSummaryData: SKIPPING line (index ${i}) not matching data pattern. Reason: ${reason}Line content: "${line.substring(0, 100)}"...`
               );
             }
           }
@@ -452,15 +457,17 @@ export class PdfService {
       }
     }
 
-    console.log('Total transporters found:', transporterData.length);
-    const summary: any = this.calculateDSPSummary(transporterData);
+    console.log("Total transporters found:", transporterData.length);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const summary = this.calculateDSPSummary(transporterData);
 
     return {
       isDSPSummary: true,
       headers: detectedHeaders.length > 0 ? detectedHeaders : expectedColumns,
       totalTransporters: transporterData.length,
       transporters: transporterData,
-      summary: summary as any,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      summary: summary,
     };
   }
 
@@ -469,9 +476,9 @@ export class PdfService {
     if (
       value === undefined ||
       value === null ||
-      value.trim() === '' ||
-      value.trim() === '--' ||
-      value.trim() === '-'
+      value.trim() === "" ||
+      value.trim() === "--" ||
+      value.trim() === "-"
     ) {
       return null;
     }
@@ -484,13 +491,13 @@ export class PdfService {
     if (
       value === undefined ||
       value === null ||
-      value.trim() === '' ||
-      value.trim() === '--' ||
-      value.trim() === '-'
+      value.trim() === "" ||
+      value.trim() === "--" ||
+      value.trim() === "-"
     ) {
       return null;
     }
-    const cleanedValue = value.trim().replace('%', '');
+    const cleanedValue = value.trim().replace("%", "");
     const num = parseFloat(cleanedValue);
     return isNaN(num) ? null : num;
   }
@@ -502,7 +509,7 @@ export class PdfService {
     // Transporter ID, Delivered, DCR, DNR DPMO, LoR DPMO, POD, CC, CE, CDF
     if (parts.length < 9) {
       console.log(
-        `parseTransporterLine: Line has fewer than 9 parts after split: ${parts.length} parts. Line: "${line}"`,
+        `parseTransporterLine: Line has fewer than 9 parts after split: ${parts.length} parts. Line: "${line}"`
       );
       return null;
     }
@@ -516,11 +523,11 @@ export class PdfService {
     // Validate Transporter ID format (first part) - accepts 11-char, 13-char, or 14-char IDs
     if (
       !/^[A-Z]([A-Z0-9]{10}|[A-Z0-9]{11}|[A-Z0-9]{12}|[A-Z0-9]{13})$/.test(
-        transporterId,
+        transporterId
       )
     ) {
       console.log(
-        `parseTransporterLine: Invalid Transporter ID format in the first part: "${transporterId}" (length ${transporterId.length}) from line "${line}"`,
+        `parseTransporterLine: Invalid Transporter ID format in the first part: "${transporterId}" (length ${transporterId.length}) from line "${line}"`
       );
       return null;
     }
@@ -551,29 +558,29 @@ export class PdfService {
       }
 
       console.log(
-        `parseTransporterLine: Successfully parsed: ID=${record.transporterId}, Delivered=${record.delivered}, DCR=${record.dcr}%, LoR=${record.lorDpmo}`,
+        `parseTransporterLine: Successfully parsed: ID=${record.transporterId}, Delivered=${record.delivered}, DCR=${record.dcr}%, LoR=${record.lorDpmo}`
       );
       return record;
     } catch (error) {
       console.error(
         `parseTransporterLine: EXCEPTION during field assignment for line: "${line}"`,
-        error,
+        error
       );
       return null;
     }
   }
 
   private parseNumericValue(value: string): number | null {
-    if (!value || value === '-' || value === '0%') return 0;
-    const cleaned = value.replace(/[,%]/g, '');
+    if (!value || value === "-" || value === "0%") return 0;
+    const cleaned = value.replace(/[,%]/g, "");
     const num = parseFloat(cleaned);
     return isNaN(num) ? null : num;
   }
 
   private parsePercentageValue(value: string): number | null {
-    if (!value || value === '-') return null;
-    if (value.includes('%')) {
-      const num = parseFloat(value.replace('%', ''));
+    if (!value || value === "-") return null;
+    if (value.includes("%")) {
+      const num = parseFloat(value.replace("%", ""));
       return isNaN(num) ? null : num;
     }
     const num = parseFloat(value);
@@ -587,7 +594,7 @@ export class PdfService {
 
     const totalDelivered = validTransporters.reduce(
       (sum, t) => sum + (t.delivered || 0),
-      0,
+      0
     );
     const avgDCR = this.calculateAverage(validTransporters.map((t) => t.dcr));
     const avgPOD = this.calculateAverage(validTransporters.map((t) => t.pod));
@@ -596,10 +603,10 @@ export class PdfService {
 
     // Performance categories
     const highPerformers = transporters.filter(
-      (t) => (t.dcr || 0) >= 95 && (t.pod || 0) >= 95,
+      (t) => (t.dcr || 0) >= 95 && (t.pod || 0) >= 95
     );
     const lowPerformers = transporters.filter(
-      (t) => (t.dcr || 0) < 90 || (t.pod || 0) < 90,
+      (t) => (t.dcr || 0) < 90 || (t.pod || 0) < 90
     );
 
     return {
@@ -623,7 +630,7 @@ export class PdfService {
 
   private calculateAverage(values: (number | null)[]): number | null {
     const validValues = values.filter(
-      (v): v is number => v !== null && v !== undefined,
+      (v): v is number => v !== null && v !== undefined
     );
     if (validValues.length === 0) return null;
     return validValues.reduce((sum, val) => sum + val, 0) / validValues.length;
@@ -631,44 +638,44 @@ export class PdfService {
 
   private getTopWords(
     words: string[],
-    limit: number,
+    limit: number
   ): Array<{ word: string; count: number }> {
     const wordCount: Record<string, number> = {};
     const commonWords = new Set([
-      'the',
-      'and',
-      'or',
-      'but',
-      'in',
-      'on',
-      'at',
-      'to',
-      'for',
-      'of',
-      'with',
-      'by',
-      'a',
-      'an',
-      'is',
-      'are',
-      'was',
-      'were',
-      'be',
-      'been',
-      'have',
-      'has',
-      'had',
-      'do',
-      'does',
-      'did',
-      'will',
-      'would',
-      'could',
-      'should',
+      "the",
+      "and",
+      "or",
+      "but",
+      "in",
+      "on",
+      "at",
+      "to",
+      "for",
+      "of",
+      "with",
+      "by",
+      "a",
+      "an",
+      "is",
+      "are",
+      "was",
+      "were",
+      "be",
+      "been",
+      "have",
+      "has",
+      "had",
+      "do",
+      "does",
+      "did",
+      "will",
+      "would",
+      "could",
+      "should",
     ]);
 
     words.forEach((word) => {
-      const cleanWord = word.toLowerCase().replace(/[^\\w]/g, '');
+      const cleanWord = word.toLowerCase().replace(/[^\\w]/g, "");
       if (cleanWord.length > 2 && !commonWords.has(cleanWord)) {
         wordCount[cleanWord] = (wordCount[cleanWord] || 0) + 1;
       }
