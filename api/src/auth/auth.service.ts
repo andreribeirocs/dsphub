@@ -1,11 +1,19 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  Injectable,
+  UnauthorizedException,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
 import { UsersService } from "../users/users.service";
 import * as bcrypt from "bcrypt";
+import * as crypto from "crypto";
 
 // Constants
 const REFRESH_TOKEN_EXPIRY = "7d";
+const PASSWORD_RESET_TOKEN_EXPIRY = 60 * 60 * 1000; // 1 hour in milliseconds
+const BCRYPT_ROUNDS = 10;
 
 interface ValidatedUser {
   readonly id: string;
@@ -106,5 +114,142 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException("Invalid refresh token");
     }
+  }
+
+  /**
+   * Generate password reset token and send reset email
+   * @param email - User email address
+   * @returns Success message
+   * @throws NotFoundException if user not found
+   */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const user = await this.usersService.findByEmail(email);
+
+    if (!user) {
+      // For security, don't reveal if email exists or not
+      return {
+        message:
+          "If the email exists, you will receive a password reset link shortly.",
+      };
+    }
+
+    // Generate a secure random token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetTokenExpiry = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY);
+
+    // Store the reset token in the database
+    // Note: In a real implementation, you might want a separate table for reset tokens
+    // For now, we'll use a simple approach with the refresh token field
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        refreshToken: `reset:${resetToken}:${resetTokenExpiry.getTime()}`,
+      },
+    });
+
+    // TODO: Send email with reset link
+    // In a real implementation, you would integrate with an email service here
+    // For now, we'll just log the token (remove this in production)
+    console.log(`Password reset token for ${email}: ${resetToken}`);
+    console.log(
+      `Reset link: ${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`
+    );
+
+    return {
+      message:
+        "If the email exists, you will receive a password reset link shortly.",
+    };
+  }
+
+  /**
+   * Verify if a password reset token is valid
+   * @param token - Reset token
+   * @returns Token validity status
+   */
+  async verifyResetToken(
+    token: string
+  ): Promise<{ valid: boolean; message?: string }> {
+    try {
+      // Find user with the reset token
+      const user = await this.prisma.user.findFirst({
+        where: {
+          refreshToken: {
+            startsWith: `reset:${token}:`,
+          },
+        },
+      });
+
+      if (!user || !user.refreshToken) {
+        return { valid: false, message: "Invalid or expired reset token" };
+      }
+
+      // Extract expiry time from the token
+      const tokenData = user.refreshToken.split(":");
+      if (tokenData.length !== 3 || tokenData[0] !== "reset") {
+        return { valid: false, message: "Invalid token format" };
+      }
+
+      const expiryTime = parseInt(tokenData[2]);
+      if (Date.now() > expiryTime) {
+        // Clean up expired token
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { refreshToken: null },
+        });
+        return { valid: false, message: "Reset token has expired" };
+      }
+
+      return { valid: true };
+    } catch {
+      return { valid: false, message: "Invalid reset token" };
+    }
+  }
+
+  /**
+   * Reset user password using reset token
+   * @param token - Reset token
+   * @param newPassword - New password
+   * @returns Success message
+   * @throws BadRequestException if token is invalid
+   * @throws NotFoundException if user not found
+   */
+  async resetPassword(
+    token: string,
+    newPassword: string
+  ): Promise<{ message: string }> {
+    // Verify token is valid
+    const tokenCheck = await this.verifyResetToken(token);
+    if (!tokenCheck.valid) {
+      throw new BadRequestException(
+        tokenCheck.message || "Invalid reset token"
+      );
+    }
+
+    // Find user with the reset token
+    const user = await this.prisma.user.findFirst({
+      where: {
+        refreshToken: {
+          startsWith: `reset:${token}:`,
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+
+    // Update password and clear reset token
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        refreshToken: null, // Clear the reset token
+      },
+    });
+
+    return { message: "Password has been reset successfully" };
   }
 }

@@ -31,6 +31,7 @@ import {
 import {
   GetDailyPaymentsPrefillDto,
   SaveDailyPaymentsDto,
+  ImportXlsxPaymentsDto,
 } from "./dto/daily-payment.dto";
 
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -314,6 +315,60 @@ export class PaymentsController {
     @Request() req: AuthenticatedRequest
   ): Promise<{ created: number; updated: number }> {
     return this.paymentsService.saveDailyPayments(body, req.user.id);
+  }
+
+  /**
+   * Import daily payments from XLSX file
+   */
+  @ApiOperation({
+    summary: "Import daily payments from XLSX",
+    description:
+      "Parse and import payment data from Amazon-provided Excel files. Creates or updates payment records for the specified date.",
+  })
+  @ApiResponse({
+    status: 201,
+    description: "XLSX import completed successfully",
+    schema: {
+      type: "object",
+      properties: {
+        created: {
+          type: "number",
+          description: "Number of payment records created",
+        },
+        updated: {
+          type: "number",
+          description: "Number of payment records updated",
+        },
+        errors: {
+          type: "array",
+          items: { type: "string" },
+          description: "List of non-fatal errors encountered during import",
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Bad request - Invalid file or data",
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized" })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Insufficient permissions",
+  })
+  @UseGuards(RolesGuard)
+  @Roles(
+    Role.DIRECTOR,
+    Role.MANAGER_FINANCIAL,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
+  @Post("import-xlsx")
+  @HttpCode(HttpStatus.CREATED)
+  async importFromXlsx(
+    @Body(ValidationPipe) body: ImportXlsxPaymentsDto
+  ): Promise<{ created: number; updated: number; errors: string[] }> {
+    return this.paymentsService.importFromXlsx(body);
   }
 
   /**

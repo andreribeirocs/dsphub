@@ -9,6 +9,7 @@ import {
   IsString,
   IsUUID,
   ValidateNested,
+  MaxLength,
 } from "class-validator";
 import { Type, Transform } from "class-transformer";
 import { RouteType } from "@prisma/client";
@@ -176,3 +177,30 @@ export class SaveDailyPaymentsDto {
   readonly items!: DailyPaymentUpsertItemDto[];
 }
 
+export class ImportXlsxPaymentsDto {
+  @ApiProperty({
+    description: "Target work date (YYYY-MM-DD)",
+    example: "2025-08-18",
+  })
+  @IsDateString()
+  @IsNotEmpty()
+  readonly date!: string;
+
+  @ApiPropertyOptional({
+    description: "Source sheet identifier from XLSX",
+    example: "Mon 25-08-18",
+  })
+  @IsOptional()
+  @IsString()
+  readonly sourceSheet?: string;
+
+  @ApiProperty({
+    description: "Base64 encoded XLSX file content",
+    example:
+      "UEsDBBQABgAIAAAAIQDfpNJsWgEAACAFAAATAAgCW0NvbnRlbnRfVHlwZXNdLnhtbCCiBAIooAACAAAAAA...",
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(50000000) // Allow up to ~50MB Base64 content (roughly 37MB actual file)
+  readonly fileContent!: string;
+}

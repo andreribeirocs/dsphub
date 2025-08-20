@@ -22,7 +22,10 @@ import {
   GetDailyPaymentsPrefillDto,
   SaveDailyPaymentsDto,
   DailyPaymentPrefillItemDto,
+  DailyPaymentUpsertItemDto,
+  ImportXlsxPaymentsDto,
 } from "./dto/daily-payment.dto";
+import * as XLSX from "xlsx";
 
 @Injectable()
 export class PaymentsService {
@@ -500,7 +503,8 @@ export class PaymentsService {
   }
 
   /**
-   * Prefill daily payments for a specific date using driver schedules and current route prices
+   * Prefill daily payments for a specific date - INDEPENDENT from driver schedules
+   * Only loads existing payment records. New drivers must be added manually or via XLSX import
    */
   async prefillDailyPayments(
     query: GetDailyPaymentsPrefillDto
@@ -508,45 +512,9 @@ export class PaymentsService {
     const { date, includeExisting = true } = query;
     const targetDate = new Date(date);
 
-    // Fetch active schedules for that day (only ACTIVE drivers)
-    const allSchedules = await this.prisma.driverSchedule.findMany({
-      where: {
-        date: targetDate,
-        status: {
-          in: [
-            "FULL_ROUTE",
-            "TRAINING_DAY",
-            "SAME_DAY",
-            "NURSERY_ROUTE",
-            "RIDE_ALONG",
-          ],
-        },
-      },
-      include: {
-        driver: {
-          select: { id: true, name: true, transporterId: true, status: true },
-        },
-      },
-      orderBy: { driver: { name: "asc" } },
-    });
-
-    // Filter out INACTIVE drivers in JavaScript since Prisma nested filter isn't working
-    const schedules = allSchedules.filter((s) => s.driver.status === "ACTIVE");
-
-    console.log(
-      `Found ${allSchedules.length} total schedules, ${schedules.length} with ACTIVE drivers for ${date}:`,
-      schedules.map((s) => ({
-        name: s.driver.name,
-        status: s.driver.status,
-        scheduleStatus: s.status,
-      }))
-    );
-
-    // Fetch route prices to suggest amounts
-    const prices = await this.prisma.routePrice.findMany();
-    const priceByType = new Map(
-      prices.map((p) => [p.routeType, Number(p.dailyRate)])
-    );
+    if (!includeExisting) {
+      return [];
+    }
 
     // Get existing payments for that date (only ACTIVE drivers)
     const allExisting = await this.prisma.driverPayment.findMany({
@@ -556,93 +524,34 @@ export class PaymentsService {
           select: { id: true, name: true, transporterId: true, status: true },
         },
       },
+      orderBy: { driver: { name: "asc" } },
     });
 
-    // Filter out INACTIVE drivers in JavaScript since Prisma nested filter isn't working
+    // Filter out INACTIVE drivers
     const existing = allExisting.filter((e) => e.driver.status === "ACTIVE");
 
-    console.log(
-      `Found ${allExisting.length} total payments, ${existing.length} with ACTIVE drivers for ${date}:`,
-      existing.map((e) => ({
-        name: e.driver.name,
-        status: e.driver.status,
-      }))
-    );
-    const existingSet = new Set(existing.map((e) => e.driverId));
+    // Convert existing payments to the required format
+    const items: DailyPaymentPrefillItemDto[] = existing.map((payment) => {
+      const base = Number(payment.dailyRate);
+      const extra = Number(payment.extraAmount) || 0;
+      const deduction = Number(payment.deductionAmount) || 0;
+      const van = Number(payment.vanCharge) || 0;
 
-    const mapScheduleToRouteType = (status: string): RouteType => {
-      switch (status) {
-        case "FULL_ROUTE":
-          return "FULL_ROUTE";
-        case "TRAINING_DAY":
-          return "TRAINING_DAY";
-        case "SAME_DAY":
-          return "SAME_DAY";
-        case "NURSERY_ROUTE":
-          return "NURSERY_ROUTE";
-        case "RIDE_ALONG":
-          // Schedule uses RIDE_ALONG; payments use HIDE_ALONG
-          return "HIDE_ALONG";
-        default:
-          return "FULL_ROUTE";
-      }
-    };
-
-    // Start with scheduled drivers
-    const items: DailyPaymentPrefillItemDto[] = schedules
-      .filter((s) => includeExisting || !existingSet.has(s.driverId))
-      .map((s) => {
-        const routeType = mapScheduleToRouteType(s.status);
-        const dailyRate = priceByType.get(routeType) ?? 0;
-        const base = Number(dailyRate);
-        const extra = 0;
-        const deduction = 0;
-        const van = 0;
-        return {
-          driverId: s.driverId,
-          driverName: s.driver.name,
-          transporterId: s.driver.transporterId,
-          workDate: date,
-          routeType,
-          routeCode: undefined,
-          dailyRate: base,
-          extraAmount: extra,
-          deductionAmount: deduction,
-          vanCharge: van,
-          totalSuggested: base + extra - deduction - van,
-          exists: existingSet.has(s.driverId),
-        };
-      });
-
-    // Add existing payment records that don't have schedules (manually added drivers)
-    if (includeExisting) {
-      const scheduledDriverIds = new Set(schedules.map((s) => s.driverId));
-
-      for (const payment of existing) {
-        if (!scheduledDriverIds.has(payment.driverId)) {
-          // This driver has a payment but no schedule - add them
-          const base = Number(payment.dailyRate);
-          const extra = Number(payment.extraAmount) || 0;
-          const deduction = Number(payment.deductionAmount) || 0;
-          const van = Number(payment.vanCharge) || 0;
-
-          items.push({
-            driverId: payment.driverId,
-            driverName: payment.driver.name,
-            transporterId: payment.driver.transporterId,
-            workDate: date,
-            routeType: payment.routeType,
-            routeCode: payment.routeCode ?? undefined,
-            dailyRate: base,
-            extraAmount: extra,
-            deductionAmount: deduction,
-            vanCharge: van,
-            totalSuggested: base + extra - deduction - van,
-            exists: true, // This payment already exists
-          });
-        }
-      }
-    }
+      return {
+        driverId: payment.driverId,
+        driverName: payment.driver.name,
+        transporterId: payment.driver.transporterId,
+        workDate: date,
+        routeType: payment.routeType,
+        routeCode: payment.routeCode ?? undefined,
+        dailyRate: base,
+        extraAmount: extra,
+        deductionAmount: deduction,
+        vanCharge: van,
+        totalSuggested: base + extra - deduction - van,
+        exists: true, // All items are existing payments
+      };
+    });
 
     return items;
   }
@@ -741,72 +650,493 @@ export class PaymentsService {
         }
       }
 
-      // Sync route types back to driver schedules and handle deletions
-      console.log("Syncing route types back to driver schedules...");
-
-      // First, handle deleted drivers - set their schedules to OFF
-      const deletedDriverIds = paymentsToDelete.map((p) => p.driverId);
-      if (deletedDriverIds.length > 0) {
-        console.log(
-          `Setting schedules to OFF for deleted drivers: ${deletedDriverIds.join(", ")}`
-        );
-        for (const driverId of deletedDriverIds) {
-          try {
-            const existingSchedule = await tx.driverSchedule.findFirst({
-              where: {
-                driverId: driverId,
-                date: workDate,
-              },
-            });
-
-            if (existingSchedule) {
-              console.log(
-                `Setting schedule ${existingSchedule.id} to OFF for deleted driver ${driverId}`
-              );
-              await tx.driverSchedule.update({
-                where: { id: existingSchedule.id },
-                data: { status: "OFF" },
-              });
-            }
-          } catch (error) {
-            console.warn(
-              `Failed to set schedule to OFF for deleted driver ${driverId}:`,
-              error
-            );
-          }
-        }
-      }
-
-      // Then, update route types for remaining drivers
-      for (const item of items) {
-        try {
-          // Find matching driver schedule for this date/driver
-          const existingSchedule = await tx.driverSchedule.findFirst({
-            where: {
-              driverId: item.driverId,
-              date: workDate,
-            },
-          });
-
-          if (existingSchedule && existingSchedule.status !== item.routeType) {
-            console.log(
-              `Updating schedule ${existingSchedule.id} from ${existingSchedule.status} to ${item.routeType}`
-            );
-            await tx.driverSchedule.update({
-              where: { id: existingSchedule.id },
-              data: { status: item.routeType as any },
-            });
-          }
-        } catch (error) {
-          console.warn(
-            `Failed to sync schedule for driver ${item.driverId}:`,
-            error
-          );
-          // Don't fail the payment save if schedule sync fails
-        }
-      }
+      // Daily Payment is now independent - no sync with driver schedules
+      console.log("Daily payments saved successfully (independent mode)");
     });
 
     return { created, updated };
+  }
+
+  /**
+   * Import daily payments from XLSX file (FUTURE IMPLEMENTATION)
+   * Will parse Amazon-provided Excel sheets and create payment records
+   */
+  async importFromXlsx(
+    input: ImportXlsxPaymentsDto
+  ): Promise<{ created: number; updated: number; errors: string[] }> {
+    const { date, sourceSheet, fileContent } = input;
+    const errors: string[] = [];
+
+    try {
+      // 1. Parse Base64 file content
+      const buffer = Buffer.from(fileContent, "base64");
+      const workbook = XLSX.read(buffer, { type: "buffer" });
+
+      // Get the first worksheet
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        throw new BadRequestException("No worksheets found in the Excel file");
+      }
+
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      // 2. Extract payment data from Excel
+      const paymentItems: DailyPaymentUpsertItemDto[] = [];
+
+      // Debug: Log the Excel structure
+      this.logger.debug(`Excel file has ${jsonData.length} rows`);
+      if (jsonData.length > 0) {
+        this.logger.debug(`Header row: ${JSON.stringify(jsonData[0])}`);
+      }
+      if (jsonData.length > 1) {
+        this.logger.debug(`First data row: ${JSON.stringify(jsonData[1])}`);
+      }
+
+      // Skip header row(s) and process data rows
+      for (let i = 1; i < jsonData.length; i++) {
+        const row = jsonData[i] as any[];
+
+        // Skip empty rows
+        if (!row || row.length === 0 || !row[0]) continue;
+
+        try {
+          // Amazon XLSX format based on image:
+          // Column A: Route code (e.g., CA_A221)
+          // Column B: DSP
+          // Column C: Transporter ID
+          // Column D: Driver name
+          // Column E: Route progress
+          // Column F: Delivery service type
+          // Columns G+: Other data (duration, stops, etc.)
+
+          const routeCode = String(row[0] || "").trim(); // Column A
+          const dsp = String(row[1] || "").trim(); // Column B (not used but available)
+          const transporterIds = String(row[2] || "").trim(); // Column C - may contain multiple IDs
+          const driverNames = String(row[3] || "").trim(); // Column D - may contain multiple names
+          const routeProgress = String(row[4] || "").trim(); // Column E (not used but available)
+          const deliveryServiceType = String(row[5] || "").trim(); // Column F
+
+          // Debug: Log what we found in this row
+          this.logger.debug(
+            `Row ${i + 1}: Route=${routeCode}, TransporterIDs=${transporterIds}, Drivers=${driverNames}, ServiceType=${deliveryServiceType}`
+          );
+
+          // For manual amounts, we'll set defaults since Amazon doesn't provide these
+          const dailyRateStr = "0"; // Will be filled manually
+          const extraAmountStr = "0"; // Will be filled manually
+          const deductionAmountStr = "0"; // Will be filled manually
+          const vanChargeStr = "0"; // Will be filled manually
+
+          // Skip empty rows
+          if (!driverNames || !deliveryServiceType) {
+            this.logger.debug(`Row ${i + 1}: Skipping empty row`);
+            continue;
+          }
+
+          // Handle multiple drivers (separated by |)
+          const transporterIdList = transporterIds
+            .split("|")
+            .map((id) => id.trim())
+            .filter((id) => id);
+          const driverNameList = driverNames
+            .split("|")
+            .map((name) => name.trim())
+            .filter((name) => name);
+
+          this.logger.debug(
+            `Row ${i + 1}: Found ${driverNameList.length} driver(s): ${driverNameList.join(", ")}`
+          );
+
+          // Validate delivery service type (map to route type) - same for all drivers on this route
+          const routeType = this.validateRouteType(deliveryServiceType);
+          if (!routeType) {
+            this.logger.debug(
+              `Invalid delivery service type: "${deliveryServiceType}"`
+            );
+            errors.push(
+              `Row ${i + 1}: Invalid delivery service type "${deliveryServiceType}"`
+            );
+            continue;
+          }
+          this.logger.debug(
+            `Route type mapped: ${deliveryServiceType} -> ${routeType}`
+          );
+
+          // Process each driver
+          for (
+            let driverIndex = 0;
+            driverIndex < driverNameList.length;
+            driverIndex++
+          ) {
+            const driverName = driverNameList[driverIndex];
+            const transporterId = transporterIdList[driverIndex] || ""; // May not have corresponding ID
+
+            this.logger.debug(
+              `Row ${i + 1}, Driver ${driverIndex + 1}: Processing "${driverName}" (TransporterID: "${transporterId}")`
+            );
+
+            // Find driver by transporter ID first, then fallback to name
+            const driver = await this.findDriverByTransporterIdOrName(
+              transporterId,
+              driverName
+            );
+            if (!driver) {
+              this.logger.debug(
+                `Driver not found by TransporterID "${transporterId}" or Name "${driverName}"`
+              );
+              errors.push(
+                `Row ${i + 1}: Driver "${driverName}" (TransporterID: ${transporterId}) not found`
+              );
+              continue; // Skip this driver, but continue with others
+            }
+            this.logger.debug(
+              `Driver found: ${driver.name} (ID: ${driver.id}, TransporterID: ${driver.transporterId})`
+            );
+
+            // Parse amounts
+            const dailyRate = this.parseAmount(dailyRateStr);
+            const extraAmount = this.parseAmount(extraAmountStr);
+            const deductionAmount = this.parseAmount(deductionAmountStr);
+            const vanCharge = this.parseAmount(vanChargeStr);
+
+            // Create a plain object that matches the DTO structure for this driver
+            const item = {
+              driverId: driver.id,
+              routeType,
+              routeCode: routeCode || undefined,
+              dailyRate: dailyRate.toFixed(2),
+              extraAmount: extraAmount > 0 ? extraAmount.toFixed(2) : undefined,
+              deductionAmount:
+                deductionAmount > 0 ? deductionAmount.toFixed(2) : undefined,
+              vanCharge: vanCharge > 0 ? vanCharge.toFixed(2) : undefined,
+              sourceSheet:
+                sourceSheet ||
+                `Import_${new Date().toISOString().slice(0, 10)}`,
+              notes:
+                driverNameList.length > 1
+                  ? `Shared route with: ${driverNameList.filter((_, idx) => idx !== driverIndex).join(", ")}`
+                  : undefined,
+            };
+
+            paymentItems.push(item as DailyPaymentUpsertItemDto);
+          }
+        } catch (rowError) {
+          errors.push(`Row ${i + 1}: ${rowError.message}`);
+        }
+      }
+
+      if (paymentItems.length === 0) {
+        throw new BadRequestException(
+          "No valid payment records found in the Excel file"
+        );
+      }
+
+      // 4. Create payment records using a special XLSX import method
+      const result = await this.saveXlsxPayments(
+        date,
+        paymentItems,
+        sourceSheet
+      );
+
+      this.logger.log(
+        `XLSX import completed: ${result.created} created, ${result.updated} updated, ${errors.length} errors`
+      );
+
+      return {
+        created: result.created,
+        updated: result.updated,
+        errors,
+      };
+    } catch (error) {
+      this.logger.error("XLSX import failed:", error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException(
+        `Failed to process Excel file: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Special method for XLSX imports that handles multiple records per driver
+   * and potential conflicts with existing records
+   */
+  private async saveXlsxPayments(
+    date: string,
+    paymentItems: DailyPaymentUpsertItemDto[],
+    sourceSheet?: string
+  ): Promise<{ created: number; updated: number }> {
+    const workDate = new Date(date);
+    let created = 0;
+    let updated = 0;
+
+    return await this.prisma.$transaction(async (tx) => {
+      // Group items by driver to handle multiple routes per driver
+      const itemsByDriver = new Map<string, DailyPaymentUpsertItemDto[]>();
+
+      for (const item of paymentItems) {
+        if (!itemsByDriver.has(item.driverId)) {
+          itemsByDriver.set(item.driverId, []);
+        }
+        itemsByDriver.get(item.driverId)!.push(item);
+      }
+
+      for (const [driverId, driverItems] of itemsByDriver) {
+        // Check if driver already has payment record for this date
+        const existingPayment = await tx.driverPayment.findUnique({
+          where: {
+            driverId_workDate: {
+              driverId: driverId,
+              workDate: workDate,
+            },
+          },
+        });
+
+        if (driverItems.length === 1) {
+          // Single record for this driver - normal case
+          const item = driverItems[0];
+          const data = {
+            driverId: item.driverId,
+            workDate: workDate,
+            routeType: item.routeType,
+            routeCode: item.routeCode ?? null,
+            dailyRate: new Prisma.Decimal(item.dailyRate),
+            extraAmount: item.extraAmount
+              ? new Prisma.Decimal(item.extraAmount)
+              : null,
+            deductionAmount: item.deductionAmount
+              ? new Prisma.Decimal(item.deductionAmount)
+              : null,
+            vanCharge: item.vanCharge
+              ? new Prisma.Decimal(item.vanCharge)
+              : null,
+            totalPaid: new Prisma.Decimal(
+              (
+                Number(item.dailyRate) +
+                Number(item.extraAmount ?? 0) -
+                Number(item.deductionAmount ?? 0) -
+                Number(item.vanCharge ?? 0)
+              ).toFixed(2)
+            ),
+            isPaid: false,
+            paidDate: null,
+            paidBy: null,
+            sourceSheet: item.sourceSheet ?? null,
+            notes: item.notes ?? null,
+          };
+
+          if (!existingPayment) {
+            await tx.driverPayment.create({ data });
+            created += 1;
+          } else {
+            await tx.driverPayment.update({
+              where: { id: existingPayment.id },
+              data: {
+                routeType: data.routeType,
+                routeCode: data.routeCode,
+                dailyRate: data.dailyRate,
+                extraAmount: data.extraAmount,
+                deductionAmount: data.deductionAmount,
+                vanCharge: data.vanCharge,
+                totalPaid: data.totalPaid,
+                sourceSheet: data.sourceSheet,
+                notes: data.notes,
+              },
+            });
+            updated += 1;
+          }
+        } else {
+          // Multiple records for same driver (shared routes)
+          // Combine them into a single payment record with combined notes
+          const combinedRoutes = driverItems
+            .map((item) => item.routeCode)
+            .filter(Boolean)
+            .join(", ");
+          const combinedNotes = driverItems
+            .map((item) => item.notes)
+            .filter(Boolean)
+            .join("; ");
+
+          // Use the first item as base, but combine route information
+          const firstItem = driverItems[0];
+          const data = {
+            driverId: firstItem.driverId,
+            workDate: workDate,
+            routeType: firstItem.routeType,
+            routeCode: combinedRoutes || null,
+            dailyRate: new Prisma.Decimal(firstItem.dailyRate),
+            extraAmount: firstItem.extraAmount
+              ? new Prisma.Decimal(firstItem.extraAmount)
+              : null,
+            deductionAmount: firstItem.deductionAmount
+              ? new Prisma.Decimal(firstItem.deductionAmount)
+              : null,
+            vanCharge: firstItem.vanCharge
+              ? new Prisma.Decimal(firstItem.vanCharge)
+              : null,
+            totalPaid: new Prisma.Decimal(
+              (
+                Number(firstItem.dailyRate) +
+                Number(firstItem.extraAmount ?? 0) -
+                Number(firstItem.deductionAmount ?? 0) -
+                Number(firstItem.vanCharge ?? 0)
+              ).toFixed(2)
+            ),
+            isPaid: false,
+            paidDate: null,
+            paidBy: null,
+            sourceSheet: sourceSheet || firstItem.sourceSheet || null,
+            notes: combinedNotes || `Multiple routes: ${combinedRoutes}`,
+          };
+
+          if (!existingPayment) {
+            await tx.driverPayment.create({ data });
+            created += 1;
+          } else {
+            await tx.driverPayment.update({
+              where: { id: existingPayment.id },
+              data: {
+                routeType: data.routeType,
+                routeCode: data.routeCode,
+                dailyRate: data.dailyRate,
+                extraAmount: data.extraAmount,
+                deductionAmount: data.deductionAmount,
+                vanCharge: data.vanCharge,
+                totalPaid: data.totalPaid,
+                sourceSheet: data.sourceSheet,
+                notes: data.notes,
+              },
+            });
+            updated += 1;
+          }
+        }
+      }
+
+      return { created, updated };
+    });
+  }
+
+  private async findDriverByTransporterIdOrName(
+    transporterId: string,
+    name: string
+  ): Promise<{ id: string; name: string; transporterId: string } | null> {
+    // Priority 1: Try exact match by transporter ID (most reliable)
+    if (transporterId) {
+      // Clean the transporter ID: remove spaces and extra characters
+      const cleanTransporterId = transporterId.replace(/\s+/g, "").trim();
+
+      const driver = await this.prisma.driver.findFirst({
+        where: {
+          transporterId: { equals: cleanTransporterId, mode: "insensitive" },
+          status: "ACTIVE",
+        },
+        select: { id: true, name: true, transporterId: true },
+      });
+
+      if (driver) {
+        this.logger.debug(
+          `Driver found by TransporterID: ${transporterId} (cleaned: ${cleanTransporterId}) -> ${driver.name}`
+        );
+        return driver;
+      }
+    }
+
+    // Priority 2: Try exact match by name (case insensitive)
+    let driver = await this.prisma.driver.findFirst({
+      where: {
+        name: { equals: name, mode: "insensitive" },
+        status: "ACTIVE",
+      },
+      select: { id: true, name: true, transporterId: true },
+    });
+
+    if (driver) {
+      this.logger.debug(
+        `Driver found by exact name: ${name} -> ${driver.name}`
+      );
+      return driver;
+    }
+
+    // Priority 3: Try fuzzy matching by name (remove extra spaces, case insensitive)
+    const normalizedName = name.toLowerCase().replace(/\s+/g, " ").trim();
+    driver = await this.prisma.driver.findFirst({
+      where: {
+        name: { contains: normalizedName, mode: "insensitive" },
+        status: "ACTIVE",
+      },
+      select: { id: true, name: true, transporterId: true },
+    });
+
+    if (driver) {
+      this.logger.debug(
+        `Driver found by fuzzy name: ${name} -> ${driver.name}`
+      );
+      return driver;
+    }
+
+    return null;
+  }
+
+  private validateRouteType(routeTypeStr: string): RouteType | null {
+    const validRouteTypes: RouteType[] = [
+      "FULL_ROUTE",
+      "TRAINING_DAY",
+      "HIDE_ALONG",
+      "SAME_DAY",
+      "NURSERY_ROUTE",
+      "EXTRAS",
+      "ORDT_EXTRA_LARGE_CARGO_VAN",
+      "STANDARD_PARCEL_MEDIUM_VAN",
+      "NURSERY_ROUTE_LEVEL_1",
+    ];
+
+    const normalized = routeTypeStr.toUpperCase().replace(/\s+/g, "_");
+
+    // Direct match
+    if (validRouteTypes.includes(normalized as RouteType)) {
+      return normalized as RouteType;
+    }
+
+    // Amazon delivery service type mappings
+    const deliveryServiceMappings: Record<string, RouteType> = {
+      ORDT_EXTRA_LARGE_CARGO_VAN: "ORDT_EXTRA_LARGE_CARGO_VAN",
+      STANDARD_PARCEL_MEDIUM_VAN: "STANDARD_PARCEL_MEDIUM_VAN",
+      NURSERY_ROUTE_LEVEL_1: "NURSERY_ROUTE_LEVEL_1",
+      // Handle variations
+      ORDT_EXTRA_LARGE: "ORDT_EXTRA_LARGE_CARGO_VAN",
+      STANDARD_PARCEL: "STANDARD_PARCEL_MEDIUM_VAN",
+      NURSERY_LEVEL_1: "NURSERY_ROUTE_LEVEL_1",
+      NURSERY_LEVEL: "NURSERY_ROUTE_LEVEL_1",
+    };
+
+    // Check delivery service mappings first
+    if (deliveryServiceMappings[normalized]) {
+      return deliveryServiceMappings[normalized];
+    }
+
+    // Legacy aliases for backward compatibility
+    const legacyAliases: Record<string, RouteType> = {
+      FULL: "FULL_ROUTE",
+      TRAINING: "TRAINING_DAY",
+      RIDE: "HIDE_ALONG",
+      HIDE: "HIDE_ALONG",
+      SAME: "SAME_DAY",
+      NURSERY: "NURSERY_ROUTE",
+      EXTRA: "EXTRAS",
+    };
+
+    return legacyAliases[normalized] || null;
+  }
+
+  private parseAmount(amountStr: string): number {
+    if (!amountStr) return 0;
+
+    // Remove currency symbols and whitespace
+    const cleaned = amountStr.replace(/[£$€,\s]/g, "");
+    const amount = parseFloat(cleaned);
+
+    return isNaN(amount) ? 0 : Math.max(0, amount);
   }
 }

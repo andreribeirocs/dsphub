@@ -17,7 +17,7 @@ async function bootstrap(): Promise<void> {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
   app.useGlobalPipes(
-    new InputLengthValidationPipe(),
+    new InputLengthValidationPipe(50000000), // 50MB for file uploads
     new EnhancedValidationPipe()
   );
 
@@ -47,7 +47,7 @@ async function bootstrap(): Promise<void> {
     .addTag("auth", "Authentication endpoints")
     .addTag("recruitment", "Recruitment process endpoints")
     .addTag("drivers", "Driver management endpoints")
-    .addTag("schedule", "Driver schedule management endpoints")
+    .addTag("schedule", "Driver Availability management endpoints")
     .addTag("payments", "Payment management endpoints")
     .addTag("whatsapp", "WhatsApp messaging endpoints")
     .addTag("pdf", "PDF generation endpoints")
