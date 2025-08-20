@@ -146,6 +146,42 @@ export const routes: Routes = [
           },
         ],
       },
+      {
+        path: "profile",
+        loadComponent: () =>
+          import("./features/profile/profile.component").then(
+            (m) => m.ProfileComponent
+          ),
+      },
+      {
+        path: "admin",
+        children: [
+          {
+            path: "users",
+            loadComponent: () =>
+              import("./features/admin/users/users.component").then(
+                (m) => m.UsersComponent
+              ),
+            data: { roles: ["DIRECTOR"] },
+          },
+          {
+            path: "settings",
+            loadComponent: () =>
+              import("./features/admin/settings/settings.component").then(
+                (m) => m.SettingsComponent
+              ),
+            data: { roles: ["DIRECTOR"] },
+          },
+          {
+            path: "audit-logs",
+            loadComponent: () =>
+              import("./features/admin/audit-logs/audit-logs.component").then(
+                (m) => m.AuditLogsComponent
+              ),
+            data: { roles: ["DIRECTOR"] },
+          },
+        ],
+      },
       // Add more routes as needed
     ],
   },

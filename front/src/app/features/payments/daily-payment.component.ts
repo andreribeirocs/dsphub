@@ -6,6 +6,7 @@ import {
   inject,
   signal,
   effect,
+  HostListener,
 } from "@angular/core";
 import { toSignal } from "@angular/core/rxjs-interop";
 import {
@@ -22,6 +23,8 @@ import type {
   DailyPrefillItem,
   SaveDailyPaymentsRequest,
   DailyUpsertItem,
+  ImportXlsxRequest,
+  ImportXlsxResponse,
   RouteType,
 } from "./payment.model";
 import { AlertService } from "../../shared/services/alert.service";
@@ -45,20 +48,43 @@ export class DailyPaymentComponent implements OnInit {
   readonly includeExisting = signal<boolean>(true);
   readonly loading = signal<boolean>(false);
   readonly items = signal<DailyPrefillItem[]>([]);
+  readonly originalItems = signal<DailyPrefillItem[]>([]); // Track original state for change detection
   readonly sourceSheet = signal<string>("");
   readonly driverSearch = signal<string>("");
 
+  // XLSX Import signals
+  readonly showImportModal = signal<boolean>(false);
+  readonly importing = signal<boolean>(false);
+  readonly importResult = signal<ImportXlsxResponse | null>(null);
+
+  // Route dropdown state
+  readonly openRouteDropdown = signal<number | null>(null);
+
   private readonly searchQuery$ = new Subject<string>();
 
-  // Route type options (same as driver schedule)
+  // Route type options for payment records
   readonly routeTypeOptions = [
-    { value: "FULL_ROUTE", label: "Full Route" },
-    { value: "TRAINING_DAY", label: "Training Day" },
-    { value: "RIDE_ALONG", label: "Ride Along" },
-    { value: "SAME_DAY", label: "Same Day" },
-    { value: "NURSERY_ROUTE", label: "Nursery Route" },
-    { value: "HOLIDAY", label: "Holiday" },
-    { value: "OFF", label: "Off" },
+    { value: "FULL_ROUTE", label: "Full Route", shortKey: "F" },
+    { value: "TRAINING_DAY", label: "Training Day", shortKey: "T" },
+    { value: "HIDE_ALONG", label: "Ride Along", shortKey: "R" },
+    { value: "SAME_DAY", label: "Same Day", shortKey: "S" },
+    { value: "NURSERY_ROUTE", label: "Nursery Route", shortKey: "N" },
+    { value: "EXTRAS", label: "Extras", shortKey: "E" },
+    {
+      value: "ORDT_EXTRA_LARGE_CARGO_VAN",
+      label: "ORDT Extra Large Cargo Van",
+      shortKey: "O",
+    },
+    {
+      value: "STANDARD_PARCEL_MEDIUM_VAN",
+      label: "Standard Parcel Medium Van",
+      shortKey: "P",
+    },
+    {
+      value: "NURSERY_ROUTE_LEVEL_1",
+      label: "Nursery Route Level 1",
+      shortKey: "L",
+    },
   ] as const;
 
   // Signal-based reactive search
@@ -114,38 +140,61 @@ export class DailyPaymentComponent implements OnInit {
     this.items().reduce((sum, it) => sum + (it.totalSuggested || 0), 0)
   );
 
+  // Change detection - check if current items differ from original
+  readonly hasChanges = computed(() => {
+    const current = this.items();
+    const original = this.originalItems();
+
+    // Different lengths = changes
+    if (current.length !== original.length) {
+      return true;
+    }
+
+    // Check each item for changes
+    return current.some((currentItem, index) => {
+      const originalItem = original[index];
+      if (!originalItem) return true;
+
+      return (
+        currentItem.driverId !== originalItem.driverId ||
+        currentItem.routeType !== originalItem.routeType ||
+        currentItem.routeCode !== originalItem.routeCode ||
+        currentItem.dailyRate !== originalItem.dailyRate ||
+        currentItem.extraAmount !== originalItem.extraAmount ||
+        currentItem.deductionAmount !== originalItem.deductionAmount ||
+        currentItem.vanCharge !== originalItem.vanCharge ||
+        currentItem.totalSuggested !== originalItem.totalSuggested
+      );
+    });
+  });
+
   ngOnInit(): void {
     this.load();
   }
 
   load(): void {
-    console.log(
-      "Loading daily payments for date:",
-      this.date(),
-      "includeExisting:",
-      this.includeExisting()
-    );
     this.loading.set(true);
     this.paymentService
       .prefillDaily(this.date(), this.includeExisting())
       .subscribe({
         next: (data) => {
-          console.log("Load response data:", data);
-          // Ensure numeric fields
-          const normalized = data.map((d) => ({
-            ...d,
-            dailyRate: Number(d.dailyRate) || 0,
-            extraAmount: Number(d.extraAmount) || 0,
-            deductionAmount: Number(d.deductionAmount) || 0,
-            vanCharge: Number(d.vanCharge) || 0,
-            totalSuggested: Number(d.totalSuggested) || 0,
-          }));
-          console.log("Normalized data:", normalized);
+          // Ensure numeric fields and sort alphabetically by driver name
+          const normalized = data
+            .map((d) => ({
+              ...d,
+              dailyRate: Number(d.dailyRate) || 0,
+              extraAmount: Number(d.extraAmount) || 0,
+              deductionAmount: Number(d.deductionAmount) || 0,
+              vanCharge: Number(d.vanCharge) || 0,
+              totalSuggested: Number(d.totalSuggested) || 0,
+            }))
+            .sort((a, b) => a.driverName.localeCompare(b.driverName));
           this.items.set(normalized);
+          // Capture original state for change detection
+          this.originalItems.set([...normalized]);
           this.loading.set(false);
         },
         error: (err) => {
-          console.error("Load error:", err);
           this.alert.showError(
             "Failed to load daily prefill",
             err?.error?.message || err?.message || "Unknown error"
@@ -161,7 +210,6 @@ export class DailyPaymentComponent implements OnInit {
   }
 
   selectDriverForNewRow(driver: Driver): void {
-    console.log("Adding driver to row:", driver);
     const newRow: DailyPrefillItem = {
       driverId: driver.id,
       driverName: driver.name,
@@ -176,9 +224,9 @@ export class DailyPaymentComponent implements OnInit {
       totalSuggested: 100, // Matches dailyRate
       exists: false,
     };
-    console.log("New row created:", newRow);
-    const updatedItems = [newRow, ...this.items()];
-    console.log("Updated items array:", updatedItems);
+    const updatedItems = [newRow, ...this.items()].sort((a, b) =>
+      a.driverName.localeCompare(b.driverName)
+    );
     this.items.set(updatedItems);
 
     // Clear search after selection
@@ -235,11 +283,8 @@ export class DailyPaymentComponent implements OnInit {
   }
 
   removeRow(index: number): void {
-    console.log("Removing row at index:", index);
-    console.log("Items before removal:", this.items());
     const copy = this.items().slice();
     copy.splice(index, 1);
-    console.log("Items after removal:", copy);
     this.items.set(copy);
   }
 
@@ -248,11 +293,15 @@ export class DailyPaymentComponent implements OnInit {
     const classes = {
       FULL_ROUTE: "bg-blue-100 text-blue-800 border border-blue-200",
       TRAINING_DAY: "bg-green-100 text-green-800 border border-green-200",
-      RIDE_ALONG: "bg-purple-100 text-purple-800 border border-purple-200",
+      HIDE_ALONG: "bg-purple-100 text-purple-800 border border-purple-200",
       SAME_DAY: "bg-yellow-100 text-yellow-800 border border-yellow-200",
       NURSERY_ROUTE: "bg-pink-100 text-pink-800 border border-pink-200",
-      HOLIDAY: "bg-red-100 text-red-800 border border-red-200",
-      OFF: "bg-gray-100 text-gray-800 border border-gray-200",
+      EXTRAS: "bg-gray-100 text-gray-800 border border-gray-200",
+      ORDT_EXTRA_LARGE_CARGO_VAN:
+        "bg-orange-100 text-orange-800 border border-orange-200",
+      STANDARD_PARCEL_MEDIUM_VAN:
+        "bg-indigo-100 text-indigo-800 border border-indigo-200",
+      NURSERY_ROUTE_LEVEL_1: "bg-teal-100 text-teal-800 border border-teal-200",
     };
     return (
       classes[routeType as keyof typeof classes] ||
@@ -272,13 +321,10 @@ export class DailyPaymentComponent implements OnInit {
   }
 
   save(): void {
-    if (!this.items().length) {
-      this.alert.showWarning("Nothing to save");
+    if (!this.hasChanges()) {
+      this.alert.showWarning("No changes to save");
       return;
     }
-
-    console.log("Saving daily payments for date:", this.date());
-    console.log("Items to save:", this.items());
 
     // Note: In the future, we'll support multiple entries for the same driver
     // when one driver helps another. This will require:
@@ -286,12 +332,13 @@ export class DailyPaymentComponent implements OnInit {
     // 2. Adding a "helpedBy" or "assistedBy" field
     // 3. Modifying the backend to allow multiple records per driver/date
 
-    // Filter out empty rows (no driverId)
+    // Filter out empty rows (no driverId) - but allow empty list if deleting all
     const validItems = this.items().filter(
       (i) => i.driverId && i.driverId.trim()
     );
 
-    if (validItems.length === 0) {
+    // If no valid items but we have changes, it means we're deleting all records
+    if (validItems.length === 0 && !this.hasChanges()) {
       this.alert.showWarning(
         "No valid entries to save (missing driver information)"
       );
@@ -322,20 +369,15 @@ export class DailyPaymentComponent implements OnInit {
       })),
     };
 
-    console.log("Save request body:", body);
-    console.log("Number of valid items to save:", validItems.length);
     this.loading.set(true);
 
     this.paymentService.saveDaily(body).subscribe({
       next: (res) => {
-        console.log("Save response:", res);
-        console.log("Created:", res.created, "Updated:", res.updated);
         this.loading.set(false);
         this.alert.showSuccess(
           "Daily payments saved",
           `Created: ${res.created}, Updated: ${res.updated}`
         );
-        console.log("Reloading data after save...");
 
         // Add a small delay to ensure backend has processed the save
         setTimeout(() => {
@@ -343,8 +385,6 @@ export class DailyPaymentComponent implements OnInit {
         }, 500);
       },
       error: (err) => {
-        console.error("Save error:", err);
-        console.error("Full error object:", JSON.stringify(err, null, 2));
         this.loading.set(false);
         this.alert.showError(
           "Failed to save daily payments",
@@ -352,5 +392,128 @@ export class DailyPaymentComponent implements OnInit {
         );
       },
     });
+  }
+
+  // XLSX Import functionality
+  openImportModal(): void {
+    this.showImportModal.set(true);
+    this.importResult.set(null);
+  }
+
+  closeImportModal(): void {
+    this.showImportModal.set(false);
+    this.importResult.set(null);
+  }
+
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+
+    if (!file) return;
+
+    // Validate file type
+    if (!file.name.match(/\.(xlsx|xls)$/i)) {
+      this.alert.showError(
+        "Invalid file type",
+        "Please select an Excel file (.xlsx or .xls)"
+      );
+      return;
+    }
+
+    // Convert file to base64
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      const fileContent = base64.split(",")[1]; // Remove data:application/... prefix
+
+      this.importFromXlsx(fileContent);
+    };
+    reader.onerror = () => {
+      this.alert.showError(
+        "File read error",
+        "Failed to read the selected file"
+      );
+    };
+    reader.readAsDataURL(file);
+  }
+
+  private importFromXlsx(fileContent: string): void {
+    const request: ImportXlsxRequest = {
+      date: this.date(),
+      sourceSheet: this.sourceSheet() || undefined,
+      fileContent,
+    };
+
+    this.importing.set(true);
+
+    this.paymentService.importXlsx(request).subscribe({
+      next: (result) => {
+        this.importing.set(false);
+        this.importResult.set(result);
+
+        // Always refresh the data if any records were created or updated
+        if (result.created > 0 || result.updated > 0) {
+          this.load(); // Refresh the data to show changes
+        }
+
+        if (result.errors.length === 0) {
+          this.alert.showSuccess(
+            "Import completed successfully",
+            `Created: ${result.created}, Updated: ${result.updated}`
+          );
+          this.closeImportModal();
+        } else {
+          this.alert.showWarning(
+            "Import completed with errors",
+            `Created: ${result.created}, Updated: ${result.updated}, Errors: ${result.errors.length}`
+          );
+        }
+      },
+      error: (err) => {
+        this.importing.set(false);
+        this.alert.showError(
+          "Import failed",
+          err?.error?.message || err?.message || "Unknown error"
+        );
+      },
+    });
+  }
+
+  // Route dropdown methods
+  toggleRouteDropdown(index: number): void {
+    const currentlyOpen = this.openRouteDropdown();
+    this.openRouteDropdown.set(currentlyOpen === index ? null : index);
+  }
+
+  @HostListener("document:click", ["$event"])
+  onDocumentClick(event: Event): void {
+    // Close dropdown when clicking outside
+    const target = event.target as HTMLElement;
+    if (!target.closest(".relative")) {
+      this.openRouteDropdown.set(null);
+    }
+  }
+
+  selectRouteType(index: number, routeType: string): void {
+    this.onCellChange(index, "routeType", routeType);
+    this.openRouteDropdown.set(null); // Close dropdown
+  }
+
+  getRouteTypeHoverClass(routeType: string): string {
+    const hoverClasses = {
+      FULL_ROUTE: "hover:bg-blue-50 hover:text-blue-600",
+      TRAINING_DAY: "hover:bg-green-50 hover:text-green-600",
+      HIDE_ALONG: "hover:bg-purple-50 hover:text-purple-600",
+      SAME_DAY: "hover:bg-yellow-50 hover:text-yellow-600",
+      NURSERY_ROUTE: "hover:bg-pink-50 hover:text-pink-600",
+      EXTRAS: "hover:bg-gray-50 hover:text-gray-600",
+      ORDT_EXTRA_LARGE_CARGO_VAN: "hover:bg-orange-50 hover:text-orange-600",
+      STANDARD_PARCEL_MEDIUM_VAN: "hover:bg-indigo-50 hover:text-indigo-600",
+      NURSERY_ROUTE_LEVEL_1: "hover:bg-teal-50 hover:text-teal-600",
+    };
+    return (
+      hoverClasses[routeType as keyof typeof hoverClasses] ||
+      "hover:bg-gray-50 hover:text-gray-600"
+    );
   }
 }

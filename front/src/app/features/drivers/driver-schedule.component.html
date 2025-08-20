@@ -4,9 +4,9 @@
     <div class="px-6 py-4">
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-3xl font-bold text-gray-900">Driver Schedule</h1>
+          <h1 class="text-3xl font-bold text-gray-900">Driver Availability</h1>
           <p class="text-gray-600 mt-1">
-            Manage daily work schedules for all drivers
+            Manage daily work availability for all drivers
           </p>
         </div>
         <div class="flex items-center gap-3">
@@ -267,11 +267,11 @@
       </div>
     </div>
     } @else {
-    <!-- Schedule Grid -->
+    <!-- Availability Grid -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
       <div class="flex">
         <!-- Fixed Driver Column -->
-        <div class="w-64 flex-shrink-0 border-r border-gray-200">
+        <div class="w-80 flex-shrink-0 border-r border-gray-200">
           <!-- Driver Column Header -->
           <div
             class="px-6 py-4 bg-gray-50 border-b border-gray-200 h-20 flex items-center"
@@ -284,22 +284,25 @@
           <div>
             @for (driver of filteredDrivers(); track driver.id) {
             <div
-              class="px-6 hover:bg-gray-50 transition-colors h-20 flex items-center border-b border-gray-200"
+              class="px-4 hover:bg-gray-50 transition-colors min-h-24 py-3 border-b border-gray-200"
             >
-              <div class="flex items-center space-x-3">
+              <div class="flex items-start gap-3">
                 <div
                   [class]="
-                    'w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm driver-avatar ' +
+                    'w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm driver-avatar flex-shrink-0 ' +
                     getDriverAvatarColor(driver.id)
                   "
                 >
                   {{ getInitials(driver.name) }}
                 </div>
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-gray-900 truncate">
+                <div class="w-48 flex-shrink-0">
+                  <div
+                    class="text-sm font-medium text-gray-900 break-normal leading-tight"
+                    [title]="driver.name"
+                  >
                     {{ driver.name }}
-                  </p>
-                  <p class="text-xs text-gray-500 uppercase tracking-wide">
+                  </div>
+                  <p class="text-xs text-gray-500 uppercase tracking-wide mt-1">
                     {{ driver.status }}
                   </p>
                 </div>
@@ -373,11 +376,11 @@
             </div>
           </div>
 
-          <!-- Schedule Rows -->
+          <!-- Availability Rows -->
           <div class="min-w-max">
             @for (driver of filteredDrivers(); track driver.id) {
             <div
-              class="flex hover:bg-gray-50 transition-colors h-20 border-b border-gray-200"
+              class="flex hover:bg-gray-50 transition-colors min-h-24 py-3 border-b border-gray-200"
             >
               <!-- Week 1 (Current Week) -->
               <div class="flex border-r-2 border-blue-300 bg-blue-50/30 h-full">
@@ -860,7 +863,7 @@
   </div>
 </div>
 
-<!-- Schedule Modal -->
+<!-- Availability Modal -->
 @if (showScheduleModal()) {
 <div
   class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 modal-backdrop"
@@ -870,7 +873,7 @@
   >
     <div class="mt-3">
       <h3 class="text-lg font-medium text-gray-900 mb-4">
-        {{ modalMode() === "edit" ? "Edit" : "Add" }} Schedule
+        {{ modalMode() === "edit" ? "Edit" : "Add" }} Availability
       </h3>
       <div class="space-y-4">
         <div>

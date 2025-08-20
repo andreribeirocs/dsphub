@@ -5,6 +5,9 @@ export enum RouteType {
   SAME_DAY = "SAME_DAY",
   NURSERY_ROUTE = "NURSERY_ROUTE",
   EXTRAS = "EXTRAS",
+  ORDT_EXTRA_LARGE_CARGO_VAN = "ORDT_EXTRA_LARGE_CARGO_VAN",
+  STANDARD_PARCEL_MEDIUM_VAN = "STANDARD_PARCEL_MEDIUM_VAN",
+  NURSERY_ROUTE_LEVEL_1 = "NURSERY_ROUTE_LEVEL_1",
 }
 
 export interface RoutePrice {
@@ -136,6 +139,18 @@ export interface SaveDailyPaymentsRequest {
   readonly items: DailyUpsertItem[];
 }
 
+export interface ImportXlsxRequest {
+  readonly date: string; // YYYY-MM-DD
+  readonly sourceSheet?: string;
+  readonly fileContent: string; // Base64 encoded XLSX file
+}
+
+export interface ImportXlsxResponse {
+  readonly created: number;
+  readonly updated: number;
+  readonly errors: string[];
+}
+
 // Route type display names for UI
 export const ROUTE_TYPE_LABELS: Record<RouteType, string> = {
   [RouteType.FULL_ROUTE]: "Full Route",
@@ -144,6 +159,9 @@ export const ROUTE_TYPE_LABELS: Record<RouteType, string> = {
   [RouteType.SAME_DAY]: "Same Day",
   [RouteType.NURSERY_ROUTE]: "Nursery Route",
   [RouteType.EXTRAS]: "Extras",
+  [RouteType.ORDT_EXTRA_LARGE_CARGO_VAN]: "ORDT Extra Large Cargo Van",
+  [RouteType.STANDARD_PARCEL_MEDIUM_VAN]: "Standard Parcel Medium Van",
+  [RouteType.NURSERY_ROUTE_LEVEL_1]: "Nursery Route Level 1",
 };
 
 // Route type colors for UI
@@ -154,4 +172,7 @@ export const ROUTE_TYPE_COLORS: Record<RouteType, string> = {
   [RouteType.SAME_DAY]: "bg-purple-100 text-purple-800",
   [RouteType.NURSERY_ROUTE]: "bg-pink-100 text-pink-800",
   [RouteType.EXTRAS]: "bg-gray-100 text-gray-800",
+  [RouteType.ORDT_EXTRA_LARGE_CARGO_VAN]: "bg-orange-100 text-orange-800",
+  [RouteType.STANDARD_PARCEL_MEDIUM_VAN]: "bg-indigo-100 text-indigo-800",
+  [RouteType.NURSERY_ROUTE_LEVEL_1]: "bg-teal-100 text-teal-800",
 };

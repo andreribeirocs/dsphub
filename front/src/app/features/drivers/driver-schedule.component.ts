@@ -30,6 +30,7 @@ import type {
   selector: "app-driver-schedule",
   standalone: true,
   imports: [CommonModule, FormsModule, LoadingComponent],
+
   template: `
     <div class="min-h-screen bg-gray-50">
       <!-- Header -->
@@ -39,9 +40,11 @@ import type {
         <div class="px-6 py-4">
           <div class="flex items-center justify-between">
             <div>
-              <h1 class="text-3xl font-bold text-gray-900">Driver Schedule</h1>
+              <h1 class="text-3xl font-bold text-gray-900">
+                Driver Availability
+              </h1>
               <p class="text-gray-600 mt-1">
-                Manage daily work schedules for all drivers
+                Manage daily work availability for all drivers
               </p>
             </div>
             <div class="flex items-center gap-3">
@@ -331,7 +334,7 @@ import type {
                       {{ getInitials(driver.name) }}
                     </div>
                     <div class="flex-1 min-w-0">
-                      <p class="text-sm font-medium text-gray-900 truncate">
+                      <p class="text-sm font-medium text-gray-900 break-normal">
                         {{ driver.name }}
                       </p>
                       <p class="text-xs text-gray-500 uppercase tracking-wide">

@@ -176,4 +176,14 @@ export class PaymentService {
       body
     );
   }
+
+  /**
+   * Import daily payments from XLSX file
+   */
+  importXlsx(body: import("./payment.model").ImportXlsxRequest) {
+    return this.http.post<import("./payment.model").ImportXlsxResponse>(
+      `${this.apiUrl}/import-xlsx`,
+      body
+    );
+  }
 }

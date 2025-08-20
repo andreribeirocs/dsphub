@@ -1,0 +1,43 @@
+/* Profile Component Styles */
+
+.profile-picture {
+  transition: transform 0.2s ease-in-out;
+  
+  &:hover {
+    transform: scale(1.05);
+  }
+}
+
+.status-badge {
+  transition: all 0.2s ease-in-out;
+}
+
+.security-button {
+  transition: background-color 0.2s ease-in-out;
+  
+  &:hover {
+    background-color: rgba(59, 130, 246, 0.05);
+  }
+}
+
+.form-section {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s ease-in-out;
+  
+  &:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

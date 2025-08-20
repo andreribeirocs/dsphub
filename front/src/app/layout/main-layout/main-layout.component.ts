@@ -19,6 +19,7 @@ import { NgxSonnerToaster } from "ngx-sonner";
   standalone: true,
   imports: [CommonModule, RouterModule, NgxSonnerToaster],
   templateUrl: "./main-layout.component.html",
+  styleUrls: ["./main-layout.component.scss"],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MainLayoutComponent {
@@ -48,21 +49,19 @@ export class MainLayoutComponent {
   );
 
   toggleSidebar(): void {
-    console.log("Toggling sidebar, current state:", this.isSidebarOpen());
     this.isSidebarOpen.update((value) => !value);
-    console.log("Sidebar state after toggle:", this.isSidebarOpen());
   }
 
   toggleProfileMenu(): void {
     this.isProfileMenuOpen.update((value) => !value);
   }
 
-  toggleMobileMenu(): void {
-    this.isMobileMenuOpen.update((value) => !value);
-  }
-
   logout(): void {
     this.authService.logout();
+  }
+
+  toggleMobileMenu(): void {
+    this.isMobileMenuOpen.update((value) => !value);
   }
 
   @HostListener("document:click", ["$event"])
@@ -70,8 +69,11 @@ export class MainLayoutComponent {
     const target = event.target as HTMLElement;
     const element = this.elementRef.nativeElement;
 
-    // Close profile menu if clicking outside
-    if (!element.querySelector(".profile-menu")?.contains(target)) {
+    // Close profile menu if clicking outside the profile dropdown container
+    const profileContainer = element.querySelector(
+      ".profile-dropdown-container"
+    );
+    if (profileContainer && !profileContainer.contains(target)) {
       this.isProfileMenuOpen.set(false);
     }
 
