@@ -30,6 +30,11 @@ export class EnhancedValidationPipe extends NestValidationPipe {
   }
 
   async transform(value: any, metadata: ArgumentMetadata): Promise<any> {
+    // Skip processing for file uploads to preserve Buffer objects
+    if (this.isFileUpload(value)) {
+      return value;
+    }
+
     // Log potentially suspicious input
     this.logSuspiciousInput(value, metadata);
 
@@ -38,6 +43,22 @@ export class EnhancedValidationPipe extends NestValidationPipe {
 
     // Call parent validation
     return super.transform(sanitizedValue, metadata);
+  }
+
+  private isFileUpload(value: any): boolean {
+    // Check if this is a file upload by looking for multer file properties
+    if (value && typeof value === "object") {
+      // Check for multer file properties
+      if (
+        value.fieldname &&
+        value.originalname &&
+        value.mimetype &&
+        value.buffer
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private sanitizeInput(value: any): any {
@@ -159,8 +180,38 @@ export class InputLengthValidationPipe implements PipeTransform {
   ) {}
 
   transform(value: any, metadata: ArgumentMetadata): any {
+    // Skip validation for file uploads and multipart data
+    if (this.isFileUpload(value, metadata)) {
+      return value;
+    }
+
     this.validateInputSize(value, 0);
     return value;
+  }
+
+  private isFileUpload(value: any, metadata: ArgumentMetadata): boolean {
+    // Check if this is a file upload by looking for multer file properties
+    if (value && typeof value === "object") {
+      // Check for multer file properties
+      if (
+        value.fieldname &&
+        value.originalname &&
+        value.mimetype &&
+        value.buffer
+      ) {
+        return true;
+      }
+
+      // Check for multipart form data with many properties (likely file upload)
+      if (Object.keys(value).length > 50) {
+        this.logger.log(
+          "Skipping validation for suspected file upload (many properties)"
+        );
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private validateInputSize(obj: any, depth: number): void {

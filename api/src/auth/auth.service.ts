@@ -252,4 +252,70 @@ export class AuthService {
 
     return { message: "Password has been reset successfully" };
   }
+
+  /**
+   * Upload and save user avatar
+   * @param userId - User ID
+   * @param avatarBase64 - Base64 encoded avatar
+   * @returns Success message with avatar data
+   */
+  async uploadAvatar(
+    userId: string,
+    avatarBase64: string
+  ): Promise<{ message: string; avatar: string }> {
+    try {
+      // Update user avatar in database
+      const updatedUser = await this.prisma.user.update({
+        where: { id: userId },
+        data: { avatar: avatarBase64 },
+        select: { avatar: true },
+      });
+
+      return {
+        message: "Avatar uploaded successfully",
+        avatar: avatarBase64,
+      };
+    } catch (error) {
+      throw new BadRequestException(error, "Failed to save avatar");
+    }
+  }
+
+  /**
+   * Get user profile with avatar
+   * @param userId - User ID
+   * @returns User profile including avatar
+   */
+  async getUserProfile(
+    userId: string
+  ): Promise<ValidatedUser & { avatar?: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        avatar: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    // Convert Prisma result to proper return type
+    const { id, email, name, role, avatar: userAvatar } = user;
+
+    const processedAvatar = (userAvatar as string | null)
+      ? (userAvatar as string)
+      : undefined;
+
+    return {
+      id,
+      email,
+      name,
+      role,
+      avatar: processedAvatar,
+    };
+  }
 }

@@ -7,6 +7,10 @@ import {
   Get,
   Request,
   Param,
+  Patch,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
 } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { LocalAuthGuard } from "./guards/local-auth.guard";
@@ -16,6 +20,8 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
 } from "@nestjs/swagger";
 import {
   ThrottleAuth,
@@ -26,6 +32,9 @@ import {
 import { RefreshTokenDto } from "./dto/refresh-token.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { IMAGE_UPLOAD_CONFIG } from "src/shared/config/multer.config";
+import { SecureErrorUtil } from "../shared/utils/secure-error.util";
 
 // Define interfaces for request objects
 interface AuthenticatedRequest {
@@ -35,6 +44,13 @@ interface AuthenticatedRequest {
     name: string;
     role: string;
   };
+}
+
+interface ValidatedUser {
+  readonly id: string;
+  readonly email: string;
+  readonly name: string;
+  readonly role: string;
 }
 
 interface LoginResponse {
@@ -105,10 +121,10 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Get("profile")
-  getProfile(
+  async getProfile(
     @Request() req: AuthenticatedRequest
-  ): AuthenticatedRequest["user"] {
-    return req.user;
+  ): Promise<ValidatedUser & { avatar?: string }> {
+    return await this.authService.getUserProfile(req.user.id);
   }
 
   /**
@@ -211,5 +227,92 @@ export class AuthController {
       resetPasswordDto.token,
       resetPasswordDto.newPassword
     );
+  }
+
+  /**
+   * Upload user avatar
+   * @param req - Request object with user data from JwtAuthGuard
+   * @param file - Avatar image file
+   * @returns Success message with avatar data
+   */
+  @ApiOperation({ summary: "Upload user avatar" })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        avatar: {
+          type: "string",
+          format: "binary",
+          description: "Avatar image file (JPEG, PNG, GIF, max 5MB)",
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Avatar uploaded successfully",
+    schema: {
+      type: "object",
+      properties: {
+        message: { type: "string" },
+        avatar: { type: "string", description: "Base64 encoded avatar" },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: "Invalid file or processing error" })
+  @ApiResponse({ status: 401, description: "Unauthorized" })
+  @ApiResponse({ status: 413, description: "File too large" })
+  @ApiResponse({ status: 415, description: "Unsupported file type" })
+  @ApiResponse({ status: 429, description: "Too many requests" })
+  @ThrottleRelaxed()
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor("avatar", IMAGE_UPLOAD_CONFIG))
+  @Patch("avatar")
+  async uploadAvatar(
+    @Request() req: AuthenticatedRequest,
+    @UploadedFile() file: Express.Multer.File
+  ): Promise<{ message: string; avatar: string }> {
+    if (!file) {
+      throw new BadRequestException("No file uploaded");
+    }
+
+    // Validate file size (5MB max)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      throw new BadRequestException("File size too large. Maximum size is 5MB");
+    }
+
+    // Validate file type
+    const allowedMimeTypes = ["image/jpeg", "image/png", "image/gif"];
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      throw new BadRequestException(
+        "Invalid file type. Only JPEG, PNG, and GIF are allowed"
+      );
+    }
+
+    try {
+      // Convert file buffer to base64
+      let base64Avatar: string;
+      if (Buffer.isBuffer(file.buffer)) {
+        base64Avatar = file.buffer.toString("base64");
+      } else {
+        // If it's not a buffer, try to create one
+        base64Avatar = Buffer.from(file.buffer).toString("base64");
+      }
+
+      const dataUrl = `data:${file.mimetype};base64,${base64Avatar}`;
+
+      // Save avatar to database
+      const result = await this.authService.uploadAvatar(req.user.id, dataUrl);
+
+      return result;
+    } catch (error) {
+      throw SecureErrorUtil.handleFileProcessingError(
+        error,
+        "Avatar processing"
+      );
+    }
   }
 }

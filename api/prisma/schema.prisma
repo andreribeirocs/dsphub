@@ -30,6 +30,7 @@ model User {
   role             UserRole
   status           UserStatus @default(ACTIVE)
   phoneNumber      String?
+  avatar           String? // Base64 encoded avatar image
   lastLogin        DateTime?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
