@@ -23,6 +23,12 @@ interface ExtendedUser extends User {
   lastLogin?: Date;
   status?: string;
   twoFactorEnabled?: boolean;
+  avatar?: string;
+}
+
+interface AvatarUploadResponse {
+  message: string;
+  avatar: string;
 }
 
 @Component({
@@ -46,6 +52,7 @@ export class ProfileComponent {
   readonly updating = signal(false);
   readonly changingPassword = signal(false);
   readonly uploadingAvatar = signal(false);
+  readonly avatarUrl = signal<string | null>(null);
 
   readonly profileForm: FormGroup = this.fb.group({
     name: ["", [Validators.required, Validators.minLength(2)]],
@@ -72,6 +79,12 @@ export class ProfileComponent {
           email: userData.email,
           phoneNumber: (userData as ExtendedUser).phoneNumber || "",
         });
+
+        // Load existing avatar if available
+        const extendedUser = userData as ExtendedUser;
+        if (extendedUser.avatar) {
+          this.avatarUrl.set(extendedUser.avatar);
+        }
       }
     });
   }
@@ -182,14 +195,40 @@ export class ProfileComponent {
       const formData = new FormData();
       formData.append("avatar", file);
 
-      // TODO: Implement avatar upload API endpoint
-      console.log("Uploading avatar:", file.name);
+      // Upload avatar to API
+      this.http
+        .patch<AvatarUploadResponse>(
+          `${environment.apiUrl}/auth/avatar`,
+          formData
+        )
+        .subscribe({
+          next: (response) => {
+            console.log("Avatar uploaded successfully!");
+            this.uploadingAvatar.set(false);
 
-      // Simulate upload
-      setTimeout(() => {
-        this.uploadingAvatar.set(false);
-        console.log("Avatar uploaded successfully!");
-      }, 2000);
+            // Store avatar data for immediate display
+            if (response.avatar) {
+              this.avatarUrl.set(response.avatar);
+            }
+
+            // Refresh user profile to persist avatar across page reloads
+            this.authService.refreshUserProfile().subscribe({
+              next: (updatedUser) => {
+                console.log("User profile refreshed with new avatar");
+              },
+              error: (error) => {
+                console.error("Failed to refresh user profile:", error);
+              },
+            });
+
+            // TODO: Show success message to user
+          },
+          error: (error) => {
+            console.error("Failed to upload avatar:", error);
+            this.uploadingAvatar.set(false);
+            // TODO: Show error message to user
+          },
+        });
     }
   }
 

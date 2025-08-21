@@ -188,11 +188,19 @@
         </h3>
         <div class="flex flex-col items-center">
           <div
-            class="h-24 w-24 rounded-full bg-blue-100 flex items-center justify-center mb-4"
+            class="h-24 w-24 rounded-full bg-blue-100 flex items-center justify-center mb-4 overflow-hidden"
           >
+            @if (avatarUrl()) {
+            <img
+              [src]="avatarUrl()"
+              [alt]="user()?.name + ' avatar'"
+              class="w-full h-full object-cover rounded-full"
+            />
+            } @else {
             <span class="text-blue-600 font-semibold text-2xl">
               {{ user()?.name?.charAt(0)?.toUpperCase() || "U" }}
             </span>
+            }
           </div>
           <button
             class="text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50"

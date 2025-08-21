@@ -11,6 +11,7 @@ export interface User {
   email: string;
   name: string;
   role: string;
+  avatar?: string; // Base64 encoded avatar image
 }
 
 export interface AuthResponse {
@@ -120,8 +121,18 @@ export class AuthService {
     // Only store tokens, not user data
     localStorage.setItem("token", response.access_token);
     localStorage.setItem("refresh_token", response.refresh_token);
-    // Set user data in memory only
-    this.currentUserSubject.next(response.user);
+
+    // Fetch complete user profile (including avatar) instead of using login response
+    this.fetchUserProfile().subscribe({
+      next: (user) => {
+        this.currentUserSubject.next(user);
+      },
+      error: (err) => {
+        console.error("Failed to fetch user profile after login:", err);
+        // Fallback to login response user data if profile fetch fails
+        this.currentUserSubject.next(response.user);
+      },
+    });
   }
 
   public logout() {

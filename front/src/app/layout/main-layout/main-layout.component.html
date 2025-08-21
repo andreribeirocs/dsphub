@@ -346,11 +346,19 @@
           class="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 hover:text-gray-900 transition-colors"
         >
           <div
-            class="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center shrink-0"
+            class="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center shrink-0 overflow-hidden"
           >
+            @if (user()?.avatar) {
+            <img
+              [src]="user()!.avatar"
+              [alt]="user()?.name + ' avatar'"
+              class="w-full h-full object-cover rounded-full"
+            />
+            } @else {
             <span class="text-white font-medium text-sm">
               {{ user()?.name?.charAt(0)?.toUpperCase() || "U" }}
             </span>
+            }
           </div>
           <div
             class="ml-3 flex flex-col items-start transition-opacity duration-200"
