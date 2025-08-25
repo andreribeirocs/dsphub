@@ -184,6 +184,57 @@ export class AuthService {
       );
   }
 
+  public forgotPassword(phoneNumber: string): Observable<{ message: string }> {
+    return this.http
+      .post<{ message: string }>(`${this.API_URL}/forgot-password`, {
+        phoneNumber,
+      })
+      .pipe(
+        catchError((error) => {
+          console.error("Forgot password failed", error);
+          return throwError(
+            () => new Error(error.error?.message || "Failed to send reset link")
+          );
+        })
+      );
+  }
+
+  public verifyResetToken(
+    token: string
+  ): Observable<{ valid: boolean; message?: string }> {
+    return this.http
+      .get<{ valid: boolean; message?: string }>(
+        `${this.API_URL}/verify-reset-token/${token}`
+      )
+      .pipe(
+        catchError((error) => {
+          console.error("Token verification failed", error);
+          return throwError(
+            () => new Error(error.error?.message || "Token verification failed")
+          );
+        })
+      );
+  }
+
+  public resetPassword(
+    token: string,
+    newPassword: string
+  ): Observable<{ message: string }> {
+    return this.http
+      .post<{ message: string }>(`${this.API_URL}/reset-password`, {
+        token,
+        newPassword,
+      })
+      .pipe(
+        catchError((error) => {
+          console.error("Password reset failed", error);
+          return throwError(
+            () => new Error(error.error?.message || "Password reset failed")
+          );
+        })
+      );
+  }
+
   public get isLoggedIn(): boolean {
     // User is logged in if they have a token, regardless of whether user data is loaded yet
     // This prevents premature redirects to login during app initialization

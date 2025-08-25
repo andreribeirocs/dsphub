@@ -4,43 +4,21 @@ import {
   computed,
   inject,
   ChangeDetectionStrategy,
+  OnInit,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { Router } from "@angular/router";
+import { UsersService, User, UserStats } from "./users.service";
+import { CreateUserModalComponent } from "./create-user-modal.component";
+import { AlertService } from "../../../shared/services/alert.service";
 
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  role:
-    | "DIRECTOR"
-    | "MANAGER_FINANCIAL"
-    | "MANAGER_FLEET"
-    | "MANAGER_ONSITE"
-    | "MANAGER_RECRUITMENT"
-    | "DRIVER";
-  status: "ACTIVE" | "INACTIVE" | "PENDING";
-  phoneNumber?: string;
-  lastLogin?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-  twoFactorEnabled: boolean;
-}
-
-interface UserStats {
-  totalUsers: number;
-  activeUsers: number;
-  inactiveUsers: number;
-  pendingUsers: number;
-  usersByRole: Record<string, number>;
-  newUsersThisMonth: number;
-}
+// Remove duplicate interfaces since they're imported from the service
 
 @Component({
   selector: "app-users",
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CreateUserModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="max-w-7xl mx-auto">
@@ -190,14 +168,14 @@ interface UserStats {
               type="text"
               placeholder="Search by name or email..."
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              [(ngModel)]="searchTerm"
-              (input)="applyFilters()"
+              [value]="searchTerm()"
+              (input)="searchTerm.set($any($event.target).value)"
             />
           </div>
           <select
             class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            [(ngModel)]="roleFilter"
-            (change)="applyFilters()"
+            [value]="roleFilter()"
+            (change)="roleFilter.set($any($event.target).value)"
           >
             <option value="">All Roles</option>
             <option value="DIRECTOR">Director</option>
@@ -209,8 +187,8 @@ interface UserStats {
           </select>
           <select
             class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            [(ngModel)]="statusFilter"
-            (change)="applyFilters()"
+            [value]="statusFilter()"
+            (change)="statusFilter.set($any($event.target).value)"
           >
             <option value="">All Status</option>
             <option value="ACTIVE">Active</option>
@@ -347,36 +325,20 @@ interface UserStats {
         </div>
       </div>
 
-      <!-- Create User Modal Placeholder -->
+      <!-- Create User Modal -->
       @if (showCreateModal()) {
-      <div
-        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
-      >
-        <div
-          class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white"
-        >
-          <div class="mt-3 text-center">
-            <h3 class="text-lg font-medium text-gray-900">Create New User</h3>
-            <p class="text-sm text-gray-500 mt-2">
-              User creation form will be implemented here
-            </p>
-            <div class="mt-4">
-              <button
-                (click)="showCreateModal.set(false)"
-                class="px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <app-create-user-modal
+        (close)="onCloseCreateModal()"
+        (userCreated)="onUserCreated()"
+      />
       }
     </div>
   `,
 })
-export class UsersComponent {
+export class UsersComponent implements OnInit {
   private readonly router = inject(Router);
+  private readonly usersService = inject(UsersService);
+  private readonly alertService = inject(AlertService);
 
   // Signals for reactive state management
   readonly users = signal<User[]>([]);
@@ -392,16 +354,21 @@ export class UsersComponent {
   readonly showCreateModal = signal(false);
 
   // Filter signals
-  searchTerm = "";
-  roleFilter = "";
-  statusFilter = "";
+  readonly searchTerm = signal("");
+  readonly roleFilter = signal("");
+  readonly statusFilter = signal("");
 
   // Computed filtered users
   readonly filteredUsers = computed(() => {
     const users = this.users();
-    const search = this.searchTerm.toLowerCase();
-    const role = this.roleFilter;
-    const status = this.statusFilter;
+    const search = this.searchTerm().toLowerCase();
+    const role = this.roleFilter();
+    const status = this.statusFilter();
+
+    // Guard against undefined users array
+    if (!users || !Array.isArray(users)) {
+      return [];
+    }
 
     return users.filter((user) => {
       const matchesSearch =
@@ -416,9 +383,51 @@ export class UsersComponent {
     });
   });
 
-  constructor() {
-    // TODO: Load users data from API
-    this.loadMockData();
+  ngOnInit(): void {
+    this.loadUsers();
+    this.loadUserStats();
+  }
+
+  loadUsers(): void {
+    this.loading.set(true);
+    this.usersService.getUsers({ limit: 50 }).subscribe({
+      next: (response) => {
+        // Ensure we always set an array, even if response.data is undefined
+        this.users.set(response.data || []);
+        this.loading.set(false);
+      },
+      error: (error) => {
+        console.error("Failed to load users:", error);
+        this.loading.set(false);
+        // Ensure users is set to empty array on error
+        this.users.set([]);
+        // Fallback to mock data for now
+        this.loadMockData();
+      },
+    });
+  }
+
+  loadUserStats(): void {
+    this.usersService.getUserStats().subscribe({
+      next: (stats) => {
+        this.stats.set(stats);
+      },
+      error: (error) => {
+        console.error("Failed to load user stats:", error);
+        // Keep existing stats or use defaults
+      },
+    });
+  }
+
+  onCloseCreateModal(): void {
+    this.showCreateModal.set(false);
+  }
+
+  onUserCreated(): void {
+    // Refresh the users list and stats
+    this.loadUsers();
+    this.loadUserStats();
+    this.alertService.showSuccess("User created successfully!");
   }
 
   applyFilters(): void {
@@ -426,9 +435,9 @@ export class UsersComponent {
   }
 
   clearFilters(): void {
-    this.searchTerm = "";
-    this.roleFilter = "";
-    this.statusFilter = "";
+    this.searchTerm.set("");
+    this.roleFilter.set("");
+    this.statusFilter.set("");
   }
 
   editUser(user: User): void {
@@ -438,12 +447,64 @@ export class UsersComponent {
 
   toggleUserStatus(user: User): void {
     console.log("Toggle status for user:", user);
-    // TODO: Implement status toggle
+    this.loading.set(true);
+
+    const newStatus = user.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+
+    this.usersService
+      .updateUserStatus(user.id, { status: newStatus })
+      .subscribe({
+        next: (updatedUser) => {
+          // Update the user in the list
+          const currentUsers = this.users();
+          const updatedUsers = currentUsers.map((u) =>
+            u.id === user.id ? updatedUser : u
+          );
+          this.users.set(updatedUsers);
+          this.loadUserStats(); // Refresh stats
+          this.loading.set(false);
+          this.alertService.showSuccess(
+            `User ${
+              updatedUser.status === "ACTIVE" ? "activated" : "deactivated"
+            } successfully`
+          );
+        },
+        error: (error) => {
+          console.error("Failed to update user status:", error);
+          this.loading.set(false);
+          this.alertService.showError(
+            "Failed to update user status",
+            error.message
+          );
+        },
+      });
   }
 
   deleteUser(user: User): void {
-    console.log("Delete user:", user);
-    // TODO: Implement user deletion
+    if (
+      confirm(
+        `Are you sure you want to delete user "${user.name}"? This action cannot be undone.`
+      )
+    ) {
+      this.loading.set(true);
+
+      this.usersService.deleteUser(user.id).subscribe({
+        next: () => {
+          // Remove the user from the list
+          const currentUsers = this.users();
+          const updatedUsers = currentUsers.filter((u) => u.id !== user.id);
+          this.users.set(updatedUsers);
+          this.loadUserStats(); // Refresh stats
+          this.loading.set(false);
+          this.alertService.showSuccess("User deleted successfully");
+        },
+        error: (error) => {
+          console.error("Failed to delete user:", error);
+          this.loading.set(false);
+          this.alertService.showError("Failed to delete user", error.message);
+        },
+      });
+    }
   }
 
   getRoleBadgeClasses(role: string): string {

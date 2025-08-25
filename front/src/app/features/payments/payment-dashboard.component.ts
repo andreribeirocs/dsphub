@@ -88,6 +88,57 @@ export class PaymentDashboardComponent implements OnInit {
       label: ROUTE_TYPE_LABELS[RouteType.NURSERY_ROUTE],
     },
     { value: RouteType.EXTRAS, label: ROUTE_TYPE_LABELS[RouteType.EXTRAS] },
+    {
+      value: RouteType.ORDT_EXTRA_LARGE_CARGO_VAN,
+      label: ROUTE_TYPE_LABELS[RouteType.ORDT_EXTRA_LARGE_CARGO_VAN],
+    },
+    {
+      value: RouteType.STANDARD_PARCEL_MEDIUM_VAN,
+      label: ROUTE_TYPE_LABELS[RouteType.STANDARD_PARCEL_MEDIUM_VAN],
+    },
+    {
+      value: RouteType.NURSERY_ROUTE_LEVEL_1,
+      label: ROUTE_TYPE_LABELS[RouteType.NURSERY_ROUTE_LEVEL_1],
+    },
+    {
+      value: RouteType.NURSERY_ROUTE_LEVEL_2,
+      label: ROUTE_TYPE_LABELS[RouteType.NURSERY_ROUTE_LEVEL_2],
+    },
+    {
+      value: RouteType.NURSERY_ROUTE_LEVEL_3,
+      label: ROUTE_TYPE_LABELS[RouteType.NURSERY_ROUTE_LEVEL_3],
+    },
+    {
+      value: RouteType.NURSERY_ROUTE_LEVEL_4,
+      label: ROUTE_TYPE_LABELS[RouteType.NURSERY_ROUTE_LEVEL_4],
+    },
+    {
+      value: RouteType.STANDARD_PARCEL,
+      label: ROUTE_TYPE_LABELS[RouteType.STANDARD_PARCEL],
+    },
+    {
+      value: RouteType.STANDARD_PARCEL_LOW_EMISSION_VEHICLE_LARGE,
+      label:
+        ROUTE_TYPE_LABELS[RouteType.STANDARD_PARCEL_LOW_EMISSION_VEHICLE_LARGE],
+    },
+    {
+      value: RouteType.STANDARD_PARCEL_WITH_HELPER,
+      label: ROUTE_TYPE_LABELS[RouteType.STANDARD_PARCEL_WITH_HELPER],
+    },
+    {
+      value: RouteType.STANDARD_PARCEL_RIDE_ALONG_IRONHIDE_MEDIUM_VAN,
+      label:
+        ROUTE_TYPE_LABELS[
+          RouteType.STANDARD_PARCEL_RIDE_ALONG_IRONHIDE_MEDIUM_VAN
+        ],
+    },
+    {
+      value: RouteType.STANDARD_PARCEL_RIDE_ALONG_MENTEE_IRONHIDE_MEDIUM_VAN,
+      label:
+        ROUTE_TYPE_LABELS[
+          RouteType.STANDARD_PARCEL_RIDE_ALONG_MENTEE_IRONHIDE_MEDIUM_VAN
+        ],
+    },
   ];
 
   constructor() {

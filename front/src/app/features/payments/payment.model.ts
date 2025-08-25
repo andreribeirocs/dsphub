@@ -8,6 +8,14 @@ export enum RouteType {
   ORDT_EXTRA_LARGE_CARGO_VAN = "ORDT_EXTRA_LARGE_CARGO_VAN",
   STANDARD_PARCEL_MEDIUM_VAN = "STANDARD_PARCEL_MEDIUM_VAN",
   NURSERY_ROUTE_LEVEL_1 = "NURSERY_ROUTE_LEVEL_1",
+  NURSERY_ROUTE_LEVEL_2 = "NURSERY_ROUTE_LEVEL_2",
+  NURSERY_ROUTE_LEVEL_3 = "NURSERY_ROUTE_LEVEL_3",
+  NURSERY_ROUTE_LEVEL_4 = "NURSERY_ROUTE_LEVEL_4",
+  STANDARD_PARCEL = "STANDARD_PARCEL",
+  STANDARD_PARCEL_LOW_EMISSION_VEHICLE_LARGE = "STANDARD_PARCEL_LOW_EMISSION_VEHICLE_LARGE",
+  STANDARD_PARCEL_WITH_HELPER = "STANDARD_PARCEL_WITH_HELPER",
+  STANDARD_PARCEL_RIDE_ALONG_IRONHIDE_MEDIUM_VAN = "STANDARD_PARCEL_RIDE_ALONG_IRONHIDE_MEDIUM_VAN",
+  STANDARD_PARCEL_RIDE_ALONG_MENTEE_IRONHIDE_MEDIUM_VAN = "STANDARD_PARCEL_RIDE_ALONG_MENTEE_IRONHIDE_MEDIUM_VAN",
 }
 
 export interface RoutePrice {
@@ -162,6 +170,17 @@ export const ROUTE_TYPE_LABELS: Record<RouteType, string> = {
   [RouteType.ORDT_EXTRA_LARGE_CARGO_VAN]: "ORDT Extra Large Cargo Van",
   [RouteType.STANDARD_PARCEL_MEDIUM_VAN]: "Standard Parcel Medium Van",
   [RouteType.NURSERY_ROUTE_LEVEL_1]: "Nursery Route Level 1",
+  [RouteType.NURSERY_ROUTE_LEVEL_2]: "Nursery Route Level 2",
+  [RouteType.NURSERY_ROUTE_LEVEL_3]: "Nursery Route Level 3",
+  [RouteType.NURSERY_ROUTE_LEVEL_4]: "Nursery Route Level 4",
+  [RouteType.STANDARD_PARCEL]: "Standard Parcel",
+  [RouteType.STANDARD_PARCEL_LOW_EMISSION_VEHICLE_LARGE]:
+    "Standard Parcel - Low Emission Vehicle (Large)",
+  [RouteType.STANDARD_PARCEL_WITH_HELPER]: "Standard Parcel with Helper",
+  [RouteType.STANDARD_PARCEL_RIDE_ALONG_IRONHIDE_MEDIUM_VAN]:
+    "Standard Parcel Ride Along (Ironhide) - Medium Van",
+  [RouteType.STANDARD_PARCEL_RIDE_ALONG_MENTEE_IRONHIDE_MEDIUM_VAN]:
+    "Standard Parcel Ride Along: Mentee (Ironhide) - Medium Van",
 };
 
 // Route type colors for UI
@@ -175,4 +194,15 @@ export const ROUTE_TYPE_COLORS: Record<RouteType, string> = {
   [RouteType.ORDT_EXTRA_LARGE_CARGO_VAN]: "bg-orange-100 text-orange-800",
   [RouteType.STANDARD_PARCEL_MEDIUM_VAN]: "bg-indigo-100 text-indigo-800",
   [RouteType.NURSERY_ROUTE_LEVEL_1]: "bg-teal-100 text-teal-800",
+  [RouteType.NURSERY_ROUTE_LEVEL_2]: "bg-cyan-100 text-cyan-800",
+  [RouteType.NURSERY_ROUTE_LEVEL_3]: "bg-emerald-100 text-emerald-800",
+  [RouteType.NURSERY_ROUTE_LEVEL_4]: "bg-sky-100 text-sky-800",
+  [RouteType.STANDARD_PARCEL]: "bg-slate-100 text-slate-800",
+  [RouteType.STANDARD_PARCEL_LOW_EMISSION_VEHICLE_LARGE]:
+    "bg-lime-100 text-lime-800",
+  [RouteType.STANDARD_PARCEL_WITH_HELPER]: "bg-amber-100 text-amber-800",
+  [RouteType.STANDARD_PARCEL_RIDE_ALONG_IRONHIDE_MEDIUM_VAN]:
+    "bg-rose-100 text-rose-800",
+  [RouteType.STANDARD_PARCEL_RIDE_ALONG_MENTEE_IRONHIDE_MEDIUM_VAN]:
+    "bg-violet-100 text-violet-800",
 };

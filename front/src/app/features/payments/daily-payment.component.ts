@@ -83,7 +83,47 @@ export class DailyPaymentComponent implements OnInit {
     {
       value: "NURSERY_ROUTE_LEVEL_1",
       label: "Nursery Route Level 1",
-      shortKey: "L",
+      shortKey: "L1",
+    },
+    {
+      value: "NURSERY_ROUTE_LEVEL_2",
+      label: "Nursery Route Level 2",
+      shortKey: "L2",
+    },
+    {
+      value: "NURSERY_ROUTE_LEVEL_3",
+      label: "Nursery Route Level 3",
+      shortKey: "L3",
+    },
+    {
+      value: "NURSERY_ROUTE_LEVEL_4",
+      label: "Nursery Route Level 4",
+      shortKey: "L4",
+    },
+    {
+      value: "STANDARD_PARCEL",
+      label: "Standard Parcel",
+      shortKey: "SP",
+    },
+    {
+      value: "STANDARD_PARCEL_LOW_EMISSION_VEHICLE_LARGE",
+      label: "Standard Parcel - Low Emission Vehicle (Large)",
+      shortKey: "LE",
+    },
+    {
+      value: "STANDARD_PARCEL_WITH_HELPER",
+      label: "Standard Parcel with Helper",
+      shortKey: "H",
+    },
+    {
+      value: "STANDARD_PARCEL_RIDE_ALONG_IRONHIDE_MEDIUM_VAN",
+      label: "Standard Parcel Ride Along (Ironhide) - Medium Van",
+      shortKey: "RI",
+    },
+    {
+      value: "STANDARD_PARCEL_RIDE_ALONG_MENTEE_IRONHIDE_MEDIUM_VAN",
+      label: "Standard Parcel Ride Along: Mentee (Ironhide) - Medium Van",
+      shortKey: "RM",
     },
   ] as const;
 
