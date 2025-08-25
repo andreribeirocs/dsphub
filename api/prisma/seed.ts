@@ -98,6 +98,7 @@ async function main() {
         password: adminPassword,
         name: "Admin User",
         role: UserRole.DIRECTOR,
+        avatar: null,
       },
     });
 
@@ -110,6 +111,7 @@ async function main() {
         password: adminPassword,
         name: "Triun Admin",
         role: UserRole.DIRECTOR,
+        avatar: null,
       },
     });
 
@@ -179,6 +181,7 @@ async function main() {
           password: userPassword,
           name: driverData.name,
           role: UserRole.DRIVER,
+          avatar: null,
         },
       });
 
@@ -290,6 +293,7 @@ async function main() {
           password: userPassword,
           name,
           role: UserRole.DRIVER,
+          avatar: null,
         },
       });
 

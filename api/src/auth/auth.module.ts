@@ -10,11 +10,13 @@ import { JwtStrategy } from "./strategies/jwt.strategy";
 import { LocalStrategy } from "./strategies/local.strategy";
 import { PrismaModule } from "../prisma/prisma.module";
 import { SessionService } from "./services/session.service";
+import { WhatsAppModule } from "../whatsapp/whatsapp.module";
 
 @Module({
   imports: [
     UsersModule,
     PrismaModule,
+    WhatsAppModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

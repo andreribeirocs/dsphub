@@ -7,6 +7,8 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
 import { UsersService } from "../users/users.service";
+import { WhatsAppService } from "../whatsapp/whatsapp.service";
+import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcrypt";
 import * as crypto from "crypto";
 
@@ -39,7 +41,9 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-    private readonly usersService: UsersService
+    private readonly usersService: UsersService,
+    private readonly whatsAppService: WhatsAppService,
+    private readonly configService: ConfigService
   ) {}
 
   /**
@@ -117,19 +121,21 @@ export class AuthService {
   }
 
   /**
-   * Generate password reset token and send reset email
-   * @param email - User email address
+   * Generate password reset token and send reset link via WhatsApp
+   * @param phoneNumber - User phone number
    * @returns Success message
-   * @throws NotFoundException if user not found
    */
-  async forgotPassword(email: string): Promise<{ message: string }> {
-    const user = await this.usersService.findByEmail(email);
+  async forgotPassword(phoneNumber: string): Promise<{ message: string }> {
+    // Find user by phone number
+    const user = await this.prisma.user.findFirst({
+      where: { phoneNumber },
+    });
 
     if (!user) {
-      // For security, don't reveal if email exists or not
+      // For security, don't reveal if phone number exists or not
       return {
         message:
-          "If the email exists, you will receive a password reset link shortly.",
+          "If the phone number exists, you will receive a password reset link via WhatsApp shortly.",
       };
     }
 
@@ -138,8 +144,6 @@ export class AuthService {
     const resetTokenExpiry = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY);
 
     // Store the reset token in the database
-    // Note: In a real implementation, you might want a separate table for reset tokens
-    // For now, we'll use a simple approach with the refresh token field
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
@@ -147,17 +151,27 @@ export class AuthService {
       },
     });
 
-    // TODO: Send email with reset link
-    // In a real implementation, you would integrate with an email service here
-    // For now, we'll just log the token (remove this in production)
-    console.log(`Password reset token for ${email}: ${resetToken}`);
-    console.log(
-      `Reset link: ${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`
-    );
+    // Generate reset link
+    const frontendUrl =
+      this.configService.get<string>("FRONTEND_URL") || "http://localhost:4200";
+    const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+    // Send WhatsApp message with reset link
+    const message = `Hello ${user.name},\n\nYou requested a password reset for your DSPHub account.\n\nClick the link below to reset your password:\n${resetLink}\n\nThis link will expire in 1 hour.\n\nIf you didn't request this, please ignore this message.`;
+
+    try {
+      await this.whatsAppService.sendMessage({
+        to: phoneNumber,
+        body: message,
+      });
+    } catch (error) {
+      console.error("Failed to send WhatsApp message:", error);
+      // Still return success for security reasons
+    }
 
     return {
       message:
-        "If the email exists, you will receive a password reset link shortly.",
+        "If the phone number exists, you will receive a password reset link via WhatsApp shortly.",
     };
   }
 
@@ -265,7 +279,7 @@ export class AuthService {
   ): Promise<{ message: string; avatar: string }> {
     try {
       // Update user avatar in database
-      const updatedUser = await this.prisma.user.update({
+      await this.prisma.user.update({
         where: { id: userId },
         data: { avatar: avatarBase64 },
         select: { avatar: true },
@@ -306,9 +320,7 @@ export class AuthService {
     // Convert Prisma result to proper return type
     const { id, email, name, role, avatar: userAvatar } = user;
 
-    const processedAvatar = (userAvatar as string | null)
-      ? (userAvatar as string)
-      : undefined;
+    const processedAvatar = userAvatar ? userAvatar : undefined;
 
     return {
       id,

@@ -129,29 +129,30 @@ export class AuthController {
 
   /**
    * Request password reset
-   * @param forgotPasswordDto - Email for password reset
+   * @param forgotPasswordDto - Phone number for password reset
    * @returns Success message
    */
   @ApiOperation({
     summary: "Request password reset",
     description:
-      "Send a password reset link to the user's email address. For security, always returns success regardless of whether email exists.",
+      "Send a password reset link to the user's phone number via WhatsApp. For security, always returns success regardless of whether phone number exists.",
   })
   @ApiResponse({
     status: 200,
-    description: "Password reset email sent (if email exists)",
+    description:
+      "Password reset WhatsApp message sent (if phone number exists)",
     schema: {
       type: "object",
       properties: {
         message: {
           type: "string",
           example:
-            "If the email exists, you will receive a password reset link shortly.",
+            "If the phone number exists, you will receive a password reset link via WhatsApp shortly.",
         },
       },
     },
   })
-  @ApiResponse({ status: 400, description: "Invalid email format" })
+  @ApiResponse({ status: 400, description: "Invalid phone number format" })
   @ApiResponse({ status: 429, description: "Too many requests" })
   @ThrottleStrict()
   @Post("forgot-password")
@@ -159,7 +160,9 @@ export class AuthController {
   async forgotPassword(
     @Body() forgotPasswordDto: ForgotPasswordDto
   ): Promise<{ message: string }> {
-    return this.authService.forgotPassword(forgotPasswordDto.email);
+    return this.authService.forgotPassword(
+      forgotPasswordDto.phoneNumber as string
+    );
   }
 
   /**

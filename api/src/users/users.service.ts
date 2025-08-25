@@ -112,6 +112,7 @@ export class UsersService {
         password: hashedPassword,
         role: createUserDto.role,
         phoneNumber: createUserDto.phoneNumber,
+        status: UserStatus.ACTIVE, // Explicitly set to ACTIVE to prevent any issues
       },
     });
 

@@ -29,7 +29,11 @@ async function bootstrap(): Promise<void> {
     ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
     : process.env.NODE_ENV === "production"
       ? [] // No origins allowed in production without explicit configuration
-      : ["http://localhost:4200", "http://localhost:3000"]; // Development defaults
+      : [
+          "http://localhost:4200",
+          "http://localhost:3000",
+          "http://192.168.2.254:4200",
+        ]; // Development defaults
 
   app.enableCors({
     origin: allowedOrigins,
