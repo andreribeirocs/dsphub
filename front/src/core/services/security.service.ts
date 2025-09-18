@@ -1,5 +1,15 @@
 import { Injectable, inject, DOCUMENT } from "@angular/core";
 
+interface SecurityViolation {
+  blockedURI?: string;
+  disposition?: string;
+  documentURI?: string;
+  originalPolicy?: string;
+  violatedDirective?: string;
+  type?: string;
+  [key: string]: unknown;
+}
+
 @Injectable({
   providedIn: "root",
 })
@@ -46,9 +56,7 @@ export class SecurityService {
 
     const directives = [
       `default-src 'self'`,
-      `script-src 'self' ${
-        isDev ? "'unsafe-inline' 'unsafe-eval'" : "'strict-dynamic'"
-      }`,
+      `script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval'" : ""}`,
       `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
       `font-src 'self' https://fonts.gstatic.com`,
       `img-src 'self' data: https: blob:`,
@@ -72,7 +80,7 @@ export class SecurityService {
 
     // Add production origins
     if (this.isProduction()) {
-      origins.push("https://your-api-domain.com");
+      origins.push("https://dsphub.co.uk");
     }
 
     return origins.join(" ");
@@ -192,7 +200,7 @@ export class SecurityService {
     console.groupEnd();
   }
 
-  reportSecurityViolation(violation: any): void {
+  reportSecurityViolation(violation: SecurityViolation): void {
     // 🚨 Handle CSP violations and other security events
     console.warn("🚨 Security Violation Detected:", violation);
 
@@ -202,7 +210,7 @@ export class SecurityService {
     }
   }
 
-  private reportToSecurityMonitoring(violation: any): void {
+  private reportToSecurityMonitoring(violation: SecurityViolation): void {
     // 📊 Report security violations to monitoring service
     const report = {
       type: "security_violation",
