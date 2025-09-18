@@ -87,6 +87,22 @@ export class DailyPaymentPrefillItemDto {
     example: false,
   })
   readonly exists!: boolean;
+
+  @ApiPropertyOptional({
+    description: "Whether this is a helper driver entry",
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  readonly isHelper?: boolean;
+
+  @ApiPropertyOptional({
+    description: "ID of the primary driver if this is a helper",
+    example: "uuid-string",
+  })
+  @IsOptional()
+  @IsUUID()
+  readonly helperFor?: string;
 }
 
 export class DailyPaymentUpsertItemDto {
@@ -159,6 +175,22 @@ export class DailyPaymentUpsertItemDto {
   @IsOptional()
   @IsString()
   readonly sourceSheet?: string;
+
+  @ApiPropertyOptional({
+    description: "Whether this is a helper driver entry",
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  readonly isHelper?: boolean;
+
+  @ApiPropertyOptional({
+    description: "ID of the primary driver if this is a helper",
+    example: "uuid-string",
+  })
+  @IsOptional()
+  @IsUUID()
+  readonly helperFor?: string;
 }
 
 export class SaveDailyPaymentsDto {

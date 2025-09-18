@@ -4,8 +4,11 @@ import {
   IsOptional,
   IsEmail,
   IsDateString,
+  IsNumber,
   Matches,
   Length,
+  Min,
+  Max,
 } from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
 import {
@@ -62,6 +65,96 @@ export class CompleteRegistrationDto {
   @IsString()
   @IsNotEmpty()
   postalCode!: string;
+
+  @ApiProperty({
+    example: "British",
+    description: "Citizenship",
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  @Length(1, 100, {
+    message: "Citizenship must be between 1 and 100 characters",
+  })
+  @NoXSS()
+  @NoSqlInjection()
+  citizenship?: string;
+
+  @ApiProperty({
+    example: "P123456789",
+    description: "Document number (passport, ID, etc.)",
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  @Length(1, 50, {
+    message: "Document number must be between 1 and 50 characters",
+  })
+  @NoXSS()
+  @NoSqlInjection()
+  documentNumber?: string;
+
+  @ApiProperty({
+    example: "2030-12-31",
+    description: "Passport/Visa expiry date in YYYY-MM-DD format",
+    required: false,
+  })
+  @IsDateString()
+  @IsOptional()
+  passportVisaExpiry?: string;
+
+  @ApiProperty({
+    example: "2030-12-31",
+    description: "Right to Work expiry date in YYYY-MM-DD format",
+    required: false,
+  })
+  @IsDateString()
+  @IsOptional()
+  rtwExpiry?: string;
+
+  @ApiProperty({
+    example: 0,
+    description: "DVLA points",
+    required: false,
+  })
+  @IsNumber({}, { message: "Points must be a number" })
+  @Min(0, { message: "Points cannot be negative" })
+  @Max(50, { message: "Points cannot exceed 50" })
+  @IsOptional()
+  points?: number;
+
+  @ApiProperty({
+    example: "2025-12-31",
+    description: "Next DVLA check date in YYYY-MM-DD format",
+    required: false,
+  })
+  @IsDateString()
+  @IsOptional()
+  nextDVLA?: string;
+
+  @ApiProperty({
+    example: "Standard",
+    description: "Service Level Agreement type",
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  @Length(1, 100, { message: "SLA must be between 1 and 100 characters" })
+  @NoXSS()
+  @NoSqlInjection()
+  sla?: string;
+
+  @ApiProperty({
+    example: "Corporate Account",
+    description: "Account type or name",
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  @Length(1, 100, { message: "Account must be between 1 and 100 characters" })
+  @NoXSS()
+  @NoSqlInjection()
+  account?: string;
 
   @ApiProperty({
     example: "AB123456C",

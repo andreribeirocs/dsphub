@@ -168,9 +168,17 @@ export class RecruitmentService {
       dateOfBirth,
       address,
       postalCode,
+      citizenship,
+      documentNumber,
       insuranceNumber,
       driverLicense,
       driverLicenseExpiry,
+      passportVisaExpiry,
+      rtwExpiry,
+      points,
+      nextDVLA,
+      sla,
+      account,
       emergencyContactName,
       emergencyContactPhone,
       emergencyContactRelationship,
@@ -204,11 +212,14 @@ export class RecruitmentService {
       ...(rightToWorkImage && { rightToWorkImage }),
     };
 
-    // Prepare additional data for the candidate record
+    // Calculate age from date of birth
+    const dob = new Date(dateOfBirth);
+    const age = Math.floor(
+      (Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000)
+    );
+
+    // Prepare additional data for the candidate record (stored in documents JSON for emergency contact)
     const additionalData = {
-      dateOfBirth: new Date(dateOfBirth),
-      postalCode,
-      driverLicenseExpiry: new Date(driverLicenseExpiry),
       emergencyContact: {
         name: emergencyContactName,
         phone: emergencyContactPhone,
@@ -220,9 +231,27 @@ export class RecruitmentService {
       where: { id: candidate.id },
       data: {
         email: email || candidate.email,
+        dateOfBirth: dob,
+        age,
+        citizenship,
         address,
+        postalCode,
+        documentNumber,
         insuranceNumber,
         driverLicense,
+        licenceExpiry: driverLicenseExpiry
+          ? new Date(driverLicenseExpiry)
+          : null,
+        passportVisaExpiry: passportVisaExpiry
+          ? new Date(passportVisaExpiry)
+          : null,
+        rtwExpiry: rtwExpiry ? new Date(rtwExpiry) : null,
+        points: points || 0,
+        nextDVLA: nextDVLA ? new Date(nextDVLA) : null,
+        sla,
+        account,
+        lastCheck: new Date(), // Set last check to now when registration is completed
+        formCompleted: true,
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         documents: {
           ...documents,

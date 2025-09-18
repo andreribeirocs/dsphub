@@ -15,6 +15,7 @@ import { WhatsAppModule } from "./whatsapp/whatsapp.module";
 import { PdfModule } from "./pdf/pdf.module";
 import { PaymentsModule } from "./payments/payments.module";
 import { VansModule } from "./vans/vans.module";
+import { DashboardModule } from "./dashboard/dashboard.module";
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { VansModule } from "./vans/vans.module";
     PdfModule,
     PaymentsModule,
     VansModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [

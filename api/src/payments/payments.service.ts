@@ -287,12 +287,11 @@ export class PaymentsService {
       }
 
       // Check if payment already exists for this driver and date
-      const existingPayment = await this.prisma.driverPayment.findUnique({
+      const existingPayment = await this.prisma.driverPayment.findFirst({
         where: {
-          driverId_workDate: {
-            driverId,
-            workDate: new Date(workDate),
-          },
+          driverId,
+          workDate: new Date(workDate),
+          isHelper: false, // Only check for primary driver records
         },
       });
 
@@ -503,8 +502,8 @@ export class PaymentsService {
   }
 
   /**
-   * Prefill daily payments for a specific date - INDEPENDENT from driver schedules
-   * Only loads existing payment records. New drivers must be added manually or via XLSX import
+   * Prefill daily payments for a specific date
+   * Loads existing payment records AND suggests new entries based on driver schedules
    */
   async prefillDailyPayments(
     query: GetDailyPaymentsPrefillDto
@@ -512,48 +511,129 @@ export class PaymentsService {
     const { date, includeExisting = true } = query;
     const targetDate = new Date(date);
 
-    if (!includeExisting) {
-      return [];
-    }
+    const items: DailyPaymentPrefillItemDto[] = [];
 
     // Get existing payments for that date (only ACTIVE drivers)
-    const allExisting = await this.prisma.driverPayment.findMany({
-      where: { workDate: targetDate },
+    if (includeExisting) {
+      const allExisting = await this.prisma.driverPayment.findMany({
+        where: { workDate: targetDate },
+        include: {
+          driver: {
+            select: { id: true, name: true, transporterId: true, status: true },
+          },
+        },
+        orderBy: { driver: { name: "asc" } },
+      });
+
+      // Filter out INACTIVE drivers
+      const existing = allExisting.filter((e) => e.driver.status === "ACTIVE");
+
+      // Convert existing payments to the required format
+      const existingItems = existing.map((payment) => {
+        const base = Number(payment.dailyRate);
+        const extra = Number(payment.extraAmount) || 0;
+        const deduction = Number(payment.deductionAmount) || 0;
+        const van = Number(payment.vanCharge) || 0;
+
+        return {
+          driverId: payment.driverId,
+          driverName: payment.driver.name,
+          transporterId: payment.driver.transporterId,
+          workDate: date,
+          routeType: payment.routeType,
+          routeCode: payment.routeCode ?? undefined,
+          dailyRate: base,
+          extraAmount: extra,
+          deductionAmount: deduction,
+          vanCharge: van,
+          totalSuggested: base + extra - deduction - van,
+          exists: true,
+          isHelper: payment.isHelper,
+          helperFor: payment.helperFor ?? undefined,
+        };
+      });
+
+      items.push(...existingItems);
+    }
+
+    // Get scheduled drivers who don't have payment records yet
+    const scheduledDrivers = await this.prisma.driverSchedule.findMany({
+      where: {
+        date: targetDate,
+        status: { not: "OFF" }, // Exclude drivers who are off
+        driver: {
+          status: "ACTIVE", // Only active drivers
+        },
+      },
       include: {
         driver: {
           select: { id: true, name: true, transporterId: true, status: true },
         },
       },
-      orderBy: { driver: { name: "asc" } },
     });
 
-    // Filter out INACTIVE drivers
-    const existing = allExisting.filter((e) => e.driver.status === "ACTIVE");
+    // Get route prices for mapping schedule status to route types
+    const routePrices = await this.prisma.routePrice.findMany();
+    const routePriceMap = new Map(
+      routePrices.map((price) => [price.routeType, Number(price.dailyRate)])
+    );
 
-    // Convert existing payments to the required format
-    const items: DailyPaymentPrefillItemDto[] = existing.map((payment) => {
-      const base = Number(payment.dailyRate);
-      const extra = Number(payment.extraAmount) || 0;
-      const deduction = Number(payment.deductionAmount) || 0;
-      const van = Number(payment.vanCharge) || 0;
+    // Filter out drivers who already have payment records
+    const existingDriverIds = new Set(items.map((item) => item.driverId));
+    const newDriverSchedules = scheduledDrivers.filter(
+      (schedule) => !existingDriverIds.has(schedule.driverId)
+    );
+
+    // Create suggested payment entries for scheduled drivers
+    const suggestedItems = newDriverSchedules.map((schedule) => {
+      // Map ScheduleStatus to RouteType (with sensible defaults)
+      const routeType = this.mapScheduleStatusToRouteType(schedule.status);
+      const dailyRate = routePriceMap.get(routeType) || 25; // Default to £25 if not found
 
       return {
-        driverId: payment.driverId,
-        driverName: payment.driver.name,
-        transporterId: payment.driver.transporterId,
+        driverId: schedule.driverId,
+        driverName: schedule.driver.name,
+        transporterId: schedule.driver.transporterId,
         workDate: date,
-        routeType: payment.routeType,
-        routeCode: payment.routeCode ?? undefined,
-        dailyRate: base,
-        extraAmount: extra,
-        deductionAmount: deduction,
-        vanCharge: van,
-        totalSuggested: base + extra - deduction - van,
-        exists: true, // All items are existing payments
+        routeType,
+        routeCode: undefined, // Route codes are assigned manually or from external sheets
+        dailyRate,
+        extraAmount: 0,
+        deductionAmount: 0,
+        vanCharge: 0,
+        totalSuggested: dailyRate,
+        exists: false, // These are suggested entries
+        isHelper: false, // New schedule entries default to primary drivers
+        helperFor: undefined,
       };
     });
 
-    return items;
+    items.push(...suggestedItems);
+
+    // Sort by driver name for consistent ordering
+    return items.sort((a, b) => a.driverName.localeCompare(b.driverName));
+  }
+
+  /**
+   * Map ScheduleStatus to appropriate RouteType
+   */
+  private mapScheduleStatusToRouteType(scheduleStatus: string): RouteType {
+    switch (scheduleStatus) {
+      case "FULL_ROUTE":
+        return RouteType.FULL_ROUTE;
+      case "RIDE_ALONG":
+        return RouteType.HIDE_ALONG;
+      case "TRAINING_DAY":
+        return RouteType.TRAINING_DAY;
+      case "SAME_DAY":
+        return RouteType.SAME_DAY;
+      case "NURSERY_ROUTE":
+        return RouteType.NURSERY_ROUTE;
+      case "HOLIDAY":
+        return RouteType.EXTRAS; // Holiday work might be considered extras
+      default:
+        return RouteType.STANDARD_PARCEL; // Default fallback
+    }
   }
 
   /**
@@ -574,7 +654,7 @@ export class PaymentsService {
       // First, get all existing payments for this date
       const existingPayments = await tx.driverPayment.findMany({
         where: { workDate },
-        select: { id: true, driverId: true },
+        select: { id: true, driverId: true, isHelper: true, helperFor: true },
       });
 
       // Get driver IDs that are being saved
@@ -595,8 +675,15 @@ export class PaymentsService {
 
       // Create or update payments for the new list
       for (const item of items) {
+        // For helper support, we need to match more specifically than just driver ID
+        // We could match by driver ID + route code + helper status, but for now
+        // we'll still match by driver ID for the first entry (backward compatibility)
         const existing = existingPayments.find(
-          (p) => p.driverId === item.driverId
+          (p) =>
+            p.driverId === item.driverId &&
+            p.isHelper === (item.isHelper || false) &&
+            (p.helperFor === item.helperFor ||
+              (!p.helperFor && !item.helperFor))
         );
 
         const data: Prisma.DriverPaymentUncheckedCreateInput = {
@@ -626,6 +713,8 @@ export class PaymentsService {
           paidBy: null,
           sourceSheet: item.sourceSheet ?? null,
           notes: item.notes ?? null,
+          isHelper: item.isHelper ?? false,
+          helperFor: item.helperFor ?? null,
         };
 
         if (!existing) {
@@ -644,6 +733,8 @@ export class PaymentsService {
               totalPaid: data.totalPaid,
               sourceSheet: data.sourceSheet ?? undefined,
               notes: data.notes ?? undefined,
+              isHelper: data.isHelper,
+              helperFor: data.helperFor,
             },
           });
           updated += 1;
@@ -658,8 +749,8 @@ export class PaymentsService {
   }
 
   /**
-   * Import daily payments from XLSX file (FUTURE IMPLEMENTATION)
-   * Will parse Amazon-provided Excel sheets and create payment records
+   * Import daily payments from XLSX file
+   * Parses Amazon-provided Excel sheets and creates payment records with proper route pricing
    */
   async importFromXlsx(
     input: ImportXlsxPaymentsDto
@@ -681,7 +772,14 @@ export class PaymentsService {
       const worksheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-      // 2. Extract payment data from Excel
+      // 2. Get route prices for proper daily rate lookup
+      const routePrices = await this.prisma.routePrice.findMany();
+      const routePriceMap = new Map(
+        routePrices.map((price) => [price.routeType, Number(price.dailyRate)])
+      );
+      this.logger.debug(`Loaded ${routePrices.length} route prices for import`);
+
+      // 3. Extract payment data from Excel
       const paymentItems: DailyPaymentUpsertItemDto[] = [];
 
       // Debug: Log the Excel structure
@@ -722,13 +820,7 @@ export class PaymentsService {
             `Row ${i + 1}: Route=${routeCode}, TransporterIDs=${transporterIds}, Drivers=${driverNames}, ServiceType=${deliveryServiceType}`
           );
 
-          // For manual amounts, we'll set defaults since Amazon doesn't provide these
-          const dailyRateStr = "0"; // Will be filled manually
-          const extraAmountStr = "0"; // Will be filled manually
-          const deductionAmountStr = "0"; // Will be filled manually
-          const vanChargeStr = "0"; // Will be filled manually
-
-          // Skip empty rows
+          // Skip empty rows first
           if (!driverNames || !deliveryServiceType) {
             this.logger.debug(`Row ${i + 1}: Skipping empty row`);
             continue;
@@ -761,6 +853,19 @@ export class PaymentsService {
           }
           this.logger.debug(
             `Route type mapped: ${deliveryServiceType} -> ${routeType}`
+          );
+
+          // Get daily rate from route prices (instead of hardcoding to 0)
+          const dailyRate = routePriceMap.get(routeType) || 25; // Default to £25 if not found
+          const dailyRateStr = dailyRate.toString();
+
+          // Set default amounts (Amazon doesn't provide these, but daily rate is now correct)
+          const extraAmountStr = "0"; // Will be filled manually if needed
+          const deductionAmountStr = "0"; // Will be filled manually if needed
+          const vanChargeStr = "0"; // Will be filled manually if needed
+
+          this.logger.debug(
+            `Row ${i + 1}: Using daily rate £${dailyRate} for route type ${routeType}`
           );
 
           // Process each driver
@@ -800,6 +905,19 @@ export class PaymentsService {
             const deductionAmount = this.parseAmount(deductionAmountStr);
             const vanCharge = this.parseAmount(vanChargeStr);
 
+            // Determine if this is a helper driver (2nd, 3rd, etc. driver on the same route)
+            const isHelper = driverIndex > 0; // First driver (index 0) is primary, rest are helpers
+            const primaryDriverId =
+              driverIndex === 0
+                ? undefined
+                : paymentItems.find(
+                    (item) => item.routeCode === routeCode && !item.isHelper
+                  )?.driverId;
+
+            this.logger.debug(
+              `Row ${i + 1}, Driver ${driverIndex + 1}: ${isHelper ? "Helper" : "Primary"} driver "${driverName}"`
+            );
+
             // Create a plain object that matches the DTO structure for this driver
             const item = {
               driverId: driver.id,
@@ -815,8 +933,10 @@ export class PaymentsService {
                 `Import_${new Date().toISOString().slice(0, 10)}`,
               notes:
                 driverNameList.length > 1
-                  ? `Shared route with: ${driverNameList.filter((_, idx) => idx !== driverIndex).join(", ")}`
+                  ? `${isHelper ? "Helper on" : "Shared"} route with: ${driverNameList.filter((_, idx) => idx !== driverIndex).join(", ")}`
                   : undefined,
+              isHelper,
+              helperFor: isHelper ? primaryDriverId : undefined,
             };
 
             paymentItems.push(item as DailyPaymentUpsertItemDto);
@@ -885,12 +1005,11 @@ export class PaymentsService {
 
       for (const [driverId, driverItems] of itemsByDriver) {
         // Check if driver already has payment record for this date
-        const existingPayment = await tx.driverPayment.findUnique({
+        const existingPayment = await tx.driverPayment.findFirst({
           where: {
-            driverId_workDate: {
-              driverId: driverId,
-              workDate: workDate,
-            },
+            driverId: driverId,
+            workDate: workDate,
+            isHelper: false, // Only check for primary driver records
           },
         });
 
@@ -1127,6 +1246,23 @@ export class PaymentsService {
         "STANDARD_PARCEL_RIDE_ALONG_IRONHIDE_MEDIUM_VAN",
       STANDARD_PARCEL_RIDE_ALONG_MENTEE_IRONHIDE_MEDIUM_VAN:
         "STANDARD_PARCEL_RIDE_ALONG_MENTEE_IRONHIDE_MEDIUM_VAN",
+
+      // Fix common Amazon format issues - handle parentheses and trailing underscores
+      STANDARD_PARCEL_MEDIUM_VAN_: "STANDARD_PARCEL_MEDIUM_VAN",
+      STANDARD_PARCEL_LOW_EMISSION_VEHICLE_LARGE_:
+        "STANDARD_PARCEL_LOW_EMISSION_VEHICLE_LARGE",
+      STANDARD_PARCEL_RIDE_ALONG_IRONHIDE_MEDIUM_VAN_:
+        "STANDARD_PARCEL_RIDE_ALONG_IRONHIDE_MEDIUM_VAN",
+      STANDARD_PARCEL_RIDE_ALONG_MENTEE_IRONHIDE_MEDIUM_VAN_:
+        "STANDARD_PARCEL_RIDE_ALONG_MENTEE_IRONHIDE_MEDIUM_VAN",
+
+      // Additional common route names
+      FULL_ROUTE: "FULL_ROUTE",
+      HIDE_ALONG: "HIDE_ALONG",
+      TRAINING_DAY: "TRAINING_DAY",
+      SAME_DAY: "SAME_DAY",
+      NURSERY_ROUTE: "NURSERY_ROUTE",
+      EXTRAS: "EXTRAS",
 
       // Handle variations and common abbreviations
       ORDT_EXTRA_LARGE: "ORDT_EXTRA_LARGE_CARGO_VAN",

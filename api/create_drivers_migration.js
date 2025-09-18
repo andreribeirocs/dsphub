@@ -1,4 +1,4 @@
-// Script to generate driver migration
+//  Script to generate driver migration
 const drivers = [
   { name: 'Abidur Rahman Choudhury', transporterId: 'AGHT3B6I4H4TN' },
   { name: 'Adam Musa Hamdan', transporterId: 'A1S3S9Q0UVVU59' },

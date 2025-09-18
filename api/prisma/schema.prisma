@@ -149,10 +149,11 @@ model DriverPayment {
   routeCode       String?
   sourceSheet     String?
   vanCharge       Decimal?  @db.Decimal(8, 2)
+  isHelper        Boolean   @default(false)
+  helperFor       String?   // ID of the primary driver if this is a helper
   driver          Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
   paidByUser      User?     @relation(fields: [paidBy], references: [id])
 
-  @@unique([driverId, workDate])
   @@index([driverId])
   @@index([workDate])
   @@index([routeType])
@@ -160,29 +161,67 @@ model DriverPayment {
   @@index([paidDate])
   @@index([paidBy])
   @@index([workDate, routeType])
+  @@index([driverId, workDate])
+  @@index([helperFor])
+  @@index([isHelper])
   @@map("driver_payments")
 }
 
 model Candidate {
-  id              String          @id @default(uuid())
-  name            String
-  email           String?
-  phoneNumber     String
-  status          CandidateStatus @default(LEAD)
-  source          String?
-  notes           String?
-  address         String?
-  insuranceNumber String?
-  driverLicense   String?
-  userId          String?         @unique
-  documents       Json?
-  smsToken        String?
-  tokenExpiry     DateTime?
-  classroomDate   DateTime?
-  rideAlongDate   DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  user            User?           @relation(fields: [userId], references: [id])
+  id                          String          @id @default(uuid())
+  name                        String
+  email                       String?         // Personal EMAIL
+  phoneNumber                 String          // Phone
+  status                      CandidateStatus @default(LEAD)
+  source                      String?
+  notes                       String?
+  
+  // Personal Information
+  dateOfBirth                 DateTime?       // Date of Birth
+  age                         Int?            // Age (calculated)
+  citizenship                 String?         // Citizenship
+  
+  // Address Information
+  address                     String?
+  postalCode                  String?         // Post Code
+  
+  // Document Information
+  documentNumber              String?         // Doc Number
+  insuranceNumber             String?         // NIN (National Insurance Number)
+  driverLicense               String?         // DL Number
+  
+  // Expiry Dates
+  passportVisaExpiry          DateTime?       // Passport Visa Expire
+  rtwExpiry                   DateTime?       // RTW Expiry (Right to Work)
+  licenceExpiry               DateTime?       // Licence Expiry
+  
+  // DVLA Information
+  points                      Int?            @default(0) // points
+  nextDVLA                    DateTime?       // Next DVLA
+  
+  // System Fields
+  lastCheck                   DateTime?       // Last Check on
+  lastCheckOn                 DateTime?       // last Check (duplicate for compatibility)
+  
+  // Agreement Information
+  sla                         String?         // SLA
+  account                     String?         // Account
+  formCompleted               Boolean?        @default(false) // Form
+  
+  // Document Storage
+  documents                   Json?
+  
+  // System Management
+  userId                      String?         @unique
+  smsToken                    String?
+  tokenExpiry                 DateTime?
+  classroomDate               DateTime?
+  rideAlongDate               DateTime?
+  createdAt                   DateTime        @default(now())
+  updatedAt                   DateTime        @updatedAt
+  
+  // Relations
+  user                        User?           @relation(fields: [userId], references: [id])
 
   @@index([phoneNumber])
   @@index([email])
@@ -193,6 +232,15 @@ model Candidate {
   @@index([status, createdAt])
   @@index([classroomDate])
   @@index([rideAlongDate])
+  @@index([dateOfBirth])
+  @@index([citizenship])
+  @@index([postalCode])
+  @@index([documentNumber])
+  @@index([passportVisaExpiry])
+  @@index([rtwExpiry])
+  @@index([licenceExpiry])
+  @@index([nextDVLA])
+  @@index([lastCheck])
 }
 
 model DriverSchedule {
