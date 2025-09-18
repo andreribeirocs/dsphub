@@ -67,6 +67,18 @@ export class CandidateRegistrationComponent implements OnInit {
     "Other",
   ];
 
+  readonly citizenshipOptions = [
+    "British",
+    "Irish",
+    "EU National",
+    "Non-EU (Right to Work)",
+    "Other",
+  ];
+
+  readonly slaOptions = ["Standard", "Premium", "Corporate", "Government"];
+
+  readonly accountOptions = ["Individual", "Corporate", "Agency", "Government"];
+
   ngOnInit(): void {
     this.initializeForm();
     this.validateTokenFromRoute();
@@ -77,6 +89,8 @@ export class CandidateRegistrationComponent implements OnInit {
       // Personal Information
       email: ["", [Validators.email]],
       dateOfBirth: ["", [Validators.required]],
+      citizenship: [""],
+      documentNumber: [""],
 
       // Address Information
       address: ["", [Validators.required, Validators.minLength(10)]],
@@ -100,6 +114,18 @@ export class CandidateRegistrationComponent implements OnInit {
       ],
       driverLicense: ["", [Validators.required]],
       driverLicenseExpiry: ["", [Validators.required]],
+
+      // Expiry Dates
+      passportVisaExpiry: [""],
+      rtwExpiry: [""],
+
+      // DVLA Information
+      points: [0, [Validators.min(0), Validators.max(50)]],
+      nextDVLA: [""],
+
+      // Agreement Information
+      sla: [""],
+      account: [""],
 
       // Emergency Contact
       emergencyContactName: ["", [Validators.required]],
@@ -259,7 +285,8 @@ export class CandidateRegistrationComponent implements OnInit {
           (this.registrationForm.get("emergencyContactPhone")?.valid ??
             false) &&
           (this.registrationForm.get("emergencyContactRelationship")?.valid ??
-            false)
+            false) &&
+          (this.registrationForm.get("points")?.valid ?? true) // Optional but must be valid if provided
         );
       case 4: {
         // File Uploads
@@ -311,11 +338,19 @@ export class CandidateRegistrationComponent implements OnInit {
       token,
       email: formData.email || undefined,
       dateOfBirth: formData.dateOfBirth,
+      citizenship: formData.citizenship || undefined,
+      documentNumber: formData.documentNumber || undefined,
       address: formData.address,
       postalCode: formData.postalCode,
       insuranceNumber: formData.insuranceNumber,
       driverLicense: formData.driverLicense,
       driverLicenseExpiry: formData.driverLicenseExpiry,
+      passportVisaExpiry: formData.passportVisaExpiry || undefined,
+      rtwExpiry: formData.rtwExpiry || undefined,
+      points: formData.points || 0,
+      nextDVLA: formData.nextDVLA || undefined,
+      sla: formData.sla || undefined,
+      account: formData.account || undefined,
       emergencyContactName: formData.emergencyContactName,
       emergencyContactPhone: formData.emergencyContactPhone,
       emergencyContactRelationship: formData.emergencyContactRelationship,
@@ -370,11 +405,19 @@ export class CandidateRegistrationComponent implements OnInit {
     const labels: Record<string, string> = {
       email: "Email",
       dateOfBirth: "Date of Birth",
+      citizenship: "Citizenship",
+      documentNumber: "Document Number",
       address: "Address",
       postalCode: "Postal Code",
       insuranceNumber: "National Insurance Number",
       driverLicense: "Driver License Number",
       driverLicenseExpiry: "Driver License Expiry",
+      passportVisaExpiry: "Passport/Visa Expiry",
+      rtwExpiry: "Right to Work Expiry",
+      points: "DVLA Points",
+      nextDVLA: "Next DVLA Check",
+      sla: "SLA",
+      account: "Account",
       emergencyContactName: "Emergency Contact Name",
       emergencyContactPhone: "Emergency Contact Phone",
       emergencyContactRelationship: "Relationship",

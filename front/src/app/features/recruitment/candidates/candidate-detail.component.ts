@@ -62,40 +62,23 @@ export class CandidateDetailComponent {
       : null;
   });
 
-  readonly medicalCertificateImageUrl = computed(() => {
-    const candidate = this.candidate();
-    return candidate?.medicalCertificate
-      ? this.formatImageSrc(candidate.medicalCertificate)
-      : null;
-  });
-
-  readonly trainingCertificateImageUrl = computed(() => {
-    const candidate = this.candidate();
-    return candidate?.trainingCertificate
-      ? this.formatImageSrc(candidate.trainingCertificate)
-      : null;
-  });
-
   // Form
   readonly candidateForm: FormGroup;
 
-  // Status configuration
-  readonly statusOptions = [
-    "LEAD",
-    "SMS_SENT",
-    "FORM_COMPLETED",
-    "DOCUMENTS_UPLOADED",
-    "BACKGROUND_CHECK",
-    "APPROVED",
-    "CLASSROOM_SCHEDULED",
-    "CLASSROOM_COMPLETED",
-    "RIDE_ALONG_SCHEDULED",
-    "RIDE_ALONG_COMPLETED",
-    "ACTIVE_DRIVER",
-    "REJECTED",
+  readonly citizenshipOptions = [
+    "British",
+    "Irish",
+    "EU National",
+    "Non-EU (Right to Work)",
+    "Other",
   ];
 
-  readonly statusLabels: Record<string, { label: string; color: string }> = {
+  readonly slaOptions = ["Standard", "Premium", "Corporate", "Government"];
+
+  readonly accountOptions = ["Individual", "Corporate", "Agency", "Government"];
+
+  // Status configuration
+  readonly statusConfig: Record<string, { label: string; color: string }> = {
     LEAD: { label: "New Lead", color: "bg-blue-100 text-blue-800" },
     SMS_SENT: { label: "SMS Sent", color: "bg-yellow-100 text-yellow-800" },
     FORM_COMPLETED: {
@@ -134,9 +117,11 @@ export class CandidateDetailComponent {
     REJECTED: { label: "Rejected", color: "bg-red-100 text-red-800" },
   };
 
+  readonly statusOptions = Object.keys(this.statusConfig);
+
   constructor() {
     this.candidateForm = this.fb.group({
-      // Basic information
+      // Basic information (core candidate data)
       name: ["", [Validators.required]],
       phoneNumber: [
         "",
@@ -144,46 +129,47 @@ export class CandidateDetailComponent {
       ],
       email: ["", [Validators.email]],
       source: [""],
-      address: [""],
+      address: ["", [Validators.required]],
+      postalCode: ["", [Validators.required]],
       notes: [""],
       status: ["", [Validators.required]],
 
-      // Driver license and insurance
-      insuranceNumber: [""],
+      // Personal Information (from registration)
+      dateOfBirth: ["", [Validators.required]],
+      age: [""], // calculated, read-only
+      citizenship: [""],
+      documentNumber: [""],
+
+      // Document Information (from registration)
+      insuranceNumber: ["", [Validators.required]],
+      driverLicense: ["", [Validators.required]],
+      driverLicenseExpiry: ["", [Validators.required]], // mapped from licenceExpiry
+
+      // Optional Expiry Dates (from registration)
+      passportVisaExpiry: [""],
+      rtwExpiry: [""],
+
+      // DVLA Information (from registration)
+      points: [0, [Validators.min(0), Validators.max(50)]],
+      nextDVLA: [""],
+
+      // Agreement Information (from registration)
+      sla: [""],
+      account: [""],
+
+      // Emergency Contact (from registration)
+      emergencyContactName: ["", [Validators.required]],
+      emergencyContactPhone: ["", [Validators.required]],
+      emergencyContactRelationship: ["", [Validators.required]],
+
+      // System Fields (read-only)
+      lastCheck: [""],
+      formCompleted: [""],
+
+      // Document Images (from registration)
       insuranceNumberImage: [""],
-      driverLicense: [""],
       driverLicenseImage: [""],
       addressProofImage: [""],
-
-      // Driver-specific fields
-      driverId: [""],
-      tlcLicense: [""],
-      tlcLicenseExpiry: [""],
-      vehicleId: [""],
-      routeId: [""],
-      signUpDate: [""],
-      startWorkingDate: [""],
-      lastWorkingDate: [""],
-      isActive: [false],
-      onboardingCompleted: [false],
-      backgroundCheckStatus: [""],
-      backgroundCheckDate: [""],
-
-      // Emergency contact
-      emergencyContactName: [""],
-      emergencyContactPhone: ["", [Validators.pattern(/^\+?[1-9]\d{1,14}$/)]],
-
-      // Financial information
-      payRate: [0, [Validators.min(0)]],
-      payType: [""],
-
-      // Additional documents
-      medicalCertificate: [""],
-      medicalCertificateExpiry: [""],
-      drugTestResult: [""],
-      drugTestDate: [""],
-      trainingCertificate: [""],
-      trainingCompletionDate: [""],
     });
 
     // Load candidate data when route params change
@@ -205,7 +191,7 @@ export class CandidateDetailComponent {
     this.candidatesService.getCandidateById(id).subscribe({
       next: (candidate) => {
         this.candidate.set(candidate);
-        this.candidateForm.patchValue(candidate);
+        this.loadCandidateIntoForm();
         this.loading.set(false);
       },
       error: (err) => {
@@ -227,14 +213,141 @@ export class CandidateDetailComponent {
     this.error.set(null);
   }
 
+  // UI State Management
+  setEditing(editing: boolean): void {
+    this.isEditing.set(editing);
+    if (!editing) {
+      // Reset form when canceling
+      this.loadCandidateIntoForm();
+    }
+  }
+
+  saving = computed(() => this.loading());
+
+  // Data mapping method to handle field name differences
+  private loadCandidateIntoForm(): void {
+    const candidate = this.candidate();
+    if (!candidate) return;
+
+    // Map backend field names to form control names
+    const formData = {
+      // Basic information
+      name: candidate.name || "",
+      phoneNumber: candidate.phoneNumber || "",
+      email: candidate.email || "",
+      source: candidate.source || "",
+      address: candidate.address || "",
+      postalCode: candidate.postalCode || "",
+      notes: candidate.notes || "",
+      status: candidate.status || "",
+
+      // Personal Information
+      dateOfBirth: candidate.dateOfBirth || "",
+      age: candidate.age || "",
+      citizenship: candidate.citizenship || "",
+      documentNumber: candidate.documentNumber || "",
+
+      // Document Information
+      insuranceNumber: candidate.insuranceNumber || "",
+      driverLicense: candidate.driverLicense || "",
+      // Map licenceExpiry from backend to driverLicenseExpiry in form
+      driverLicenseExpiry: candidate.licenceExpiry || "",
+
+      // Expiry Dates
+      passportVisaExpiry: candidate.passportVisaExpiry || "",
+      rtwExpiry: candidate.rtwExpiry || "",
+
+      // DVLA Information
+      points: candidate.points || 0,
+      nextDVLA: candidate.nextDVLA || "",
+
+      // Agreement Information
+      sla: candidate.sla || "",
+      account: candidate.account || "",
+
+      // Emergency Contact - extract from documents.additionalData if stored there
+      emergencyContactName:
+        candidate.emergencyContactName ||
+        (candidate.documents as any)?.additionalData?.emergencyContact?.name ||
+        "",
+      emergencyContactPhone:
+        candidate.emergencyContactPhone ||
+        (candidate.documents as any)?.additionalData?.emergencyContact?.phone ||
+        "",
+      emergencyContactRelationship:
+        (candidate.documents as any)?.additionalData?.emergencyContact
+          ?.relationship || "",
+
+      // System Fields
+      lastCheck: candidate.lastCheck || "",
+      formCompleted: candidate.formCompleted || false,
+
+      // Document Images
+      insuranceNumberImage: candidate.insuranceNumberImage || "",
+      driverLicenseImage: candidate.driverLicenseImage || "",
+      addressProofImage: candidate.addressProofImage || "",
+    };
+
+    this.candidateForm.patchValue(formData);
+  }
+
   saveChanges(): void {
     if (this.candidateForm.invalid || !this.candidate()) return;
 
     this.loading.set(true);
     this.error.set(null);
 
+    const formValue = this.candidateForm.value;
+
+    // Map form field names back to backend field names
     const updateData: UpdateCandidateDto = {
-      ...this.candidateForm.value,
+      // Basic information
+      name: formValue.name,
+      phoneNumber: formValue.phoneNumber,
+      email: formValue.email,
+      source: formValue.source,
+      address: formValue.address,
+      postalCode: formValue.postalCode,
+      notes: formValue.notes,
+      status: formValue.status,
+
+      // Personal Information
+      dateOfBirth: formValue.dateOfBirth,
+      age: formValue.age,
+      citizenship: formValue.citizenship,
+      documentNumber: formValue.documentNumber,
+
+      // Document Information
+      insuranceNumber: formValue.insuranceNumber,
+      driverLicense: formValue.driverLicense,
+      // Map driverLicenseExpiry from form back to licenceExpiry for backend
+      licenceExpiry: formValue.driverLicenseExpiry,
+
+      // Expiry Dates
+      passportVisaExpiry: formValue.passportVisaExpiry,
+      rtwExpiry: formValue.rtwExpiry,
+
+      // DVLA Information
+      points: formValue.points,
+      nextDVLA: formValue.nextDVLA,
+
+      // Agreement Information
+      sla: formValue.sla,
+      account: formValue.account,
+
+      // Emergency Contact
+      emergencyContactName: formValue.emergencyContactName,
+      emergencyContactPhone: formValue.emergencyContactPhone,
+      emergencyContactRelationship: formValue.emergencyContactRelationship,
+
+      // System Fields
+      lastCheck: formValue.lastCheck,
+      formCompleted: formValue.formCompleted,
+
+      // Document Images
+      insuranceNumberImage: formValue.insuranceNumberImage,
+      driverLicenseImage: formValue.driverLicenseImage,
+      addressProofImage: formValue.addressProofImage,
     };
 
     this.candidatesService
@@ -242,6 +355,7 @@ export class CandidateDetailComponent {
       .subscribe({
         next: (updatedCandidate) => {
           this.candidate.set(updatedCandidate);
+          this.loadCandidateIntoForm(); // Reload form with updated data
           this.isEditing.set(false);
           this.loading.set(false);
         },
@@ -279,12 +393,12 @@ export class CandidateDetailComponent {
   }
 
   getStatusLabel(status?: string): string {
-    return this.statusLabels[status || ""]?.label || status || "";
+    return this.statusConfig[status || ""]?.label || status || "";
   }
 
   getStatusColor(status?: string): string {
     return (
-      this.statusLabels[status || ""]?.color || "bg-gray-100 text-gray-800"
+      this.statusConfig[status || ""]?.color || "bg-gray-100 text-gray-800"
     );
   }
 
@@ -350,53 +464,6 @@ export class CandidateDetailComponent {
     // Default to image/jpeg, but you could detect the format if needed
     return `data:image/jpeg;base64,${base64Data}`;
   }
-
-  getBadgeColor(isActive?: boolean): string {
-    return isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
-  }
-
-  getBadgeText(isActive?: boolean): string {
-    return isActive ? "Active" : "Inactive";
-  }
-
-  getBackgroundCheckColor(status?: string): string {
-    if (!status) return "bg-gray-100 text-gray-800";
-
-    switch (status.toUpperCase()) {
-      case "PASSED":
-      case "APPROVED":
-        return "bg-green-100 text-green-800";
-      case "FAILED":
-      case "REJECTED":
-        return "bg-red-100 text-red-800";
-      case "PENDING":
-      case "IN_PROGRESS":
-        return "bg-yellow-100 text-yellow-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  }
-
-  // Pay type options
-  readonly payTypeOptions = [
-    { value: "HOURLY", label: "Hourly" },
-    { value: "DAILY", label: "Daily" },
-    { value: "WEEKLY", label: "Weekly" },
-    { value: "MONTHLY", label: "Monthly" },
-  ];
-
-  // Background check status options
-  readonly backgroundCheckOptions = [
-    "PENDING",
-    "IN_PROGRESS",
-    "PASSED",
-    "FAILED",
-    "APPROVED",
-    "REJECTED",
-  ];
-
-  // Drug test result options
-  readonly drugTestOptions = ["PENDING", "PASSED", "FAILED", "SCHEDULED"];
 
   // Document processing methods
   getDocumentEntries(

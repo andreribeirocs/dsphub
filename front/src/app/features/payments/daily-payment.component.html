@@ -142,7 +142,7 @@
               type="date"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
               [ngModel]="date()"
-              (ngModelChange)="date.set($event); load()"
+              (ngModelChange)="onDateChange($event)"
             />
           </div>
 
@@ -159,7 +159,7 @@
                 type="checkbox"
                 class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 [ngModel]="includeExisting()"
-                (ngModelChange)="includeExisting.set($event); load()"
+                (ngModelChange)="onIncludeExistingChange($event)"
               />
               <span class="ml-2 text-sm text-gray-700"
                 >Include existing payments</span

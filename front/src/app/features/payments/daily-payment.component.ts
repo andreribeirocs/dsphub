@@ -5,7 +5,6 @@ import {
   computed,
   inject,
   signal,
-  effect,
   HostListener,
 } from "@angular/core";
 import { toSignal } from "@angular/core/rxjs-interop";
@@ -50,6 +49,7 @@ export class DailyPaymentComponent implements OnInit {
   readonly items = signal<DailyPrefillItem[]>([]);
   readonly originalItems = signal<DailyPrefillItem[]>([]); // Track original state for change detection
   readonly sourceSheet = signal<string>("");
+  readonly excludedDriverIds = signal<Set<string>>(new Set()); // Track drivers explicitly deleted
   readonly driverSearch = signal<string>("");
 
   // XLSX Import signals
@@ -218,8 +218,12 @@ export class DailyPaymentComponent implements OnInit {
       .prefillDaily(this.date(), this.includeExisting())
       .subscribe({
         next: (data) => {
+          // Filter out drivers that were explicitly deleted
+          const excludedIds = this.excludedDriverIds();
+          const filteredData = data.filter((d) => !excludedIds.has(d.driverId));
+
           // Ensure numeric fields and sort alphabetically by driver name
-          const normalized = data
+          const normalized = filteredData
             .map((d) => ({
               ...d,
               dailyRate: Number(d.dailyRate) || 0,
@@ -250,6 +254,13 @@ export class DailyPaymentComponent implements OnInit {
   }
 
   selectDriverForNewRow(driver: Driver): void {
+    // Remove driver from excluded list if they're manually re-added
+    const excludedIds = new Set(this.excludedDriverIds());
+    if (excludedIds.has(driver.id)) {
+      excludedIds.delete(driver.id);
+      this.excludedDriverIds.set(excludedIds);
+    }
+
     const newRow: DailyPrefillItem = {
       driverId: driver.id,
       driverName: driver.name,
@@ -263,6 +274,8 @@ export class DailyPaymentComponent implements OnInit {
       vanCharge: 0,
       totalSuggested: 100, // Matches dailyRate
       exists: false,
+      isHelper: false,
+      helperFor: undefined,
     };
     const updatedItems = [newRow, ...this.items()].sort((a, b) =>
       a.driverName.localeCompare(b.driverName)
@@ -318,11 +331,22 @@ export class DailyPaymentComponent implements OnInit {
       vanCharge: 0,
       totalSuggested: 0,
       exists: false,
+      isHelper: false,
+      helperFor: undefined,
     };
     this.items.set([empty, ...this.items()]);
   }
 
   removeRow(index: number): void {
+    const itemToRemove = this.items()[index];
+
+    // Track the driver ID as excluded to prevent re-adding after save
+    if (itemToRemove && itemToRemove.driverId) {
+      const excludedIds = new Set(this.excludedDriverIds());
+      excludedIds.add(itemToRemove.driverId);
+      this.excludedDriverIds.set(excludedIds);
+    }
+
     const copy = this.items().slice();
     copy.splice(index, 1);
     this.items.set(copy);
@@ -406,6 +430,8 @@ export class DailyPaymentComponent implements OnInit {
             : undefined,
         notes: undefined,
         sourceSheet: this.sourceSheet() || undefined,
+        isHelper: i.isHelper || false,
+        helperFor: i.helperFor || undefined,
       })),
     };
 
@@ -555,5 +581,17 @@ export class DailyPaymentComponent implements OnInit {
       hoverClasses[routeType as keyof typeof hoverClasses] ||
       "hover:bg-gray-50 hover:text-gray-600"
     );
+  }
+
+  onDateChange(event: string): void {
+    this.date.set(event);
+    this.excludedDriverIds.set(new Set());
+    this.load();
+  }
+
+  onIncludeExistingChange(event: boolean): void {
+    this.includeExisting.set(event);
+    this.excludedDriverIds.set(new Set());
+    this.load();
   }
 }

@@ -18,9 +18,17 @@ export interface CompleteRegistrationRequest {
   dateOfBirth: string;
   address: string;
   postalCode: string;
+  citizenship?: string;
+  documentNumber?: string;
   insuranceNumber: string;
   driverLicense: string;
   driverLicenseExpiry: string;
+  passportVisaExpiry?: string;
+  rtwExpiry?: string;
+  points?: number;
+  nextDVLA?: string;
+  sla?: string;
+  account?: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
   emergencyContactRelationship: string;

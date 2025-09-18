@@ -212,34 +212,6 @@
             </div>
           </div>
 
-          <!-- Daily Payment -->
-          <a
-            routerLink="/daily-payment"
-            routerLinkActive="bg-blue-100 text-blue-900"
-            class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 hover:text-gray-900 transition-colors group"
-          >
-            <svg
-              class="h-4 w-4 shrink-0"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M8.161 2.58a1.875 1.875 0 011.678 0l4.993 2.498c.106.052.23.052.336 0L20.161 2.58a1.875 1.875 0 011.678 0A1.875 1.875 0 0123.25 4.25v15.5a1.875 1.875 0 01-1.411 1.67l-4.993 2.498a1.875 1.875 0 01-1.678 0L9.175 21.42a.375.375 0 00-.336 0L3.839 23.92A1.875 1.875 0 01.75 22.25V6.75a1.875 1.875 0 011.411-1.67l4.993-2.498a1.875 1.875 0 011.007-.002zM10 9a.75.75 0 01.75-.75h2.5a.75.75 0 010 1.5h-2.5A.75.75 0 0110 9zm0 4a.75.75 0 01.75-.75h2.5a.75.75 0 010 1.5h-2.5A.75.75 0 0110 13z"
-                clip-rule="evenodd"
-              />
-            </svg>
-            <span
-              class="ml-3 transition-opacity duration-200"
-              [class.opacity-0]="!isSidebarOpen()"
-              [class.opacity-100]="isSidebarOpen()"
-              [class.hidden]="!isSidebarOpen()"
-            >
-              Daily Payment
-            </span>
-          </a>
-
           <!-- Driver Availability -->
           <a
             routerLink="/drivers/schedule"
@@ -271,7 +243,7 @@
             </span>
           </a>
           } @if (isFleetManager()) {
-          <!-- Van Management -->
+
           <a
             routerLink="/vans"
             routerLinkActive="bg-blue-100 text-blue-900"
@@ -331,6 +303,34 @@
               [class.hidden]="!isSidebarOpen()"
             >
               Payment Dashboard
+            </span>
+          </a>
+
+          <!-- Daily Payment (sub-item under Payment Dashboard) -->
+          <a
+            routerLink="/daily-payment"
+            routerLinkActive="bg-blue-100 text-blue-900"
+            class="flex items-center rounded-md px-3 py-2 ml-6 text-sm font-medium text-gray-600 hover:bg-gray-200 hover:text-gray-900 transition-colors group"
+          >
+            <svg
+              class="h-4 w-4 shrink-0"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M8.161 2.58a1.875 1.875 0 011.678 0l4.993 2.498c.106.052.23.052.336 0L20.161 2.58a1.875 1.875 0 011.678 0A1.875 1.875 0 0123.25 4.25v15.5a1.875 1.875 0 01-1.411 1.67l-4.993 2.498a1.875 1.875 0 01-1.678 0L9.175 21.42a.375.375 0 00-.336 0L3.839 23.92A1.875 1.875 0 01.75 22.25V6.75a1.875 1.875 0 011.411-1.67l4.993-2.498a1.875 1.875 0 011.007-.002zM10 9a.75.75 0 01.75-.75h2.5a.75.75 0 010 1.5h-2.5A.75.75 0 0110 9zm0 4a.75.75 0 01.75-.75h2.5a.75.75 0 010 1.5h-2.5A.75.75 0 0110 13z"
+                clip-rule="evenodd"
+              />
+            </svg>
+            <span
+              class="ml-3 transition-opacity duration-200"
+              [class.opacity-0]="!isSidebarOpen()"
+              [class.opacity-100]="isSidebarOpen()"
+              [class.hidden]="!isSidebarOpen()"
+            >
+              Daily Payment
             </span>
           </a>
           }

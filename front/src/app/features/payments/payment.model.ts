@@ -128,6 +128,8 @@ export interface DailyPrefillItem {
   readonly vanCharge: number;
   readonly totalSuggested: number;
   readonly exists: boolean;
+  readonly isHelper?: boolean;
+  readonly helperFor?: string;
 }
 
 export interface DailyUpsertItem {
@@ -140,6 +142,8 @@ export interface DailyUpsertItem {
   readonly vanCharge?: string;
   readonly notes?: string;
   readonly sourceSheet?: string;
+  readonly isHelper?: boolean;
+  readonly helperFor?: string;
 }
 
 export interface SaveDailyPaymentsRequest {

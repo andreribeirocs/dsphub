@@ -56,62 +56,24 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
       <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
         <h3 class="font-medium text-blue-800">Active Drivers</h3>
-        <p class="text-2xl font-bold text-blue-600 mt-2">24</p>
+        <p class="text-2xl font-bold text-blue-600 mt-2">{{ dashboardStats().activeDrivers }}</p>
       </div>
 
       <div class="bg-green-50 p-4 rounded-lg border border-green-100">
         <h3 class="font-medium text-green-800">Completed Routes</h3>
-        <p class="text-2xl font-bold text-green-600 mt-2">156</p>
+        <p class="text-2xl font-bold text-green-600 mt-2">{{ dashboardStats().completedRoutes }}</p>
       </div>
 
       <div class="bg-purple-50 p-4 rounded-lg border border-purple-100">
         <h3 class="font-medium text-purple-800">Pending Candidates</h3>
-        <p class="text-2xl font-bold text-purple-600 mt-2">7</p>
+        <p class="text-2xl font-bold text-purple-600 mt-2">{{ dashboardStats().pendingCandidates }}</p>
       </div>
 
       <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-100">
         <h3 class="font-medium text-yellow-800">Vehicle Issues</h3>
-        <p class="text-2xl font-bold text-yellow-600 mt-2">3</p>
+        <p class="text-2xl font-bold text-yellow-600 mt-2">{{ dashboardStats().vehicleIssues }}</p>
       </div>
     </div>
-
-    <!-- Test Ngx Sonner Alerts Section -->
-    <div class="mt-8 p-4 bg-gray-50 rounded-lg border">
-      <h3 class="font-medium mb-4 text-gray-800">
-        🎉 Test New Ngx-Sonner Alerts (Top-Center)
-      </h3>
-      <div class="flex flex-wrap gap-3">
-        <button
-          (click)="testSuccessAlert()"
-          class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-        >
-          ✅ Success Alert
-        </button>
-        <button
-          (click)="testErrorAlert()"
-          class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-        >
-          ❌ Error Alert
-        </button>
-        <button
-          (click)="testWarningAlert()"
-          class="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
-        >
-          ⚠️ Warning Alert
-        </button>
-        <button
-          (click)="testInfoAlert()"
-          class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-        >
-          ℹ️ Info Alert
-        </button>
-      </div>
-      <p class="text-sm text-gray-600 mt-2">
-        Click any button to test the new ngx-sonner toast notifications
-        positioned at top-center!
-      </p>
-    </div>
-
     <div class="mt-8">
       <h3 class="font-medium mb-4">Recent Activities</h3>
       <div class="border rounded-lg overflow-hidden">
@@ -141,60 +103,49 @@
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
-            <tr>
+            @for (activity of recentActivities(); track activity.id) {
+            <tr class="hover:bg-gray-50">
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                2025-04-27
+                {{ activity.timestamp | date : "short" }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                New candidate added
+                <div class="flex items-center">
+                  <span class="mr-2">{{ getActivityIcon(activity.type) }}</span>
+                  {{ activity.activity }}
+                </div>
+                @if (activity.details) {
+                <div class="text-xs text-gray-500 mt-1 max-w-xs truncate" [title]="activity.details">
+                  {{ activity.details }}
+                </div>
+                }
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                Sarah Thompson
+                <div>{{ activity.user.name }}</div>
+                @if (activity.user.email) {
+                <div class="text-xs text-gray-400">{{ activity.user.email }}</div>
+                }
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <span
-                  class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800"
+                  class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                  [ngClass]="getStatusClasses(activity.status)"
                 >
-                  Completed
+                  {{ activity.status | titlecase }}
                 </span>
               </td>
             </tr>
+            } @empty {
             <tr>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                2025-04-26
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                Driver assignment
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                John Davis
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span
-                  class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800"
-                >
-                  Completed
-                </span>
+              <td colspan="4" class="px-6 py-8 text-center text-gray-500">
+                <div class="flex flex-col items-center">
+                  <svg class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                  </svg>
+                  <span>No recent activities found</span>
+                </div>
               </td>
             </tr>
-            <tr>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                2025-04-25
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                Vehicle maintenance
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                Michael Brown
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span
-                  class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800"
-                >
-                  In progress
-                </span>
-              </td>
-            </tr>
+            }
           </tbody>
         </table>
       </div>

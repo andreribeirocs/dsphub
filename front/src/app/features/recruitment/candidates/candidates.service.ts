@@ -44,11 +44,42 @@ export interface Candidate {
   source?: string;
   notes?: string;
   address?: string;
+
+  // Personal Information
+  dateOfBirth?: string;
+  age?: number;
+  citizenship?: string;
+
+  // Address Information
+  postalCode?: string;
+
+  // Document Information
+  documentNumber?: string;
   insuranceNumber?: string;
   insuranceNumberImage?: string;
   driverLicense?: string;
   driverLicenseImage?: string;
   addressProofImage?: string;
+
+  // Expiry Dates
+  passportVisaExpiry?: string;
+  rtwExpiry?: string;
+  licenceExpiry?: string;
+
+  // DVLA Information
+  points?: number;
+  nextDVLA?: string;
+
+  // System Fields
+  lastCheck?: string;
+  lastCheckOn?: string;
+
+  // Agreement Information
+  sla?: string;
+  account?: string;
+  formCompleted?: boolean;
+
+  // Document Storage
   documents?: CandidateDocuments; // Updated to use proper interface
   documentsCount?: number;
 
@@ -67,6 +98,7 @@ export interface Candidate {
   tlcLicenseExpiry?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
+  emergencyContactRelationship?: string;
 
   // Vehicle information
   vehicle?: {
@@ -158,6 +190,31 @@ export interface UpdateCandidateDto {
   tlcLicenseExpiry?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
+  emergencyContactRelationship?: string;
+
+  // Personal Information updates
+  dateOfBirth?: string;
+  age?: number;
+  citizenship?: string;
+  postalCode?: string;
+  documentNumber?: string;
+
+  // Expiry Dates updates
+  passportVisaExpiry?: string;
+  rtwExpiry?: string;
+  licenceExpiry?: string;
+
+  // DVLA Information updates
+  points?: number;
+  nextDVLA?: string;
+
+  // System Fields updates
+  lastCheck?: string;
+  formCompleted?: boolean;
+
+  // Agreement Information updates
+  sla?: string;
+  account?: string;
 
   // Financial updates
   payRate?: number;
