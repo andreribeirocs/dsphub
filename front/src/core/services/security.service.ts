@@ -80,7 +80,7 @@ export class SecurityService {
 
     // Add production origins
     if (this.isProduction()) {
-      origins.push("https://dsphub.co.uk");
+      origins.push("https://dsphub.co.uk", "https://www.dsphub.co.uk");
     }
 
     return origins.join(" ");
