@@ -72,7 +72,7 @@ export class RecruitmentService {
       throw new NotFoundException("Candidate not found");
     }
 
-    const registrationLink = `https://candidate.dsphub.co.uk/${candidate.smsToken}`;
+    const registrationLink = `https://careers.dsphub.co.uk/register/${candidate.smsToken}`;
 
     // Get the template SID from environment variables - now required for WhatsApp
     const templateSid = this.configService.get<string>(
