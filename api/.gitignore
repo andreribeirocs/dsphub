@@ -29,3 +29,4 @@ dist/src/users/users.service.d.ts
 dist/src/users/users.service.js
 dist/src/users/users.service.js.map
 dist/tsconfig.build.tsbuildinfo
+.env
