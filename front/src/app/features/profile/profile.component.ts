@@ -19,11 +19,7 @@ import { HttpClient } from "@angular/common/http";
 import { environment } from "../../../environments/environment";
 
 interface ExtendedUser extends User {
-  phoneNumber?: string;
-  lastLogin?: Date;
-  status?: string;
   twoFactorEnabled?: boolean;
-  avatar?: string;
 }
 
 interface AvatarUploadResponse {
@@ -139,6 +135,8 @@ export class ProfileComponent {
 
   getRoleDisplayName(role: string): string {
     const displayNames = {
+      SUPER_ADMIN: "Super Admin",
+      OWNER: "Owner",
       DIRECTOR: "Director",
       MANAGER_FINANCIAL: "Financial Manager",
       MANAGER_FLEET: "Fleet Manager",
@@ -198,8 +196,9 @@ export class ProfileComponent {
       // Upload avatar to API
       this.http
         .patch<AvatarUploadResponse>(
-          `${environment.apiUrl}/auth/avatar`,
-          formData
+          `${environment.apiUrl}/users/avatar`,
+          formData,
+          { withCredentials: true }
         )
         .subscribe({
           next: (response) => {

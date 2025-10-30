@@ -273,8 +273,8 @@
               Van Management
             </span>
           </a>
-          } @if (isDirector() || isFinancialManager() || isFleetManager() ||
-          isOnsiteManager()) {
+          } @if (isSuperAdmin() || isOwner() || isDirector() ||
+          isFinancialManager() || isFleetManager() || isOnsiteManager()) {
           <!-- Payments Dashboard -->
           <a
             routerLink="/payments"
@@ -331,6 +331,37 @@
               [class.hidden]="!isSidebarOpen()"
             >
               Daily Payment
+            </span>
+          </a>
+
+          <!-- Invoices -->
+          <a
+            routerLink="/invoices"
+            routerLinkActive="bg-blue-100 text-blue-900"
+            class="flex items-center rounded-md px-3 py-2 ml-6 text-sm font-medium text-gray-600 hover:bg-gray-200 hover:text-gray-900 transition-colors group"
+          >
+            <svg
+              class="h-4 w-4 shrink-0"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.035.84 1.875 1.875 1.875h12.75c1.035 0 1.875-.84 1.875-1.875V12.75A3.75 3.75 0 0016.5 9h-1.875a1.875 1.875 0 01-1.875-1.875V5.25A3.75 3.75 0 009 1.5H5.625zM7.5 15a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5A.75.75 0 017.5 15zm.75 2.25a.75.75 0 000 1.5H12a.75.75 0 000-1.5H8.25z"
+                clip-rule="evenodd"
+              />
+              <path
+                d="M12.971 1.816A5.23 5.23 0 0114.25 5.25v1.875c0 .207.168.375.375.375H16.5a5.23 5.23 0 013.434 1.279 9.768 9.768 0 00-6.963-6.963z"
+              />
+            </svg>
+            <span
+              class="ml-3 transition-opacity duration-200"
+              [class.opacity-0]="!isSidebarOpen()"
+              [class.opacity-100]="isSidebarOpen()"
+              [class.hidden]="!isSidebarOpen()"
+            >
+              Invoices
             </span>
           </a>
           }
@@ -415,7 +446,7 @@
               Your Profile
             </a>
 
-            @if (isDirector()) {
+            @if (isSuperAdmin() || isOwner() || isDirector()) {
             <!-- Admin Section Divider -->
             <hr class="my-1 border-gray-200" />
 
@@ -427,6 +458,27 @@
                 Administration
               </span>
             </div>
+
+            @if (isSuperAdmin()) {
+            <!-- Organizations (SUPER_ADMIN only) -->
+            <a
+              routerLink="/organizations"
+              class="profile-menu-item flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+              (click)="isProfileMenuOpen.set(false)"
+            >
+              <svg
+                class="h-4 w-4 mr-3 text-gray-500"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path
+                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                />
+              </svg>
+              Organizations
+            </a>
+            }
 
             <!-- User Management -->
             <a

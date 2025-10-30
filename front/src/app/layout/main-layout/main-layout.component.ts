@@ -34,7 +34,13 @@ export class MainLayoutComponent {
   });
 
   // Convert getters to computed signals for better performance
-  readonly isDirector = computed(() => this.user()?.role === "DIRECTOR");
+  readonly isSuperAdmin = computed(() => this.user()?.role === "SUPER_ADMIN");
+  readonly isOwner = computed(
+    () => this.user()?.role === "OWNER" || this.isSuperAdmin()
+  );
+  readonly isDirector = computed(
+    () => this.user()?.role === "DIRECTOR" || this.isOwner()
+  );
   readonly isRecruitmentManager = computed(
     () => this.user()?.role === "MANAGER_RECRUITMENT" || this.isDirector()
   );

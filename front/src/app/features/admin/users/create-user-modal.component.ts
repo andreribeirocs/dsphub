@@ -217,6 +217,8 @@ import { UsersService, CreateUserRequest, UserRole } from "./users.service";
                 "
               >
                 <option value="">Select a role</option>
+                <option value="SUPER_ADMIN">Super Admin</option>
+                <option value="OWNER">Owner</option>
                 <option value="DIRECTOR">Director</option>
                 <option value="MANAGER_FINANCIAL">Financial Manager</option>
                 <option value="MANAGER_FLEET">Fleet Manager</option>

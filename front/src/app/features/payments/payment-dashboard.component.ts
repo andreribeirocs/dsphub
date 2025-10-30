@@ -60,7 +60,12 @@ export class PaymentDashboardComponent implements OnInit {
   );
   protected readonly canUpdatePrices = computed(() => {
     const user = this.currentUser();
-    return user?.role === "DIRECTOR" || user?.role === "MANAGER_FINANCIAL";
+    return (
+      user?.role === "SUPER_ADMIN" ||
+      user?.role === "OWNER" ||
+      user?.role === "DIRECTOR" ||
+      user?.role === "MANAGER_FINANCIAL"
+    );
   });
 
   protected readonly currentDate = new Date();

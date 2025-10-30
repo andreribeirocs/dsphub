@@ -178,6 +178,8 @@ import { AlertService } from "../../../shared/services/alert.service";
             (change)="roleFilter.set($any($event.target).value)"
           >
             <option value="">All Roles</option>
+            <option value="SUPER_ADMIN">Super Admin</option>
+            <option value="OWNER">Owner</option>
             <option value="DIRECTOR">Director</option>
             <option value="MANAGER_FINANCIAL">Financial Manager</option>
             <option value="MANAGER_FLEET">Fleet Manager</option>
@@ -296,7 +298,8 @@ import { AlertService } from "../../../shared/services/alert.service";
                     >
                       {{ user.status === "ACTIVE" ? "Deactivate" : "Activate" }}
                     </button>
-                    @if (user.role !== 'DIRECTOR') {
+                    @if (user.role !== 'SUPER_ADMIN' && user.role !== 'OWNER' &&
+                    user.role !== 'DIRECTOR') {
                     <button
                       (click)="deleteUser(user)"
                       class="text-red-600 hover:text-red-900"
@@ -509,6 +512,8 @@ export class UsersComponent implements OnInit {
 
   getRoleBadgeClasses(role: string): string {
     const classes = {
+      SUPER_ADMIN: "bg-red-100 text-red-800",
+      OWNER: "bg-orange-100 text-orange-800",
       DIRECTOR: "bg-purple-100 text-purple-800",
       MANAGER_FINANCIAL: "bg-green-100 text-green-800",
       MANAGER_FLEET: "bg-blue-100 text-blue-800",
@@ -532,6 +537,8 @@ export class UsersComponent implements OnInit {
 
   getRoleDisplayName(role: string): string {
     const displayNames = {
+      SUPER_ADMIN: "Super Admin",
+      OWNER: "Owner",
       DIRECTOR: "Director",
       MANAGER_FINANCIAL: "Financial Manager",
       MANAGER_FLEET: "Fleet Manager",

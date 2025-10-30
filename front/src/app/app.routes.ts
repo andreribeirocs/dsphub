@@ -68,7 +68,9 @@ export const routes: Routes = [
           import("./features/recruitment/recruitment.component").then(
             (m) => m.RecruitmentComponent
           ),
-        data: { roles: ["DIRECTOR", "MANAGER_RECRUITMENT"] },
+        data: {
+          roles: ["SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_RECRUITMENT"],
+        },
       },
       {
         path: "candidates",
@@ -79,7 +81,14 @@ export const routes: Routes = [
               import(
                 "./features/recruitment/candidates/candidates.component"
               ).then((m) => m.CandidatesComponent),
-            data: { roles: ["DIRECTOR", "MANAGER_RECRUITMENT"] },
+            data: {
+              roles: [
+                "SUPER_ADMIN",
+                "OWNER",
+                "DIRECTOR",
+                "MANAGER_RECRUITMENT",
+              ],
+            },
           },
           {
             path: ":id",
@@ -87,7 +96,14 @@ export const routes: Routes = [
               import(
                 "./features/recruitment/candidates/candidate-detail.component"
               ).then((m) => m.CandidateDetailComponent),
-            data: { roles: ["DIRECTOR", "MANAGER_RECRUITMENT"] },
+            data: {
+              roles: [
+                "SUPER_ADMIN",
+                "OWNER",
+                "DIRECTOR",
+                "MANAGER_RECRUITMENT",
+              ],
+            },
           },
         ],
       },
@@ -125,6 +141,8 @@ export const routes: Routes = [
           ),
         data: {
           roles: [
+            "SUPER_ADMIN",
+            "OWNER",
             "DIRECTOR",
             "MANAGER_FINANCIAL",
             "MANAGER_FLEET",
@@ -140,6 +158,8 @@ export const routes: Routes = [
           ),
         data: {
           roles: [
+            "SUPER_ADMIN",
+            "OWNER",
             "DIRECTOR",
             "MANAGER_FINANCIAL",
             "MANAGER_FLEET",
@@ -156,7 +176,44 @@ export const routes: Routes = [
               import("./features/vans/van-dashboard.component").then(
                 (m) => m.VanDashboardComponent
               ),
-            data: { roles: ["DIRECTOR", "MANAGER_FLEET"] },
+            data: {
+              roles: ["SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_FLEET"],
+            },
+          },
+        ],
+      },
+      {
+        path: "invoices",
+        children: [
+          {
+            path: "",
+            loadComponent: () =>
+              import("./features/invoices/invoices.component").then(
+                (m) => m.InvoicesComponent
+              ),
+            data: {
+              roles: ["SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_FINANCIAL"],
+            },
+          },
+          {
+            path: "generate",
+            loadComponent: () =>
+              import("./features/invoices/invoice-generation.component").then(
+                (m) => m.InvoiceGenerationComponent
+              ),
+            data: {
+              roles: ["SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_FINANCIAL"],
+            },
+          },
+          {
+            path: ":id",
+            loadComponent: () =>
+              import("./features/invoices/invoice-details.component").then(
+                (m) => m.InvoiceDetailsComponent
+              ),
+            data: {
+              roles: ["SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_FINANCIAL"],
+            },
           },
         ],
       },
@@ -168,6 +225,14 @@ export const routes: Routes = [
           ),
       },
       {
+        path: "organizations",
+        loadComponent: () =>
+          import("./features/organizations/organizations.component").then(
+            (m) => m.OrganizationsComponent
+          ),
+        data: { roles: ["SUPER_ADMIN"] },
+      },
+      {
         path: "admin",
         children: [
           {
@@ -176,7 +241,7 @@ export const routes: Routes = [
               import("./features/admin/users/users.component").then(
                 (m) => m.UsersComponent
               ),
-            data: { roles: ["DIRECTOR"] },
+            data: { roles: ["SUPER_ADMIN", "OWNER", "DIRECTOR"] },
           },
           {
             path: "settings",
@@ -184,7 +249,7 @@ export const routes: Routes = [
               import("./features/admin/settings/settings.component").then(
                 (m) => m.SettingsComponent
               ),
-            data: { roles: ["DIRECTOR"] },
+            data: { roles: ["SUPER_ADMIN", "OWNER", "DIRECTOR"] },
           },
           {
             path: "audit-logs",
@@ -192,7 +257,7 @@ export const routes: Routes = [
               import("./features/admin/audit-logs/audit-logs.component").then(
                 (m) => m.AuditLogsComponent
               ),
-            data: { roles: ["DIRECTOR"] },
+            data: { roles: ["SUPER_ADMIN", "OWNER", "DIRECTOR"] },
           },
         ],
       },

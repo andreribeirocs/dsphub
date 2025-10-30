@@ -76,7 +76,7 @@ export class SecurityService {
 
   private getAllowedApiOrigins(): string {
     // 🌐 Define allowed API origins based on environment
-    const origins = ["http://localhost:3000", "http://localhost:3002"]; // Your API endpoints
+    const origins = ["http://localhost:3000"]; // Your API endpoints
 
     // Add production origins
     if (this.isProduction()) {

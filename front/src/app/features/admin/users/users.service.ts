@@ -70,6 +70,8 @@ export interface GetUsersParams {
 }
 
 export type UserRole =
+  | "SUPER_ADMIN"
+  | "OWNER"
   | "DIRECTOR"
   | "MANAGER_FINANCIAL"
   | "MANAGER_FLEET"

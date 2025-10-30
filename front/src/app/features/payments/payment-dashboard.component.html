@@ -13,7 +13,8 @@
         <span class="text-sm text-gray-500">{{
           currentDate | date : "d/M/yyyy"
         }}</span>
-        @if (currentUser()?.role === 'DIRECTOR' || currentUser()?.role ===
+        @if (currentUser()?.role === 'SUPER_ADMIN' || currentUser()?.role ===
+        'OWNER' || currentUser()?.role === 'DIRECTOR' || currentUser()?.role ===
         'MANAGER_FINANCIAL') {
         <button
           type="button"
