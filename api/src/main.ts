@@ -6,6 +6,7 @@ import {
   InputLengthValidationPipe,
 } from "./shared/pipes/validation.pipe";
 import * as express from "express";
+import * as cookieParser from "cookie-parser";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
@@ -15,6 +16,12 @@ async function bootstrap(): Promise<void> {
   // Configure body parser for larger payloads (50MB limit for file uploads)
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // Configure cookie parser for Better Auth session cookies
+  app.use(cookieParser());
+
+  // Serve static files (avatars, invoices, etc.)
+  app.use("/uploads", express.static("uploads"));
 
   app.useGlobalPipes(
     new InputLengthValidationPipe(50000000), // 50MB for file uploads

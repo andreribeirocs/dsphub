@@ -11,7 +11,13 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { diskStorage } from "multer";
+import { extname } from "path";
 import {
   ApiTags,
   ApiOperation,
@@ -21,10 +27,11 @@ import {
   ApiQuery,
 } from "@nestjs/swagger";
 import { UsersService } from "./users.service";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { BetterAuthGuard } from "../auth/guards/better-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { ThrottleModerate } from "../auth/decorators/throttle.decorator";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import {
   CreateUserDto,
   UpdateUserDto,
@@ -38,7 +45,7 @@ import {
 
 @ApiTags("users")
 @Controller("users")
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(BetterAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -69,6 +76,8 @@ export class UsersController {
     name: "role",
     required: false,
     enum: [
+      "SUPER_ADMIN",
+      "OWNER",
       "DIRECTOR",
       "MANAGER_FINANCIAL",
       "MANAGER_FLEET",
@@ -100,7 +109,7 @@ export class UsersController {
     enum: ["name", "email", "role", "status", "createdAt", "lastLogin"],
   })
   @ApiQuery({ name: "sortOrder", required: false, enum: ["asc", "desc"] })
-  @Roles("DIRECTOR")
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR")
   @ThrottleModerate()
   @Get()
   async findAll(
@@ -125,7 +134,7 @@ export class UsersController {
   })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden - Directors only" })
-  @Roles("DIRECTOR")
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR")
   @ThrottleModerate()
   @Get("stats")
   async getStats(): Promise<UserStatsResponseDto> {
@@ -151,7 +160,7 @@ export class UsersController {
   @ApiResponse({ status: 403, description: "Forbidden - Directors only" })
   @ApiResponse({ status: 404, description: "User not found" })
   @ApiParam({ name: "id", description: "User UUID" })
-  @Roles("DIRECTOR")
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR")
   @ThrottleModerate()
   @Get(":id")
   async findOne(
@@ -168,7 +177,7 @@ export class UsersController {
       lastLogin: user.lastLogin,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      twoFactorEnabled: user.twoFactorEnabled,
+      twoFactorEnabled: false, // TODO: Implement 2FA with Better Auth
     };
   }
 
@@ -191,7 +200,7 @@ export class UsersController {
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden - Directors only" })
   @ApiResponse({ status: 409, description: "User with email already exists" })
-  @Roles("DIRECTOR")
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR")
   @ThrottleModerate()
   @Post()
   async create(@Body() createUserDto: CreateUserDto): Promise<UserResponseDto> {
@@ -220,7 +229,7 @@ export class UsersController {
   @ApiResponse({ status: 404, description: "User not found" })
   @ApiResponse({ status: 409, description: "Email already in use" })
   @ApiParam({ name: "id", description: "User UUID" })
-  @Roles("DIRECTOR")
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR")
   @ThrottleModerate()
   @Patch(":id")
   async update(
@@ -250,7 +259,7 @@ export class UsersController {
   @ApiResponse({ status: 403, description: "Forbidden - Directors only" })
   @ApiResponse({ status: 404, description: "User not found" })
   @ApiParam({ name: "id", description: "User UUID" })
-  @Roles("DIRECTOR")
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR")
   @ThrottleModerate()
   @Patch(":id/password")
   @HttpCode(HttpStatus.OK)
@@ -283,7 +292,7 @@ export class UsersController {
   @ApiResponse({ status: 403, description: "Forbidden - Directors only" })
   @ApiResponse({ status: 404, description: "User not found" })
   @ApiParam({ name: "id", description: "User UUID" })
-  @Roles("DIRECTOR")
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR")
   @ThrottleModerate()
   @Patch(":id/status")
   async updateStatus(
@@ -315,7 +324,7 @@ export class UsersController {
   @ApiResponse({ status: 403, description: "Forbidden - Directors only" })
   @ApiResponse({ status: 404, description: "User not found" })
   @ApiParam({ name: "id", description: "User UUID" })
-  @Roles("DIRECTOR")
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR")
   @ThrottleModerate()
   @Delete(":id")
   @HttpCode(HttpStatus.OK)
@@ -324,5 +333,79 @@ export class UsersController {
   ): Promise<{ message: string }> {
     await this.usersService.softDeleteUser(id);
     return { message: "User deleted successfully" };
+  }
+
+  /**
+   * Upload user avatar
+   * @param file - Avatar image file
+   * @param user - Current authenticated user
+   * @returns Avatar URL
+   */
+  @ApiOperation({
+    summary: "Upload user avatar",
+    description: "Upload or update the current user's profile picture",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Avatar uploaded successfully",
+    schema: {
+      type: "object",
+      properties: {
+        message: { type: "string", example: "Avatar uploaded successfully" },
+        avatar: {
+          type: "string",
+          example: "/uploads/avatars/avatar-1234567890.jpg",
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: "Invalid file or file too large" })
+  @ApiResponse({ status: 401, description: "Unauthorized" })
+  @ThrottleModerate()
+  @Patch("avatar")
+  @UseInterceptors(
+    FileInterceptor("avatar", {
+      storage: diskStorage({
+        destination: "./uploads/avatars",
+        filename: (_req, file, callback) => {
+          const uniqueSuffix =
+            Date.now() + "-" + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          callback(null, `avatar-${uniqueSuffix}${ext}`);
+        },
+      }),
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
+          return callback(
+            new BadRequestException("Only image files are allowed"),
+            false
+          );
+        }
+        callback(null, true);
+      },
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+    })
+  )
+  async uploadAvatar(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: { id: string }
+  ): Promise<{ message: string; avatar: string }> {
+    if (!file) {
+      throw new BadRequestException("No file uploaded");
+    }
+
+    const avatarPath = `/uploads/avatars/${file.filename}`;
+
+    // Update user's avatar in database
+    await this.usersService.updateUser(user.id, {
+      avatar: avatarPath,
+    });
+
+    return {
+      message: "Avatar uploaded successfully",
+      avatar: avatarPath,
+    };
   }
 }

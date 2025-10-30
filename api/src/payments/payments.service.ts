@@ -35,10 +35,51 @@ export class PaymentsService {
 
   /**
    * Get all current route prices for the dashboard
+   * Filtered by user's organization (SUPER_ADMIN sees first organization)
    */
-  async getAllRoutePrices(): Promise<RoutePrice[]> {
+  async getAllRoutePrices(userId: string): Promise<RoutePrice[]> {
     try {
+      // Get user with organization info
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          role: true,
+          members: {
+            select: {
+              organizationId: true,
+            },
+          },
+        },
+      });
+
+      if (!user) {
+        throw new BadRequestException("User not found");
+      }
+
+      // Determine which organization's prices to show
+      let organizationId: string | undefined;
+
+      if (user.members.length > 0) {
+        // Use user's organization
+        organizationId = user.members[0].organizationId;
+      } else {
+        // For SUPER_ADMIN or users without organization, use first active organization
+        const firstOrg = await this.prisma.organization.findFirst({
+          where: { isActive: true },
+          orderBy: { createdAt: "asc" },
+        });
+        organizationId = firstOrg?.id;
+      }
+
+      if (!organizationId) {
+        return []; // No organization found
+      }
+
       const prices = await this.prisma.routePrice.findMany({
+        where: {
+          organizationId,
+        },
         include: {
           updatedByUser: {
             select: {
@@ -68,13 +109,60 @@ export class PaymentsService {
 
   /**
    * Get dashboard statistics
+   * Filtered by user's organization
    */
-  async getDashboardStats(): Promise<DashboardStats> {
+  async getDashboardStats(userId: string): Promise<DashboardStats> {
     try {
+      // Get user with organization info
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          role: true,
+          members: {
+            select: {
+              organizationId: true,
+            },
+          },
+        },
+      });
+
+      if (!user) {
+        throw new BadRequestException("User not found");
+      }
+
+      // Determine which organization's stats to show
+      let organizationId: string | undefined;
+
+      if (user.members.length > 0) {
+        // Use user's organization
+        organizationId = user.members[0].organizationId;
+      } else {
+        // For SUPER_ADMIN or users without organization, use first active organization
+        const firstOrg = await this.prisma.organization.findFirst({
+          where: { isActive: true },
+          orderBy: { createdAt: "asc" },
+        });
+        organizationId = firstOrg?.id;
+      }
+
+      if (!organizationId) {
+        return {
+          totalRoutes: 0,
+          dailyRevenuePotential: 0,
+          priceChanges: 0,
+        };
+      }
+
       const [routePrices, priceHistoryCount] = await Promise.all([
-        this.prisma.routePrice.findMany(),
+        this.prisma.routePrice.findMany({
+          where: { organizationId },
+        }),
         this.prisma.paymentHistory.count({
           where: {
+            routePrice: {
+              organizationId,
+            },
             changeDate: {
               gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1), // This month
             },
@@ -100,6 +188,7 @@ export class PaymentsService {
 
   /**
    * Update a route price (only for financial managers and directors)
+   * Updates price for user's organization
    */
   async updateRoutePrice(
     updateData: UpdateRoutePriceDto,
@@ -108,9 +197,50 @@ export class PaymentsService {
     try {
       const { routeType, dailyRate, changeReason } = updateData;
 
+      // Get user with organization info
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          role: true,
+          members: {
+            select: {
+              organizationId: true,
+            },
+          },
+        },
+      });
+
+      if (!user) {
+        throw new BadRequestException("User not found");
+      }
+
+      // Determine which organization's price to update
+      let organizationId: string;
+
+      if (user.members.length > 0) {
+        // Use user's organization
+        organizationId = user.members[0].organizationId;
+      } else {
+        // For SUPER_ADMIN or users without organization, use first active organization
+        const firstOrg = await this.prisma.organization.findFirst({
+          where: { isActive: true },
+          orderBy: { createdAt: "asc" },
+        });
+        if (!firstOrg) {
+          throw new NotFoundException("No active organization found");
+        }
+        organizationId = firstOrg.id;
+      }
+
       // Get current price for history tracking
       const currentPrice = await this.prisma.routePrice.findUnique({
-        where: { routeType },
+        where: {
+          organizationId_routeType: {
+            organizationId,
+            routeType,
+          },
+        },
       });
 
       if (!currentPrice) {
@@ -129,7 +259,12 @@ export class PaymentsService {
       const updatedPrice = await this.prisma.$transaction(async (tx) => {
         // Update the route price
         const updated = await tx.routePrice.update({
-          where: { routeType },
+          where: {
+            organizationId_routeType: {
+              organizationId,
+              routeType,
+            },
+          },
           data: {
             dailyRate: newRate,
             lastUpdated: new Date(),
@@ -279,7 +414,12 @@ export class PaymentsService {
       // Check if driver exists
       const driver = await this.prisma.driver.findUnique({
         where: { id: driverId },
-        select: { id: true, name: true, transporterId: true },
+        select: {
+          id: true,
+          name: true,
+          transporterId: true,
+          organizationId: true,
+        },
       });
 
       if (!driver) {
@@ -303,6 +443,7 @@ export class PaymentsService {
 
       const payment = await this.prisma.driverPayment.create({
         data: {
+          organizationId: driver.organizationId,
           driverId,
           workDate: new Date(workDate),
           routeType,
@@ -686,7 +827,17 @@ export class PaymentsService {
               (!p.helperFor && !item.helperFor))
         );
 
+        // Get driver's organizationId
+        const driver = await tx.driver.findUnique({
+          where: { id: item.driverId },
+          select: { organizationId: true },
+        });
+        if (!driver) {
+          throw new NotFoundException(`Driver ${item.driverId} not found`);
+        }
+
         const data: Prisma.DriverPaymentUncheckedCreateInput = {
+          organizationId: driver.organizationId,
           driverId: item.driverId,
           workDate,
           routeType: item.routeType,
@@ -1016,7 +1167,18 @@ export class PaymentsService {
         if (driverItems.length === 1) {
           // Single record for this driver - normal case
           const item = driverItems[0];
+
+          // Get driver's organizationId
+          const driver = await tx.driver.findUnique({
+            where: { id: item.driverId },
+            select: { organizationId: true },
+          });
+          if (!driver) {
+            throw new NotFoundException(`Driver ${item.driverId} not found`);
+          }
+
           const data = {
+            organizationId: driver.organizationId,
             driverId: item.driverId,
             workDate: workDate,
             routeType: item.routeType,
@@ -1080,7 +1242,20 @@ export class PaymentsService {
 
           // Use the first item as base, but combine route information
           const firstItem = driverItems[0];
+
+          // Get driver's organizationId
+          const driver = await tx.driver.findUnique({
+            where: { id: firstItem.driverId },
+            select: { organizationId: true },
+          });
+          if (!driver) {
+            throw new NotFoundException(
+              `Driver ${firstItem.driverId} not found`
+            );
+          }
+
           const data = {
+            organizationId: driver.organizationId,
             driverId: firstItem.driverId,
             workDate: workDate,
             routeType: firstItem.routeType,
@@ -1221,11 +1396,17 @@ export class PaymentsService {
 
     const normalized = routeTypeStr
       .toUpperCase()
-      .replace(/[():-]/g, " ")
+      .replace(/[():\-+\/]/g, " ") // Also replace +, / with space
       .replace(/\s+/g, "_");
+
+    // Debug logging
+    this.logger.debug(
+      `Normalizing route type: "${routeTypeStr}" -> "${normalized}"`
+    );
 
     // Direct match
     if (validRouteTypes.includes(normalized as RouteType)) {
+      this.logger.debug(`Direct match found: ${normalized}`);
       return normalized as RouteType;
     }
 
@@ -1315,10 +1496,25 @@ export class PaymentsService {
       // Handle AD HOC variations
       STANDARD_PARCEL_AD_HOC_2: "STANDARD_PARCEL",
       STANDARD_PARCEL_AD_HOC_1: "STANDARD_PARCEL",
+
+      // Handle Large Van variations
+      STANDARD_PARCEL_LARGE_VAN: "STANDARD_PARCEL",
+      STANDARD_PARCEL___LARGE_VAN: "STANDARD_PARCEL", // "Standard Parcel - Large Van" after normalization
+
+      // Handle Low Emission Vehicle variations - treat as standard parcel
+      STANDARD_PARCEL_LOW_EMISSION_VEHICLE_350CF_81KWH_: "STANDARD_PARCEL", // "Standard Parcel - Low Emission Vehicle (350CF/81KWh)"
+      STANDARD_PARCEL___LOW_EMISSION_VEHICLE__350CF_81KWH_: "STANDARD_PARCEL", // Alternative normalization
+
+      // Handle AmFlex variations
+      AMFLEX_SAME_DAY_CAR_: "SAME_DAY", // "AmFlex Same Day Car+"
+      AMFLEX_SAME_DAY_CAR: "SAME_DAY",
     };
 
     // Check delivery service mappings first
     if (deliveryServiceMappings[normalized]) {
+      this.logger.debug(
+        `Mapping found: ${normalized} -> ${deliveryServiceMappings[normalized]}`
+      );
       return deliveryServiceMappings[normalized];
     }
 
@@ -1333,7 +1529,17 @@ export class PaymentsService {
       EXTRA: "EXTRAS",
     };
 
-    return legacyAliases[normalized] || null;
+    if (legacyAliases[normalized]) {
+      this.logger.debug(
+        `Legacy alias found: ${normalized} -> ${legacyAliases[normalized]}`
+      );
+      return legacyAliases[normalized];
+    }
+
+    this.logger.warn(
+      `No mapping found for normalized route type: "${normalized}"`
+    );
+    return null;
   }
 
   private parseAmount(amountStr: string): number {
@@ -1344,5 +1550,319 @@ export class PaymentsService {
     const amount = parseFloat(cleaned);
 
     return isNaN(amount) ? 0 : Math.max(0, amount);
+  }
+
+  /**
+   * Generate weekly invoice data for a driver
+   * Aggregates all payment data for a specific week
+   */
+  async generateWeeklyInvoiceData(
+    driverId: string,
+    weekStartDate: Date,
+    weekEndDate: Date
+  ): Promise<any> {
+    try {
+      // Fetch driver with organization details
+      const driver = await this.prisma.driver.findUnique({
+        where: { id: driverId },
+        include: {
+          user: true,
+          organization: true,
+        },
+      });
+
+      if (!driver) {
+        throw new NotFoundException(`Driver with ID ${driverId} not found`);
+      }
+
+      // Fetch all payments for the week
+      const payments = await this.prisma.driverPayment.findMany({
+        where: {
+          driverId,
+          workDate: {
+            gte: weekStartDate,
+            lte: weekEndDate,
+          },
+        },
+        orderBy: {
+          workDate: "asc",
+        },
+      });
+
+      if (payments.length === 0) {
+        throw new NotFoundException(
+          `No payments found for driver ${driver.name} in the specified week`
+        );
+      }
+
+      // Calculate totals
+      const totals = this.calculateInvoiceTotals(payments);
+
+      // Get unique delivery service types
+      const deliveryServiceTypes = [
+        ...new Set(
+          payments
+            .map((p) => p.deliveryServiceType)
+            .filter((ds): ds is string => !!ds)
+        ),
+      ];
+
+      // Get week number (ISO week)
+      const weekNumber = this.getWeekNumber(weekStartDate);
+
+      // Format dates
+      const formatDate = (date: Date) => {
+        const d = new Date(date);
+        return `${d.getDate().toString().padStart(2, "0")}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d.getFullYear()}`;
+      };
+
+      // Group payments by period and DS type for earnings summary
+      const earningsItems = this.groupPaymentsByPeriodAndDS(payments);
+
+      // Prepare services data for self-billing invoice
+      const services = payments.map((payment) => ({
+        date: formatDate(payment.workDate),
+        routeTypeStopRate: payment.routeType,
+        route: payment.routeCode || "",
+        rate: Number(payment.dailyRate),
+        incentive: Number(payment.incentive || 0),
+        mileage: Number(payment.mileage || 0),
+        mileageCost: Number(payment.mileageCost || 0),
+        byod: Number(payment.byod || 0),
+        total: Number(payment.totalPaid),
+      }));
+
+      // Prepare extras and deductions
+      const extrasAndDeductions = payments
+        .filter(
+          (p) =>
+            (p.extraAmount && Number(p.extraAmount) !== 0) ||
+            (p.deductionAmount && Number(p.deductionAmount) !== 0) ||
+            p.awayDriver
+        )
+        .map((payment) => ({
+          date: formatDate(payment.workDate),
+          description: payment.awayDriver ? "AWAY DRIVER" : payment.notes || "",
+          toolCharge: 0,
+          additional:
+            Number(payment.extraAmount || 0) +
+            Number(payment.awayDriverAmount || 0),
+          deductions: Number(payment.deductionAmount || 0),
+          total:
+            Number(payment.extraAmount || 0) +
+            Number(payment.awayDriverAmount || 0) -
+            Number(payment.deductionAmount || 0),
+        }));
+
+      // Prepare vehicle rental data (if van charges exist)
+      const vehicleHireCosts = payments
+        .filter((p) => p.vanCharge && Number(p.vanCharge) > 0)
+        .map((payment) => ({
+          date: formatDate(payment.workDate),
+          description: "Vehicle Hire",
+          rate: Number(payment.vanCharge),
+          vat: Number(payment.vanCharge) * 0.2,
+          total: Number(payment.vanCharge) * 1.2,
+        }));
+
+      const totalVehicleRental = vehicleHireCosts.reduce(
+        (sum, item) => sum + item.total,
+        0
+      );
+
+      // Prepare deductions summary
+      const deductionItems = [
+        {
+          type: "Self Billing Invoice (SBI) processing fee",
+          description: "",
+          amount: totals.sbiProcessingFee,
+          vat: 0,
+          total: totals.sbiProcessingFee,
+        },
+      ];
+
+      if (totalVehicleRental > 0) {
+        deductionItems.unshift({
+          type: "Vehicle Hire",
+          description: "",
+          amount: totalVehicleRental / 1.2,
+          vat: totalVehicleRental * 0.2,
+          total: totalVehicleRental,
+        });
+      }
+
+      // Calculate final totals
+      const grossEarnings = totals.subtotal;
+      const totalDeductions = totals.totalDeductions;
+      const invoiceTotal = grossEarnings - totalDeductions;
+
+      // Prepare refunds section
+      const refundsTotal = grossEarnings;
+      const refundsVat20 = refundsTotal * 0.2;
+
+      return {
+        organization: {
+          name: driver.organization.name,
+          address: driver.organization.address,
+          city: driver.organization.city,
+          postcode: driver.organization.postcode,
+          country: driver.organization.country,
+          phone: driver.organization.phone,
+          companyRegNumber: driver.organization.companyRegNumber,
+          vatNumber: driver.organization.vatNumber,
+          logoBase64: driver.organization.logoBase64,
+        },
+        driver: {
+          name: driver.name,
+          address: driver.address,
+          transporterId: driver.transporterId,
+        },
+        statementDate: formatDate(weekEndDate),
+        dueDate: formatDate(
+          new Date(weekEndDate.getTime() + 14 * 24 * 60 * 60 * 1000)
+        ), // 14 days after statement date
+        weekNumber,
+        weekPeriod: `${formatDate(weekStartDate)} - ${formatDate(weekEndDate)}`,
+        invoiceNumber: `${driver.organization.invoicePrefix || "INV"}-${new Date().getFullYear()}-${weekNumber}-${driver.transporterId}`,
+        deliveryServiceTypes,
+        amzlSite: payments[0]?.depot || "",
+        earnings: {
+          items: earningsItems,
+          totalDeductions,
+          invoiceTotal,
+        },
+        deductions: {
+          vehicleHireTotal: totalVehicleRental,
+          items: deductionItems,
+          total: totalDeductions,
+        },
+        fuelBreakdown: [], // Placeholder - would need separate fuel tracking
+        vehicleRental: {
+          vehicleHireCosts,
+          insurancePackCosts: [], // Placeholder
+          tollCharges: [], // Placeholder
+          totalVehicleRental,
+        },
+        services,
+        extrasAndDeductions,
+        refunds: {
+          items: [], // Placeholder
+          total: refundsTotal,
+          vat20: refundsVat20,
+          refunds: 0,
+          toolCharge: 0,
+          totalVATInc: refundsTotal + refundsVat20,
+        },
+        finalDeductions: totalDeductions,
+        netPayment: invoiceTotal,
+        finalDueDate: formatDate(
+          new Date(weekEndDate.getTime() + 14 * 24 * 60 * 60 * 1000)
+        ),
+      };
+    } catch (error) {
+      this.logger.error("Error generating weekly invoice data:", error);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException("Failed to generate weekly invoice data");
+    }
+  }
+
+  /**
+   * Calculate invoice totals from payment records
+   */
+  calculateInvoiceTotals(payments: any[]): {
+    subtotal: number;
+    extras: number;
+    deductions: number;
+    vanCharges: number;
+    sbiProcessingFee: number;
+    totalDeductions: number;
+    total: number;
+  } {
+    const subtotal = payments.reduce(
+      (sum, payment) => sum + Number(payment.totalPaid),
+      0
+    );
+
+    const extras = payments.reduce(
+      (sum, payment) =>
+        sum +
+        Number(payment.extraAmount || 0) +
+        Number(payment.awayDriverAmount || 0),
+      0
+    );
+
+    const deductions = payments.reduce(
+      (sum, payment) => sum + Number(payment.deductionAmount || 0),
+      0
+    );
+
+    const vanCharges = payments.reduce(
+      (sum, payment) => sum + Number(payment.vanCharge || 0),
+      0
+    );
+
+    // Calculate SBI processing fee (typically £8.10 per week)
+    const sbiProcessingFee = 8.1;
+
+    const totalDeductions = deductions + vanCharges + sbiProcessingFee;
+    const total = subtotal + extras - totalDeductions;
+
+    return {
+      subtotal,
+      extras,
+      deductions,
+      vanCharges,
+      sbiProcessingFee,
+      totalDeductions,
+      total,
+    };
+  }
+
+  /**
+   * Get ISO week number from date
+   */
+  private getWeekNumber(date: Date): number {
+    const d = new Date(
+      Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+    );
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  }
+
+  /**
+   * Group payments by period and delivery service type for earnings summary
+   */
+  private groupPaymentsByPeriodAndDS(payments: any[]): any[] {
+    const grouped = new Map<string, Map<string, number>>();
+
+    payments.forEach((payment) => {
+      const period = `Week ${this.getWeekNumber(payment.workDate)}`;
+      const ds = payment.deliveryServiceType || "Unknown";
+
+      if (!grouped.has(period)) {
+        grouped.set(period, new Map());
+      }
+
+      const periodMap = grouped.get(period)!;
+      const currentTotal = periodMap.get(ds) || 0;
+      periodMap.set(ds, currentTotal + Number(payment.totalPaid));
+    });
+
+    const result: any[] = [];
+    grouped.forEach((dsMap, period) => {
+      dsMap.forEach((totalEarnings, ds) => {
+        result.push({
+          period,
+          ds,
+          totalEarnings,
+        });
+      });
+    });
+
+    return result;
   }
 }

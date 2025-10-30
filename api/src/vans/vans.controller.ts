@@ -22,7 +22,7 @@ import {
 } from "@nestjs/swagger";
 import { VansService, VanStats } from "./vans.service";
 import { CreateVanDto, UpdateVanDto, GetVansDto } from "./dto";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { BetterAuthGuard } from "../auth/guards/better-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "../auth/enums/role.enum";
@@ -31,7 +31,7 @@ import { Van } from "@prisma/client";
 
 @ApiTags("vans")
 @Controller("vans")
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(BetterAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class VansController {
   constructor(private readonly vansService: VansService) {}
@@ -42,7 +42,7 @@ export class VansController {
    * @returns Created van
    */
   @Post()
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FLEET)
   @ThrottleModerate()
   @ApiOperation({ summary: "Create a new van" })
   @ApiResponse({
@@ -65,7 +65,13 @@ export class VansController {
    * @returns Array of vans
    */
   @Get()
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ApiOperation({ summary: "Get all vans with filtering options" })
   @ApiResponse({
     status: 200,
@@ -119,7 +125,13 @@ export class VansController {
    * @returns Van statistics
    */
   @Get("stats")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ApiOperation({ summary: "Get van dashboard statistics" })
   @ApiResponse({
     status: 200,
@@ -156,7 +168,13 @@ export class VansController {
    * @returns Vans with expiring MOT
    */
   @Get("expiring-mot")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ApiOperation({ summary: "Get vans with expiring MOT" })
   @ApiResponse({
     status: 200,
@@ -180,7 +198,13 @@ export class VansController {
    * @returns Van with related data
    */
   @Get(":id")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ApiOperation({ summary: "Get a van by ID" })
   @ApiResponse({
     status: 200,
@@ -199,7 +223,13 @@ export class VansController {
    * @returns Van with related data
    */
   @Get("number/:vanNumber")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ApiOperation({ summary: "Get a van by van number" })
   @ApiResponse({
     status: 200,
@@ -219,7 +249,7 @@ export class VansController {
    * @returns Updated van
    */
   @Put(":id")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FLEET)
   @ThrottleModerate()
   @ApiOperation({ summary: "Update a van" })
   @ApiResponse({
@@ -243,7 +273,7 @@ export class VansController {
    * @returns Deleted van
    */
   @Delete(":id")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FLEET)
   @ThrottleModerate()
   @ApiOperation({ summary: "Delete a van" })
   @ApiResponse({

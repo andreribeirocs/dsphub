@@ -47,6 +47,14 @@ export class RecruitmentService {
       );
     }
 
+    // Get default organization
+    const organization = await this.prisma.organization.findUnique({
+      where: { slug: "default" },
+    });
+    if (!organization) {
+      throw new BadRequestException("Default organization not found");
+    }
+
     const smsToken = nanoid(SMS_TOKEN_LENGTH);
     const tokenExpiry = new Date();
     tokenExpiry.setHours(tokenExpiry.getHours() + TOKEN_EXPIRY_HOURS);
@@ -54,6 +62,7 @@ export class RecruitmentService {
     const candidate = await this.prisma.candidate.create({
       data: {
         ...createCandidateDto,
+        organizationId: organization.id,
         smsToken,
         tokenExpiry,
         status: "LEAD",

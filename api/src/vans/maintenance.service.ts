@@ -45,7 +45,17 @@ export class MaintenanceService {
     createMaintenanceDto: CreateMaintenanceDto
   ): Promise<MaintenanceRecord> {
     try {
+      // Get van to retrieve organizationId
+      const van = await this.prisma.van.findUnique({
+        where: { id: createMaintenanceDto.vanId },
+        select: { organizationId: true },
+      });
+      if (!van) {
+        throw new NotFoundException("Van not found");
+      }
+
       const maintenanceData: Prisma.MaintenanceRecordCreateInput = {
+        organization: { connect: { id: van.organizationId } },
         van: { connect: { id: createMaintenanceDto.vanId } },
         type: createMaintenanceDto.type,
         description: createMaintenanceDto.description,

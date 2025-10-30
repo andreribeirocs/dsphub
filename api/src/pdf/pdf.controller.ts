@@ -17,7 +17,7 @@ import {
   ApiOperation,
   ApiResponse,
 } from "@nestjs/swagger";
-import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
+import { BetterAuthGuard } from "../auth/guards/better-auth.guard";
 import { RolesGuard } from "src/auth/guards/roles.guard";
 import {
   FileUploadGuard,
@@ -26,7 +26,7 @@ import {
 import { PDF_UPLOAD_CONFIG } from "src/shared/config/multer.config";
 
 @ApiTags("PDF")
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(BetterAuthGuard, RolesGuard)
 @Controller("pdf")
 export class PdfController {
   constructor(private readonly pdfService: PdfService) {}
@@ -80,9 +80,9 @@ export class PdfController {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         analysis,
       };
-            } catch (error) {
-          throw SecureErrorUtil.handleFileProcessingError(error, 'PDF processing');
-        }
+    } catch (error) {
+      throw SecureErrorUtil.handleFileProcessingError(error, "PDF processing");
+    }
   }
 
   @Post("debug")
@@ -152,9 +152,12 @@ export class PdfController {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         info: extractedData.info,
       };
-            } catch (error) {
-          throw SecureErrorUtil.handleFileProcessingError(error, 'PDF debug processing');
-        }
+    } catch (error) {
+      throw SecureErrorUtil.handleFileProcessingError(
+        error,
+        "PDF debug processing"
+      );
+    }
   }
 
   @Get("health")

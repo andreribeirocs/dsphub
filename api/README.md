@@ -45,9 +45,56 @@ The following environment variables are required:
 - `TWILIO_WHATSAPP_TEMPLATE_SID` - Your approved WhatsApp message template SID (required for business messaging)
 - `TWILIO_MOCK` - Set to `true` in development to mock WhatsApp messages (optional)
 
+### Email Service (SMTP)
+
+- `SMTP_HOST` - SMTP server host (e.g., `smtp.gmail.com`, `smtp.sendgrid.net`)
+- `SMTP_PORT` - SMTP server port (e.g., `587` for TLS, `465` for SSL)
+- `SMTP_SECURE` - Use SSL (e.g., `false` for TLS/STARTTLS, `true` for SSL)
+- `SMTP_USER` - SMTP authentication username (usually your email)
+- `SMTP_PASSWORD` - SMTP authentication password (app-specific password recommended)
+- `SMTP_FROM_NAME` - Sender name for emails (e.g., `Driver Hub`)
+- `SMTP_FROM_EMAIL` - Sender email address (e.g., `noreply@driverhub.com`)
+
+### Invoice System
+
+- `INVOICE_AUTO_GENERATE` - Enable automatic weekly invoice generation (e.g., `true` or `false`)
+- `INVOICE_GENERATION_DAY` - Day of week for auto-generation (currently fixed to Sunday in code)
+- `INVOICE_GENERATION_TIME` - Time for auto-generation (currently fixed to midnight in code)
+
 ### General
 
 - `NODE_ENV` - Environment (`development`, `production`)
+
+## Invoice System Setup
+
+The invoice system automatically generates weekly invoices for all active drivers every Sunday at midnight (configurable). Invoices cover the week from Sunday to Saturday. To use the invoice system:
+
+1. **Configure Email (SMTP)**:
+   - Set all SMTP environment variables
+   - For Gmail: Use an app-specific password (see [Google App Passwords](https://support.google.com/accounts/answer/185833))
+   - For SendGrid: Use your SendGrid API key as the password
+   - For AWS SES: Configure with your SES SMTP credentials
+
+2. **Enable Automatic Generation** (optional):
+
+   ```env
+   INVOICE_AUTO_GENERATE=true
+   ```
+
+3. **Manual Invoice Generation**:
+   - Use the API endpoint `POST /invoices/generate-weekly` with `weekStartDate`
+   - Or use the frontend UI to generate invoices for any week
+
+4. **Invoice Workflow**:
+   1. Generate invoices (automatically or manually)
+   2. Review invoices in the UI (status: DRAFT)
+   3. Edit if needed (amounts, notes, line items)
+   4. Approve invoices (generates PDF, status: APPROVED)
+   5. Send invoices via email in bulk (status: SENT)
+
+5. **PDF Storage**:
+   - PDFs are stored in `uploads/invoices/{year}/week-{weekNumber}/`
+   - Ensure the server has write permissions to the `uploads` directory
 
 ## Project setup
 

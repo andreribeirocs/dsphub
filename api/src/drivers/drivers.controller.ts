@@ -11,13 +11,13 @@ import {
 } from "@nestjs/common";
 import { DriversService } from "./drivers.service";
 import { Prisma } from "@prisma/client";
-import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
+import { BetterAuthGuard } from "src/auth/guards/better-auth.guard";
 import { RolesGuard } from "src/auth/guards/roles.guard";
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from "@nestjs/swagger";
 
 @ApiTags("drivers")
 @Controller("drivers")
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(BetterAuthGuard, RolesGuard)
 export class DriversController {
   constructor(private readonly driversService: DriversService) {}
 

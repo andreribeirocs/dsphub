@@ -203,8 +203,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       },
     ];
 
+    // Exclude file content from security scanning to avoid false positives
+    const sanitizedBody = { ...request.body };
+    if (sanitizedBody.fileContent) {
+      sanitizedBody.fileContent = "[FILE_CONTENT_EXCLUDED]";
+    }
+
     const requestData = JSON.stringify({
-      body: request.body,
+      body: sanitizedBody,
       params: request.params,
       query: request.query,
     });

@@ -1,0 +1,363 @@
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
+
+async function seedVanData() {
+  console.log("🚐 Seeding van management data...");
+
+  // Ensure default organization exists
+  let organization = await prisma.organization.findUnique({
+    where: { slug: "default" },
+  });
+
+  if (!organization) {
+    organization = await prisma.organization.create({
+      data: {
+        name: "DSPHub Default",
+        slug: "default",
+        isActive: true,
+      },
+    });
+  }
+
+  const organizationId = organization.id;
+
+  // Create contracts first
+  const amazonContract = await prisma.contract.create({
+    data: {
+      organizationId,
+      name: "Amazon",
+      depot: "DP01",
+      hireName: "Marcos",
+      rentalRate: 399.0,
+      startDate: new Date("2024-01-01"),
+      status: "ACTIVE",
+      hasInsurance: true,
+      supplier: "Enterprise",
+      contactEmail: "marcos@amazon.com",
+      contactPhone: "+44 20 1234 5678",
+    },
+  });
+
+  const dxContract = await prisma.contract.create({
+    data: {
+      organizationId,
+      name: "DX",
+      depot: "DS01",
+      hireName: "Marcos",
+      rentalRate: 484.0,
+      startDate: new Date("2024-01-01"),
+      status: "REMOVED",
+      hasInsurance: false,
+      supplier: "Switch",
+    },
+  });
+
+  const spareContract = await prisma.contract.create({
+    data: {
+      organizationId,
+      name: "Spare",
+      depot: "Dartford Crawley",
+      hireName: "Fleet Manager",
+      rentalRate: 333.0,
+      startDate: new Date("2024-01-01"),
+      status: "BROKEN_DOWN",
+      hasInsurance: false,
+      supplier: "Northgate",
+    },
+  });
+
+  // Create vans
+  const vans = await Promise.all([
+    prisma.van.create({
+      data: {
+        organizationId,
+        vanNumber: "03",
+        registration: "KN70JYR",
+        make: "Mercedes",
+        model: "eSPRINTER L2 20",
+        year: 2020,
+        status: "BOOKED",
+        condition: "POOR",
+        motExpiry: new Date("2026-09-01"),
+        monthlyRental: 399.0,
+        contractId: amazonContract.id,
+        depot: "DP01",
+        assignedDriver: "Marcos",
+        fuelType: "Electric",
+        capacity: "L2 20",
+      },
+    }),
+    prisma.van.create({
+      data: {
+        organizationId,
+        vanNumber: "04",
+        registration: "LD71UNF",
+        make: "Ford",
+        model: "Transit",
+        year: 2021,
+        status: "BOOKED",
+        condition: "POOR",
+        motExpiry: new Date("2025-12-30"),
+        monthlyRental: 399.0,
+        contractId: amazonContract.id,
+        depot: "DP01",
+        assignedDriver: "Marcos",
+        fuelType: "Diesel",
+        comments: "INDICATOR BULB NEVER WORKS",
+      },
+    }),
+    prisma.van.create({
+      data: {
+        organizationId,
+        vanNumber: "10",
+        registration: "KS20GXZ",
+        make: "Mercedes",
+        model: "eSPRINTER L2 20",
+        year: 2020,
+        status: "TBC",
+        condition: "NEEDS_ATTENTION",
+        motExpiry: new Date("2026-04-06"),
+        monthlyRental: 399.0,
+        contractId: amazonContract.id,
+        depot: "DP01",
+        fuelType: "Electric",
+        capacity: "L2 20",
+        comments: "Need PAVE",
+      },
+    }),
+    prisma.van.create({
+      data: {
+        organizationId,
+        vanNumber: "17",
+        registration: "KO21DWE",
+        make: "Mercedes",
+        model: "eSPRINTER L2 20",
+        year: 2021,
+        status: "TBC",
+        condition: "POOR",
+        motExpiry: new Date("2025-09-04"),
+        monthlyRental: 399.0,
+        contractId: amazonContract.id,
+        depot: "DP01",
+        fuelType: "Electric",
+        capacity: "L2 20",
+      },
+    }),
+    prisma.van.create({
+      data: {
+        organizationId,
+        vanNumber: "25",
+        registration: "KO21TXV",
+        make: "Mercedes",
+        model: "eSPRINTER L2 20",
+        year: 2021,
+        status: "DELIVERED",
+        condition: "FAIR",
+        monthlyRental: 399.0,
+        contractId: amazonContract.id,
+        depot: "DP01",
+        fuelType: "Electric",
+        capacity: "L2 20",
+      },
+    }),
+  ]);
+
+  // Create maintenance records
+  await Promise.all([
+    prisma.maintenanceRecord.create({
+      data: {
+        vanId: vans[0].id, // KN70JYR
+        type: "MOT",
+        description: "Annual MOT inspection",
+        scheduledDate: new Date("2026-09-01"),
+        status: "SCHEDULED",
+        priority: "HIGH",
+        estimatedCost: 150.0,
+        workshop: "City Motors",
+        notes: "MOT due soon",
+      },
+    }),
+    prisma.maintenanceRecord.create({
+      data: {
+        vanId: vans[1].id, // LD71UNF
+        type: "Repair",
+        description: "Fix indicator bulb issue",
+        scheduledDate: new Date("2025-12-30"),
+        status: "SCHEDULED",
+        priority: "HIGH",
+        estimatedCost: 50.0,
+        workshop: "Local Garage",
+        notes: "INDICATOR BULB NEVER WORKS",
+      },
+    }),
+    prisma.maintenanceRecord.create({
+      data: {
+        vanId: vans[2].id, // KS20GXZ
+        type: "Service",
+        description: "PAVE maintenance required",
+        scheduledDate: new Date("2026-04-06"),
+        status: "SCHEDULED",
+        priority: "MEDIUM",
+        estimatedCost: 200.0,
+        workshop: "Mercedes Service",
+        notes: "Need PAVE",
+      },
+    }),
+    prisma.maintenanceRecord.create({
+      data: {
+        vanId: vans[3].id, // KO21DWE
+        type: "MOT",
+        description: "MOT inspection and repairs",
+        scheduledDate: new Date("2025-09-04"),
+        status: "SCHEDULED",
+        priority: "HIGH",
+        estimatedCost: 175.0,
+        workshop: "Authorized Dealer",
+      },
+    }),
+  ]);
+
+  // Create parts inventory
+  await Promise.all([
+    prisma.part.create({
+      data: {
+        name: "UPPER MIRROR GLASS N/S",
+        category: "Mirror",
+        fordPrice: 34.0,
+        mercedesPrice: 38.0,
+        partNumber: "MG-UNS-001",
+        supplier: "Euro Car Parts",
+        stockLevel: 5,
+        minStockLevel: 2,
+        maxStockLevel: 20,
+      },
+    }),
+    prisma.part.create({
+      data: {
+        name: "UPPER MIRROR GLASS O/S",
+        category: "Mirror",
+        fordPrice: 34.0,
+        mercedesPrice: 38.0,
+        partNumber: "MG-UOS-001",
+        supplier: "Euro Car Parts",
+        stockLevel: 3,
+        minStockLevel: 2,
+        maxStockLevel: 20,
+      },
+    }),
+    prisma.part.create({
+      data: {
+        name: "LOWER MIRROR GLASS N/S",
+        category: "Mirror",
+        fordPrice: 20.0,
+        mercedesPrice: 25.0,
+        partNumber: "MG-LNS-001",
+        supplier: "Euro Car Parts",
+        stockLevel: 8,
+        minStockLevel: 3,
+        maxStockLevel: 25,
+      },
+    }),
+    prisma.part.create({
+      data: {
+        name: "LOWER MIRROR GLASS O/S",
+        category: "Mirror",
+        fordPrice: 20.0,
+        mercedesPrice: 25.0,
+        partNumber: "MG-LOS-001",
+        supplier: "Euro Car Parts",
+        stockLevel: 6,
+        minStockLevel: 3,
+        maxStockLevel: 25,
+      },
+    }),
+    prisma.part.create({
+      data: {
+        name: "WING MIRROR INDICATOR LENS N/S",
+        category: "Mirror",
+        fordPrice: 23.0,
+        mercedesPrice: 20.0,
+        partNumber: "WM-INS-001",
+        supplier: "Euro Car Parts",
+        stockLevel: 4,
+        minStockLevel: 2,
+        maxStockLevel: 15,
+      },
+    }),
+    prisma.part.create({
+      data: {
+        name: "WING MIRROR INDICATOR LENS O/S",
+        category: "Mirror",
+        fordPrice: 23.0,
+        mercedesPrice: 20.0,
+        partNumber: "WM-IOS-001",
+        supplier: "Euro Car Parts",
+        stockLevel: 7,
+        minStockLevel: 2,
+        maxStockLevel: 15,
+      },
+    }),
+    prisma.part.create({
+      data: {
+        name: "WING MIRROR COVER N/S",
+        category: "Mirror",
+        fordPrice: 30.0,
+        mercedesPrice: 20.0,
+        partNumber: "WM-CNS-001",
+        supplier: "Euro Car Parts",
+        stockLevel: 2,
+        minStockLevel: 1,
+        maxStockLevel: 10,
+      },
+    }),
+    prisma.part.create({
+      data: {
+        name: "WING MIRROR COVER O/S",
+        category: "Mirror",
+        fordPrice: 30.0,
+        mercedesPrice: 20.0,
+        partNumber: "WM-COS-001",
+        supplier: "Euro Car Parts",
+        stockLevel: 3,
+        minStockLevel: 1,
+        maxStockLevel: 10,
+      },
+    }),
+    prisma.part.create({
+      data: {
+        name: "TYRE",
+        category: "Tyres",
+        fordPrice: 70.0,
+        mercedesPrice: 70.0,
+        peugeotPrice: 0.0,
+        partNumber: "TY-001",
+        supplier: "Tyre Centre",
+        stockLevel: 12,
+        minStockLevel: 4,
+        maxStockLevel: 50,
+        description: "Standard van tyre - various sizes available",
+      },
+    }),
+  ]);
+
+  console.log("✅ Van management data seeded successfully!");
+  console.log(`📊 Created:`);
+  console.log(`   - 3 contracts (Amazon, DX, Spare)`);
+  console.log(`   - 5 vans (03, 04, 10, 17, 25)`);
+  console.log(`   - 4 maintenance records`);
+  console.log(`   - 9 parts in inventory`);
+}
+
+async function main() {
+  try {
+    await seedVanData();
+  } catch (error) {
+    console.error("❌ Error seeding data:", error);
+    process.exit(1);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+main();

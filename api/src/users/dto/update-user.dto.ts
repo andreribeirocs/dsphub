@@ -48,4 +48,13 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   readonly phoneNumber?: string;
+
+  @ApiProperty({
+    description: "User's avatar URL",
+    example: "/uploads/avatars/avatar-1234567890.jpg",
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  readonly avatar?: string;
 }

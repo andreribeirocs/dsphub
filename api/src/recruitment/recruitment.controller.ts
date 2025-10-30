@@ -13,10 +13,13 @@ import { RecruitmentService } from "./recruitment.service";
 import { CreateCandidateDto } from "./dto/create-candidate.dto";
 import { SendSmsDto } from "./dto/send-sms.dto";
 import { CompleteRegistrationDto } from "./dto/complete-registration.dto";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { BetterAuthGuard } from "../auth/guards/better-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
-import { ThrottleStrict, ThrottleModerate } from "../auth/decorators/throttle.decorator";
+import {
+  ThrottleStrict,
+  ThrottleModerate,
+} from "../auth/decorators/throttle.decorator";
 import {
   ApiTags,
   ApiOperation,
@@ -40,8 +43,8 @@ export class RecruitmentController {
   @ApiResponse({ status: 400, description: "Bad request." })
   @ApiResponse({ status: 403, description: "Forbidden." })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("DIRECTOR", "MANAGER_RECRUITMENT")
+  @UseGuards(BetterAuthGuard, RolesGuard)
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_RECRUITMENT")
   @Post("candidates")
   async createCandidate(@Body() createCandidateDto: CreateCandidateDto) {
     return this.recruitmentService.createCandidate(createCandidateDto);
@@ -60,8 +63,8 @@ export class RecruitmentController {
   @ApiResponse({ status: 429, description: "Too many requests." })
   @ThrottleStrict()
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("DIRECTOR", "MANAGER_RECRUITMENT")
+  @UseGuards(BetterAuthGuard, RolesGuard)
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_RECRUITMENT")
   @Post("send-sms")
   async sendSms(@Body() sendSmsDto: SendSmsDto) {
     return this.recruitmentService.sendSms(sendSmsDto.candidateId);
@@ -102,8 +105,8 @@ export class RecruitmentController {
   @ApiResponse({ status: 200, description: "List of all candidates." })
   @ApiResponse({ status: 403, description: "Forbidden." })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("DIRECTOR", "MANAGER_RECRUITMENT")
+  @UseGuards(BetterAuthGuard, RolesGuard)
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_RECRUITMENT")
   @Get("candidates")
   async getAllCandidates(@Query() query: GetCandidatesDto) {
     return this.recruitmentService.getAllCandidates(query);
@@ -121,16 +124,16 @@ export class RecruitmentController {
     name: "id",
     description: "Candidate ID",
   })
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("DIRECTOR", "MANAGER_RECRUITMENT")
+  @UseGuards(BetterAuthGuard, RolesGuard)
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_RECRUITMENT")
   @Get("candidates/:id")
   async getCandidateById(@Param("id") id: string) {
     return this.recruitmentService.getCandidateById(id);
   }
 
   @Patch("candidates/:id")
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("DIRECTOR", "MANAGER_RECRUITMENT")
+  @UseGuards(BetterAuthGuard, RolesGuard)
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_RECRUITMENT")
   @ApiOperation({ summary: "Update candidate information" })
   @ApiResponse({ status: 200, description: "Candidate updated successfully" })
   @ApiResponse({ status: 400, description: "Invalid input data" })
@@ -151,8 +154,8 @@ export class RecruitmentController {
   }
 
   @Delete("candidates/:id")
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("DIRECTOR", "MANAGER_RECRUITMENT")
+  @UseGuards(BetterAuthGuard, RolesGuard)
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_RECRUITMENT")
   @ApiOperation({ summary: "Delete a candidate" })
   @ApiResponse({
     status: 200,

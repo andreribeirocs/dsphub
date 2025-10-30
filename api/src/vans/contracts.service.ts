@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma, Contract, ContractStatus } from "@prisma/client";
 import { CreateContractDto, UpdateContractDto, GetContractsDto } from "./dto";
@@ -31,7 +36,18 @@ export class ContractsService {
    */
   async create(createContractDto: CreateContractDto): Promise<Contract> {
     try {
+      // Get default organization
+      const organization = await this.prisma.organization.findUnique({
+        where: { slug: "default" },
+      });
+      if (!organization) {
+        throw new BadRequestException("Default organization not found");
+      }
+
       const contractData: Prisma.ContractCreateInput = {
+        organization: {
+          connect: { id: organization.id },
+        },
         name: createContractDto.name,
         depot: createContractDto.depot,
         hireName: createContractDto.hireName,
@@ -167,8 +183,21 @@ export class ContractsService {
    */
   async findByName(name: string): Promise<Contract> {
     try {
+      // Get default organization
+      const organization = await this.prisma.organization.findUnique({
+        where: { slug: "default" },
+      });
+      if (!organization) {
+        throw new NotFoundException("Default organization not found");
+      }
+
       const contract = await this.prisma.contract.findUnique({
-        where: { name },
+        where: {
+          organizationId_name: {
+            organizationId: organization.id,
+            name,
+          },
+        },
         include: {
           vans: {
             include: {

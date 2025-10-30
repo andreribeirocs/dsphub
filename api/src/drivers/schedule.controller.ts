@@ -29,14 +29,14 @@ import {
 import { CreateScheduleDto } from "./dto/create-schedule.dto";
 import { UpdateScheduleDto } from "./dto/update-schedule.dto";
 import { BulkScheduleDto } from "./dto/bulk-schedule.dto";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { BetterAuthGuard } from "../auth/guards/better-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { DriverSchedule } from "@prisma/client";
 
 @ApiTags("schedule")
 @Controller("drivers/schedule")
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(BetterAuthGuard, RolesGuard)
 export class ScheduleController {
   constructor(private readonly scheduleService: ScheduleService) {}
 

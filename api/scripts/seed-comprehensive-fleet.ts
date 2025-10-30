@@ -5,6 +5,23 @@ const prisma = new PrismaClient();
 async function seedComprehensiveFleet() {
   console.log("🚐 Seeding comprehensive fleet data from spreadsheet...");
 
+  // Ensure default organization exists
+  let organization = await prisma.organization.findUnique({
+    where: { slug: "default" },
+  });
+
+  if (!organization) {
+    organization = await prisma.organization.create({
+      data: {
+        name: "DSPHub Default",
+        slug: "default",
+        isActive: true,
+      },
+    });
+  }
+
+  const organizationId = organization.id;
+
   // Clear existing data first
   await prisma.maintenanceRecord.deleteMany();
   await prisma.van.deleteMany();
@@ -14,6 +31,7 @@ async function seedComprehensiveFleet() {
   // Create contracts
   const amazonContract = await prisma.contract.create({
     data: {
+      organizationId,
       name: "Amazon",
       depot: "DP01",
       hireName: "Marcos",
@@ -655,6 +673,7 @@ async function seedComprehensiveFleet() {
   for (const vanData of vansData) {
     const van = await prisma.van.create({
       data: {
+        organizationId,
         vanNumber: vanData.vanNumber,
         registration: vanData.registration,
         make: vanData.make,
@@ -773,6 +792,7 @@ async function seedComprehensiveFleet() {
   for (const record of maintenanceRecords) {
     await prisma.maintenanceRecord.create({
       data: {
+        organizationId,
         vanId: record.vanId,
         type: record.type,
         description: record.description,
@@ -791,6 +811,7 @@ async function seedComprehensiveFleet() {
     // Mirror parts
     prisma.part.create({
       data: {
+        organizationId,
         name: "UPPER MIRROR GLASS N/S",
         category: "Mirror",
         fordPrice: 34.0,
@@ -804,6 +825,7 @@ async function seedComprehensiveFleet() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "UPPER MIRROR GLASS O/S",
         category: "Mirror",
         fordPrice: 34.0,
@@ -817,6 +839,7 @@ async function seedComprehensiveFleet() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "LOWER MIRROR GLASS N/S",
         category: "Mirror",
         fordPrice: 20.0,
@@ -830,6 +853,7 @@ async function seedComprehensiveFleet() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "LOWER MIRROR GLASS O/S",
         category: "Mirror",
         fordPrice: 20.0,
@@ -843,6 +867,7 @@ async function seedComprehensiveFleet() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "WING MIRROR INDICATOR LENS N/S",
         category: "Mirror",
         fordPrice: 23.0,
@@ -856,6 +881,7 @@ async function seedComprehensiveFleet() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "WING MIRROR INDICATOR LENS O/S",
         category: "Mirror",
         fordPrice: 23.0,
@@ -869,6 +895,7 @@ async function seedComprehensiveFleet() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "WING MIRROR COVER N/S",
         category: "Mirror",
         fordPrice: 30.0,
@@ -882,6 +909,7 @@ async function seedComprehensiveFleet() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "WING MIRROR COVER O/S",
         category: "Mirror",
         fordPrice: 30.0,
@@ -895,6 +923,7 @@ async function seedComprehensiveFleet() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "TYRE",
         category: "Tyres",
         fordPrice: 70.0,
@@ -911,6 +940,7 @@ async function seedComprehensiveFleet() {
     // Additional parts for common repairs
     prisma.part.create({
       data: {
+        organizationId,
         name: "INDICATOR BULB",
         category: "Electrical",
         fordPrice: 15.0,
@@ -925,6 +955,7 @@ async function seedComprehensiveFleet() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "BRAKE PADS FRONT",
         category: "Brakes",
         fordPrice: 45.0,
@@ -939,6 +970,7 @@ async function seedComprehensiveFleet() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "BRAKE PADS REAR",
         category: "Brakes",
         fordPrice: 40.0,
@@ -953,6 +985,7 @@ async function seedComprehensiveFleet() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "DOOR HANDLE EXTERIOR",
         category: "Body",
         fordPrice: 35.0,
@@ -967,6 +1000,7 @@ async function seedComprehensiveFleet() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "WINDSCREEN WIPER MOTOR",
         category: "Electrical",
         fordPrice: 85.0,
@@ -981,6 +1015,7 @@ async function seedComprehensiveFleet() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "FRONT BUMPER",
         category: "Body",
         fordPrice: 120.0,

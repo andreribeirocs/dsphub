@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, MiddlewareConsumer, NestModule } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { APP_GUARD, APP_FILTER } from "@nestjs/core";
@@ -7,7 +7,9 @@ import { GlobalExceptionFilter } from "./shared/filters/global-exception.filter"
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 import { PrismaModule } from "./prisma/prisma.module";
-import { AuthModule } from "./auth/auth.module";
+import { BetterAuthModule } from "./auth/better-auth.module";
+import { OrganizationsModule } from "./organizations/organizations.module";
+import { OrganizationMiddleware } from "./common/middleware/organization.middleware";
 import { UsersModule } from "./users/users.module";
 import { RecruitmentModule } from "./recruitment/recruitment.module";
 import { DriversModule } from "./drivers/drivers.module";
@@ -16,6 +18,9 @@ import { PdfModule } from "./pdf/pdf.module";
 import { PaymentsModule } from "./payments/payments.module";
 import { VansModule } from "./vans/vans.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
+import { EmailModule } from "./email/email.module";
+import { InvoicesModule } from "./invoices/invoices.module";
+import { SchedulerModule } from "./scheduler/scheduler.module";
 
 @Module({
   imports: [
@@ -34,7 +39,8 @@ import { DashboardModule } from "./dashboard/dashboard.module";
       },
     ]),
     PrismaModule,
-    AuthModule,
+    BetterAuthModule, // New Better Auth module
+    OrganizationsModule, // New Organizations module
     UsersModule,
     RecruitmentModule,
     DriversModule,
@@ -43,6 +49,9 @@ import { DashboardModule } from "./dashboard/dashboard.module";
     PaymentsModule,
     VansModule,
     DashboardModule,
+    EmailModule,
+    InvoicesModule,
+    SchedulerModule,
   ],
   controllers: [AppController],
   providers: [
@@ -57,4 +66,9 @@ import { DashboardModule } from "./dashboard/dashboard.module";
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // Apply organization middleware to all routes
+    consumer.apply(OrganizationMiddleware).forRoutes("*");
+  }
+}

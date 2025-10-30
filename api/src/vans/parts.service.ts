@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma, Part } from "@prisma/client";
 import { CreatePartDto, UpdatePartDto, GetPartsDto } from "./dto";
@@ -41,7 +46,16 @@ export class PartsService {
    */
   async create(createPartDto: CreatePartDto): Promise<Part> {
     try {
+      // Get default organization
+      const organization = await this.prisma.organization.findUnique({
+        where: { slug: "default" },
+      });
+      if (!organization) {
+        throw new BadRequestException("Default organization not found");
+      }
+
       const partData: Prisma.PartCreateInput = {
+        organization: { connect: { id: organization.id } },
         name: createPartDto.name,
         category: createPartDto.category,
         fordPrice: createPartDto.fordPrice

@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma, Van, VanStatus, VanCondition } from "@prisma/client";
 import { CreateVanDto, UpdateVanDto, GetVansDto } from "./dto";
@@ -41,7 +46,18 @@ export class VansService {
    */
   async create(createVanDto: CreateVanDto): Promise<Van> {
     try {
+      // Get default organization
+      const organization = await this.prisma.organization.findUnique({
+        where: { slug: "default" },
+      });
+      if (!organization) {
+        throw new BadRequestException("Default organization not found");
+      }
+
       const vanData: Prisma.VanCreateInput = {
+        organization: {
+          connect: { id: organization.id },
+        },
         vanNumber: createVanDto.vanNumber,
         registration: createVanDto.registration,
         make: createVanDto.make,
@@ -219,8 +235,21 @@ export class VansService {
    */
   async findByVanNumber(vanNumber: string): Promise<Van> {
     try {
+      // Get default organization
+      const organization = await this.prisma.organization.findUnique({
+        where: { slug: "default" },
+      });
+      if (!organization) {
+        throw new NotFoundException("Default organization not found");
+      }
+
       const van = await this.prisma.van.findUnique({
-        where: { vanNumber },
+        where: {
+          organizationId_vanNumber: {
+            organizationId: organization.id,
+            vanNumber,
+          },
+        },
         include: {
           contract: true,
           maintenanceRecords: {

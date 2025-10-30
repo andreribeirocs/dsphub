@@ -22,7 +22,7 @@ import {
 } from "@nestjs/swagger";
 import { PartsService, PartsStats, PartPrice } from "./parts.service";
 import { CreatePartDto, UpdatePartDto, GetPartsDto } from "./dto";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { BetterAuthGuard } from "../auth/guards/better-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "../auth/enums/role.enum";
@@ -31,7 +31,7 @@ import { Part } from "@prisma/client";
 
 @ApiTags("parts")
 @Controller("parts")
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(BetterAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class PartsController {
   constructor(private readonly partsService: PartsService) {}
@@ -42,7 +42,7 @@ export class PartsController {
    * @returns Created part
    */
   @Post()
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FLEET)
   @ThrottleModerate()
   @ApiOperation({ summary: "Create a new part" })
   @ApiResponse({
@@ -63,7 +63,13 @@ export class PartsController {
    * @returns Array of parts
    */
   @Get()
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ApiOperation({ summary: "Get all parts with filtering options" })
   @ApiResponse({
     status: 200,
@@ -111,7 +117,13 @@ export class PartsController {
    * @returns Parts statistics
    */
   @Get("stats")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_FINANCIAL)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_FINANCIAL
+  )
   @ApiOperation({ summary: "Get parts dashboard statistics" })
   @ApiResponse({
     status: 200,
@@ -139,7 +151,13 @@ export class PartsController {
    * @returns Array of parts with low stock
    */
   @Get("low-stock")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ApiOperation({ summary: "Get parts with low stock" })
   @ApiResponse({
     status: 200,
@@ -155,7 +173,13 @@ export class PartsController {
    * @returns Array of category names
    */
   @Get("categories")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ApiOperation({ summary: "Get all unique categories" })
   @ApiResponse({
     status: 200,
@@ -172,7 +196,13 @@ export class PartsController {
    * @returns Array of part prices
    */
   @Get("pricing/:vehicleMake")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_FINANCIAL)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_FINANCIAL
+  )
   @ApiOperation({ summary: "Get pricing for all parts by vehicle make" })
   @ApiResponse({
     status: 200,
@@ -197,7 +227,13 @@ export class PartsController {
    * @returns Array of parts in category
    */
   @Get("category/:category")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ApiOperation({ summary: "Get parts by category" })
   @ApiResponse({
     status: 200,
@@ -215,7 +251,13 @@ export class PartsController {
    * @returns Part
    */
   @Get(":id")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ApiOperation({ summary: "Get a part by ID" })
   @ApiResponse({
     status: 200,
@@ -235,7 +277,7 @@ export class PartsController {
    * @returns Updated part
    */
   @Put(":id")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FLEET)
   @ThrottleModerate()
   @ApiOperation({ summary: "Update a part" })
   @ApiResponse({
@@ -260,7 +302,13 @@ export class PartsController {
    * @returns Updated part
    */
   @Put(":id/stock")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ThrottleModerate()
   @ApiOperation({ summary: "Update stock level for a part" })
   @ApiResponse({
@@ -284,7 +332,7 @@ export class PartsController {
    * @returns Number of parts updated
    */
   @Put("pricing/:vehicleMake/bulk")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FLEET)
   @ThrottleModerate()
   @ApiOperation({ summary: "Bulk update prices for a vehicle make" })
   @ApiResponse({
@@ -323,7 +371,7 @@ export class PartsController {
    * @returns Deleted part
    */
   @Delete(":id")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FLEET)
   @ThrottleModerate()
   @ApiOperation({ summary: "Delete a part" })
   @ApiResponse({

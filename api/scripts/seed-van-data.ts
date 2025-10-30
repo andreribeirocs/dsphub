@@ -5,9 +5,27 @@ const prisma = new PrismaClient();
 async function seedVanData() {
   console.log("🚐 Seeding van management data...");
 
+  // Ensure default organization exists
+  let organization = await prisma.organization.findUnique({
+    where: { slug: "default" },
+  });
+
+  if (!organization) {
+    organization = await prisma.organization.create({
+      data: {
+        name: "DSPHub Default",
+        slug: "default",
+        isActive: true,
+      },
+    });
+  }
+
+  const organizationId = organization.id;
+
   // Create contracts first
   const amazonContract = await prisma.contract.create({
     data: {
+      organizationId,
       name: "Amazon",
       depot: "DP01",
       hireName: "Marcos",
@@ -23,6 +41,7 @@ async function seedVanData() {
 
   const dxContract = await prisma.contract.create({
     data: {
+      organizationId,
       name: "DX",
       depot: "DS01",
       hireName: "Marcos",
@@ -36,6 +55,7 @@ async function seedVanData() {
 
   const spareContract = await prisma.contract.create({
     data: {
+      organizationId,
       name: "Spare",
       depot: "Dartford Crawley",
       hireName: "Fleet Manager",
@@ -51,6 +71,7 @@ async function seedVanData() {
   const vans = await Promise.all([
     prisma.van.create({
       data: {
+        organizationId,
         vanNumber: "03",
         registration: "KN70JYR",
         make: "Mercedes",
@@ -69,6 +90,7 @@ async function seedVanData() {
     }),
     prisma.van.create({
       data: {
+        organizationId,
         vanNumber: "04",
         registration: "LD71UNF",
         make: "Ford",
@@ -87,6 +109,7 @@ async function seedVanData() {
     }),
     prisma.van.create({
       data: {
+        organizationId,
         vanNumber: "10",
         registration: "KS20GXZ",
         make: "Mercedes",
@@ -105,6 +128,7 @@ async function seedVanData() {
     }),
     prisma.van.create({
       data: {
+        organizationId,
         vanNumber: "17",
         registration: "KO21DWE",
         make: "Mercedes",
@@ -122,6 +146,7 @@ async function seedVanData() {
     }),
     prisma.van.create({
       data: {
+        organizationId,
         vanNumber: "25",
         registration: "KO21TXV",
         make: "Mercedes",
@@ -142,6 +167,7 @@ async function seedVanData() {
   await Promise.all([
     prisma.maintenanceRecord.create({
       data: {
+        organizationId,
         vanId: vans[0].id, // KN70JYR
         type: "MOT",
         description: "Annual MOT inspection",
@@ -155,6 +181,7 @@ async function seedVanData() {
     }),
     prisma.maintenanceRecord.create({
       data: {
+        organizationId,
         vanId: vans[1].id, // LD71UNF
         type: "Repair",
         description: "Fix indicator bulb issue",
@@ -168,6 +195,7 @@ async function seedVanData() {
     }),
     prisma.maintenanceRecord.create({
       data: {
+        organizationId,
         vanId: vans[2].id, // KS20GXZ
         type: "Service",
         description: "PAVE maintenance required",
@@ -181,6 +209,7 @@ async function seedVanData() {
     }),
     prisma.maintenanceRecord.create({
       data: {
+        organizationId,
         vanId: vans[3].id, // KO21DWE
         type: "MOT",
         description: "MOT inspection and repairs",
@@ -197,6 +226,7 @@ async function seedVanData() {
   await Promise.all([
     prisma.part.create({
       data: {
+        organizationId,
         name: "UPPER MIRROR GLASS N/S",
         category: "Mirror",
         fordPrice: 34.0,
@@ -210,6 +240,7 @@ async function seedVanData() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "UPPER MIRROR GLASS O/S",
         category: "Mirror",
         fordPrice: 34.0,
@@ -223,6 +254,7 @@ async function seedVanData() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "LOWER MIRROR GLASS N/S",
         category: "Mirror",
         fordPrice: 20.0,
@@ -236,6 +268,7 @@ async function seedVanData() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "LOWER MIRROR GLASS O/S",
         category: "Mirror",
         fordPrice: 20.0,
@@ -249,6 +282,7 @@ async function seedVanData() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "WING MIRROR INDICATOR LENS N/S",
         category: "Mirror",
         fordPrice: 23.0,
@@ -262,6 +296,7 @@ async function seedVanData() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "WING MIRROR INDICATOR LENS O/S",
         category: "Mirror",
         fordPrice: 23.0,
@@ -275,6 +310,7 @@ async function seedVanData() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "WING MIRROR COVER N/S",
         category: "Mirror",
         fordPrice: 30.0,
@@ -288,6 +324,7 @@ async function seedVanData() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "WING MIRROR COVER O/S",
         category: "Mirror",
         fordPrice: 30.0,
@@ -301,6 +338,7 @@ async function seedVanData() {
     }),
     prisma.part.create({
       data: {
+        organizationId,
         name: "TYRE",
         category: "Tyres",
         fordPrice: 70.0,

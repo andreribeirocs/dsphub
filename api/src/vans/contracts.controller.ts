@@ -22,7 +22,7 @@ import {
 } from "@nestjs/swagger";
 import { ContractsService, ContractStats } from "./contracts.service";
 import { CreateContractDto, UpdateContractDto, GetContractsDto } from "./dto";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { BetterAuthGuard } from "../auth/guards/better-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "../auth/enums/role.enum";
@@ -31,7 +31,7 @@ import { Contract } from "@prisma/client";
 
 @ApiTags("contracts")
 @Controller("contracts")
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(BetterAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class ContractsController {
   constructor(private readonly contractsService: ContractsService) {}
@@ -42,7 +42,7 @@ export class ContractsController {
    * @returns Created contract
    */
   @Post()
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FLEET)
   @ThrottleModerate()
   @ApiOperation({ summary: "Create a new contract" })
   @ApiResponse({
@@ -65,6 +65,8 @@ export class ContractsController {
    */
   @Get()
   @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
     Role.DIRECTOR,
     Role.MANAGER_FLEET,
     Role.MANAGER_ONSITE,
@@ -103,7 +105,13 @@ export class ContractsController {
    * @returns Contract statistics
    */
   @Get("stats")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_FINANCIAL)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_FINANCIAL
+  )
   @ApiOperation({ summary: "Get contract dashboard statistics" })
   @ApiResponse({
     status: 200,
@@ -132,7 +140,13 @@ export class ContractsController {
    * @returns Contracts expiring soon
    */
   @Get("expiring")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_FINANCIAL)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_FINANCIAL
+  )
   @ApiOperation({ summary: "Get contracts expiring soon" })
   @ApiResponse({
     status: 200,
@@ -157,6 +171,8 @@ export class ContractsController {
    */
   @Get(":id")
   @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
     Role.DIRECTOR,
     Role.MANAGER_FLEET,
     Role.MANAGER_ONSITE,
@@ -181,6 +197,8 @@ export class ContractsController {
    */
   @Get("name/:name")
   @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
     Role.DIRECTOR,
     Role.MANAGER_FLEET,
     Role.MANAGER_ONSITE,
@@ -205,7 +223,7 @@ export class ContractsController {
    * @returns Updated contract
    */
   @Put(":id")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FLEET)
   @ThrottleModerate()
   @ApiOperation({ summary: "Update a contract" })
   @ApiResponse({
@@ -229,7 +247,7 @@ export class ContractsController {
    * @returns Deleted contract
    */
   @Delete(":id")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FLEET)
   @ThrottleModerate()
   @ApiOperation({ summary: "Delete a contract" })
   @ApiResponse({
@@ -250,7 +268,7 @@ export class ContractsController {
    * @returns Updated contract
    */
   @Put(":contractId/vans/:vanId")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FLEET)
   @ThrottleModerate()
   @ApiOperation({ summary: "Assign a van to a contract" })
   @ApiResponse({
@@ -275,7 +293,7 @@ export class ContractsController {
    * @returns Updated contract
    */
   @Delete(":contractId/vans/:vanId")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FLEET)
   @ThrottleModerate()
   @ApiOperation({ summary: "Remove a van from a contract" })
   @ApiResponse({

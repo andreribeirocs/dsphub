@@ -26,7 +26,7 @@ interface CreateUserData {
   readonly role: UserRole;
 }
 
-type UserWithoutPassword = Omit<User, "password">;
+type UserWithoutPassword = User; // User model no longer has password field (moved to Account)
 
 @Injectable()
 export class UsersService {
@@ -47,9 +47,7 @@ export class UsersService {
       throw new NotFoundException("User not found");
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    return user;
   }
 
   /**
@@ -73,14 +71,23 @@ export class UsersService {
 
     const user = await this.prisma.user.create({
       data: {
-        ...data,
+        email: data.email,
+        name: data.name,
+        role: data.role,
+      },
+    });
+
+    // Create account with password using Better Auth model
+    await this.prisma.account.create({
+      data: {
+        userId: user.id,
+        accountId: user.id,
+        providerId: "credential",
         password: hashedPassword,
       },
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    return user;
   }
 
   /**
@@ -109,10 +116,19 @@ export class UsersService {
       data: {
         email: createUserDto.email,
         name: createUserDto.name,
-        password: hashedPassword,
         role: createUserDto.role,
         phoneNumber: createUserDto.phoneNumber,
         status: UserStatus.ACTIVE, // Explicitly set to ACTIVE to prevent any issues
+      },
+    });
+
+    // Create account with password using Better Auth model
+    await this.prisma.account.create({
+      data: {
+        userId: user.id,
+        accountId: user.id,
+        providerId: "credential",
+        password: hashedPassword,
       },
     });
 
@@ -241,8 +257,12 @@ export class UsersService {
 
     const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
 
-    await this.prisma.user.update({
-      where: { id },
+    // Update password in Account model (Better Auth)
+    await this.prisma.account.updateMany({
+      where: {
+        userId: id,
+        providerId: "credential",
+      },
       data: { password: hashedPassword },
     });
   }
@@ -349,6 +369,8 @@ export class UsersService {
     });
 
     const result: Record<UserRole, number> = {
+      [UserRole.SUPER_ADMIN]: 0,
+      [UserRole.OWNER]: 0,
       [UserRole.DIRECTOR]: 0,
       [UserRole.MANAGER_FINANCIAL]: 0,
       [UserRole.MANAGER_FLEET]: 0,
@@ -397,7 +419,7 @@ export class UsersService {
       lastLogin: user.lastLogin,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      twoFactorEnabled: user.twoFactorEnabled,
+      twoFactorEnabled: false, // TODO: Implement 2FA with Better Auth
     };
   }
 }

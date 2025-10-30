@@ -4,30 +4,57 @@ const prisma = new PrismaClient();
 
 // Define daily rates for all route types
 const ROUTE_RATES: Record<RouteType, number> = {
-  // Original route types (existing)
-  FULL_ROUTE: 25.0,
-  HIDE_ALONG: 15.0,
-  TRAINING_DAY: 20.0,
-  SAME_DAY: 30.0,
-  NURSERY_ROUTE: 22.0,
-  EXTRAS: 18.0,
+  // Original route types
+  FULL_ROUTE: 121.5,
+  HIDE_ALONG: 121.5,
+  TRAINING_DAY: 121.5,
+  SAME_DAY: 121.5,
+  NURSERY_ROUTE: 121.5,
+  EXTRAS: 121.5,
 
-  // New route types (missing rates)
-  ORDT_EXTRA_LARGE_CARGO_VAN: 35.0, // Higher rate for extra large cargo
-  STANDARD_PARCEL_MEDIUM_VAN: 28.0,
-  NURSERY_ROUTE_LEVEL_1: 20.0,
-  NURSERY_ROUTE_LEVEL_2: 22.0,
-  NURSERY_ROUTE_LEVEL_3: 24.0,
-  NURSERY_ROUTE_LEVEL_4: 26.0, // Higher rate for level 4
-  STANDARD_PARCEL: 25.0,
-  STANDARD_PARCEL_LOW_EMISSION_VEHICLE_LARGE: 32.0, // Higher rate for low emission large
-  STANDARD_PARCEL_WITH_HELPER: 40.0, // Higher rate when helper is needed
-  STANDARD_PARCEL_RIDE_ALONG_IRONHIDE_MEDIUM_VAN: 18.0, // Ride along (mentoring) - lower rate
-  STANDARD_PARCEL_RIDE_ALONG_MENTEE_IRONHIDE_MEDIUM_VAN: 15.0, // Mentee - lowest rate
+  // Standard route types
+  ORDT_EXTRA_LARGE_CARGO_VAN: 121.5,
+  STANDARD_PARCEL_MEDIUM_VAN: 121.5,
+  NURSERY_ROUTE_LEVEL_1: 121.5,
+  NURSERY_ROUTE_LEVEL_2: 121.5,
+  NURSERY_ROUTE_LEVEL_3: 121.5,
+  NURSERY_ROUTE_LEVEL_4: 121.5,
+  STANDARD_PARCEL: 121.5,
+  STANDARD_PARCEL_LOW_EMISSION_VEHICLE_LARGE: 121.5,
+  STANDARD_PARCEL_WITH_HELPER: 121.5,
+  STANDARD_PARCEL_RIDE_ALONG_IRONHIDE_MEDIUM_VAN: 121.5,
+  STANDARD_PARCEL_RIDE_ALONG_MENTEE_IRONHIDE_MEDIUM_VAN: 121.5,
+
+  // New OSM and specialized route types
+  OSM_RATE: 140.0,
+  OSM_COVER: 130.0,
+  HELPER_FLEET: 130.0,
+  SWEEPER: 121.5,
+  HELPER: 121.5,
+  ROUTE_9H: 121.5,
+  LEAD_DRIVER: 10.0,
+  RESCUE_2: 39.5,
+  RESCUE_6: 118.0,
 };
 
 async function checkAndFixRoutePrices(): Promise<void> {
   try {
+    // Ensure default organization exists
+    let organization = await prisma.organization.findUnique({
+      where: { slug: "default" },
+    });
+
+    if (!organization) {
+      organization = await prisma.organization.create({
+        data: {
+          name: "DSPHub Default",
+          slug: "default",
+          isActive: true,
+        },
+      });
+    }
+
+    const organizationId = organization.id;
     console.log("🔍 Checking current route prices...");
 
     // Get existing route prices
@@ -83,6 +110,7 @@ async function checkAndFixRoutePrices(): Promise<void> {
 
       await prisma.routePrice.create({
         data: {
+          organizationId,
           routeType,
           dailyRate,
           updatedBy: user.id,
@@ -116,5 +144,3 @@ if (require.main === module) {
 }
 
 export { checkAndFixRoutePrices, ROUTE_RATES };
-
-

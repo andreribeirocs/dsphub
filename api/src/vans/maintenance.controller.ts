@@ -26,7 +26,7 @@ import {
   UpdateMaintenanceDto,
   GetMaintenanceDto,
 } from "./dto";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { BetterAuthGuard } from "../auth/guards/better-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "../auth/enums/role.enum";
@@ -35,7 +35,7 @@ import { MaintenanceRecord } from "@prisma/client";
 
 @ApiTags("maintenance")
 @Controller("maintenance")
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(BetterAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class MaintenanceController {
   constructor(private readonly maintenanceService: MaintenanceService) {}
@@ -46,7 +46,13 @@ export class MaintenanceController {
    * @returns Created maintenance record
    */
   @Post()
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ThrottleModerate()
   @ApiOperation({ summary: "Create a new maintenance record" })
   @ApiResponse({
@@ -68,7 +74,13 @@ export class MaintenanceController {
    * @returns Array of maintenance records
    */
   @Get()
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ApiOperation({
     summary: "Get all maintenance records with filtering options",
   })
@@ -117,6 +129,8 @@ export class MaintenanceController {
    */
   @Get("stats")
   @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
     Role.DIRECTOR,
     Role.MANAGER_FLEET,
     Role.MANAGER_ONSITE,
@@ -147,7 +161,13 @@ export class MaintenanceController {
    * @returns Array of maintenance records requiring attention
    */
   @Get("alerts")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ApiOperation({ summary: "Get maintenance alerts" })
   @ApiResponse({
     status: 200,
@@ -163,7 +183,7 @@ export class MaintenanceController {
    * @returns Success message
    */
   @Put("update-overdue")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FLEET)
   @ThrottleModerate()
   @ApiOperation({
     summary: "Update overdue status for all maintenance records",
@@ -189,7 +209,13 @@ export class MaintenanceController {
    * @returns Maintenance record with related data
    */
   @Get(":id")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ApiOperation({ summary: "Get a maintenance record by ID" })
   @ApiResponse({
     status: 200,
@@ -209,7 +235,13 @@ export class MaintenanceController {
    * @returns Updated maintenance record
    */
   @Put(":id")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ThrottleModerate()
   @ApiOperation({ summary: "Update a maintenance record" })
   @ApiResponse({
@@ -234,7 +266,13 @@ export class MaintenanceController {
    * @returns Updated maintenance record
    */
   @Put(":id/complete")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET, Role.MANAGER_ONSITE)
+  @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
+    Role.DIRECTOR,
+    Role.MANAGER_FLEET,
+    Role.MANAGER_ONSITE
+  )
   @ThrottleModerate()
   @ApiOperation({ summary: "Complete maintenance and update van status" })
   @ApiResponse({
@@ -267,7 +305,7 @@ export class MaintenanceController {
    * @returns Deleted maintenance record
    */
   @Delete(":id")
-  @Roles(Role.DIRECTOR, Role.MANAGER_FLEET)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FLEET)
   @ThrottleModerate()
   @ApiOperation({ summary: "Delete a maintenance record" })
   @ApiResponse({

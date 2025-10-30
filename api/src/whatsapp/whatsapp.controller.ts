@@ -2,7 +2,6 @@ import {
   Controller,
   Get,
   Post,
-  Delete,
   Body,
   Param,
   UseGuards,
@@ -16,16 +15,13 @@ import { SecureErrorUtil } from "../shared/utils/secure-error.util";
 import { WhatsAppService } from "./whatsapp.service";
 import { TwilioWebhookPayload } from "./whatsapp.service";
 import { SendMessageDto } from "./dto/send-message.dto";
-import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
+import { BetterAuthGuard } from "src/auth/guards/better-auth.guard";
 import { RolesGuard } from "src/auth/guards/roles.guard";
-import {
-  ThrottleStrict,
-  ThrottleModerate,
-} from "src/auth/decorators/throttle.decorator";
+import { ThrottleStrict } from "src/auth/decorators/throttle.decorator";
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from "@nestjs/swagger";
 
 @ApiTags("whatsapp")
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(BetterAuthGuard, RolesGuard)
 @Controller("whatsapp")
 export class WhatsAppController {
   private readonly logger = new Logger(WhatsAppController.name);
@@ -54,7 +50,11 @@ export class WhatsAppController {
         message,
       };
     } catch (error) {
-      throw SecureErrorUtil.handleExternalServiceError(error, 'WhatsApp', 'send message');
+      throw SecureErrorUtil.handleExternalServiceError(
+        error,
+        "WhatsApp",
+        "send message"
+      );
     }
   }
 
@@ -86,7 +86,7 @@ export class WhatsAppController {
       return { success: true };
     } catch (error) {
       this.logger.error("Error processing webhook:", error);
-      
+
       // Don't expose internal errors to webhook callers - return generic response
       return { success: false, error: "Webhook processing failed" };
     }
@@ -104,7 +104,11 @@ export class WhatsAppController {
         total: conversations.length,
       };
     } catch (error) {
-      throw SecureErrorUtil.createSecureError(error, 'WhatsApp.getConversations', 'Failed to retrieve conversations');
+      throw SecureErrorUtil.createSecureError(
+        error,
+        "WhatsApp.getConversations",
+        "Failed to retrieve conversations"
+      );
     }
   }
 
@@ -131,7 +135,11 @@ export class WhatsAppController {
         throw error;
       }
 
-      throw SecureErrorUtil.createSecureError(error, 'WhatsApp.getConversation', 'Failed to retrieve conversation');
+      throw SecureErrorUtil.createSecureError(
+        error,
+        "WhatsApp.getConversation",
+        "Failed to retrieve conversation"
+      );
     }
   }
 
@@ -186,7 +194,11 @@ export class WhatsAppController {
         message: "Template message sent successfully",
       };
     } catch (error) {
-      throw SecureErrorUtil.handleExternalServiceError(error, 'WhatsApp', 'send template message');
+      throw SecureErrorUtil.handleExternalServiceError(
+        error,
+        "WhatsApp",
+        "send template message"
+      );
     }
   }
 

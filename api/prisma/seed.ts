@@ -1,5 +1,5 @@
 import { PrismaClient, UserRole } from "@prisma/client";
-import { hash } from "bcrypt";
+import { auth } from "../src/auth/better-auth.config";
 
 const prisma = new PrismaClient();
 
@@ -86,34 +86,81 @@ function generateDocumentStatus(expiryDate: Date): string {
   }
 }
 
+// Helper function to create user with Better Auth
+async function createUserWithBetterAuth(
+  email: string,
+  password: string,
+  name: string,
+  role: UserRole = UserRole.DRIVER
+) {
+  // Check if user already exists
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+  if (existingUser) {
+    return existingUser;
+  }
+
+  // Use Better Auth's internal API to create user
+  const result = await auth.api.signUpEmail({
+    body: {
+      email,
+      password,
+      name,
+    },
+  });
+
+  if (!result) {
+    throw new Error(`Failed to create user: ${email}`);
+  }
+
+  // Update user role and status
+  const user = await prisma.user.update({
+    where: { email },
+    data: {
+      role,
+      status: "ACTIVE",
+    },
+  });
+
+  return user;
+}
+
 async function main() {
   try {
-    // Create admin users if not exists
-    const adminPassword = await hash("admin123", 10);
-    await prisma.user.upsert({
-      where: { email: "admin@example.com" },
-      update: {},
-      create: {
-        email: "admin@example.com",
-        password: adminPassword,
-        name: "Admin User",
-        role: UserRole.DIRECTOR,
-        avatar: null,
-      },
+    // Create DSPHub - Trial organization
+    let organization = await prisma.organization.findUnique({
+      where: { slug: "dsphub-trial" },
     });
 
+    if (!organization) {
+      organization = await prisma.organization.create({
+        data: {
+          name: "DSPHub - Trial",
+          slug: "dsphub-trial",
+          isActive: true,
+        },
+      });
+      console.log("✅ Created organization: DSPHub - Trial");
+    }
+
+    const organizationId = organization.id;
+
+    // Create admin users with Better Auth
+    const adminUser = await createUserWithBetterAuth(
+      "admin@dsphub.com",
+      "admin123456",
+      "Admin User",
+      UserRole.DIRECTOR
+    );
+    console.log("✅ Created admin user: admin@dsphub.com / admin123456");
+
     // Create Triun admin user
-    await prisma.user.upsert({
-      where: { email: "admin@triun.com" },
-      update: {},
-      create: {
-        email: "admin@triun.com",
-        password: adminPassword,
-        name: "Triun Admin",
-        role: UserRole.DIRECTOR,
-        avatar: null,
-      },
-    });
+    const triunUser = await createUserWithBetterAuth(
+      "admin@triun.com",
+      "admin123456",
+      "Triun Admin",
+      UserRole.DIRECTOR
+    );
+    console.log("✅ Created Triun admin: admin@triun.com / admin123456");
 
     // Create specific drivers first
     const specificDrivers = [
@@ -173,21 +220,18 @@ async function main() {
       const medicalStatus = generateDocumentStatus(medicalExpiry);
       const dbsStatus = generateDocumentStatus(dbsExpiry);
 
-      // Create user for driver
-      const userPassword = await hash("password123", 10);
-      const user = await prisma.user.create({
-        data: {
-          email: driverData.email,
-          password: userPassword,
-          name: driverData.name,
-          role: UserRole.DRIVER,
-          avatar: null,
-        },
-      });
+      // Create user for driver with Better Auth
+      const user = await createUserWithBetterAuth(
+        driverData.email,
+        "driver123456",
+        driverData.name,
+        UserRole.DRIVER
+      );
 
       // Create driver
       await prisma.driver.create({
         data: {
+          organizationId,
           transporterId: generateTransporterId(),
           name: driverData.name,
           email: driverData.email,
@@ -223,11 +267,7 @@ async function main() {
           dbsStatus,
           onboardingComplete: Math.random() > 0.2,
           classroomComplete: Math.random() > 0.2,
-          user: {
-            connect: {
-              id: user.id,
-            },
-          },
+          userId: user.id,
         },
       });
 
@@ -285,21 +325,18 @@ async function main() {
       const medicalStatus = generateDocumentStatus(medicalExpiry);
       const dbsStatus = generateDocumentStatus(dbsExpiry);
 
-      // Create user for driver
-      const userPassword = await hash("password123", 10);
-      const user = await prisma.user.create({
-        data: {
-          email,
-          password: userPassword,
-          name,
-          role: UserRole.DRIVER,
-          avatar: null,
-        },
-      });
+      // Create user for driver with Better Auth
+      const user = await createUserWithBetterAuth(
+        email,
+        "driver123456",
+        name,
+        UserRole.DRIVER
+      );
 
       // Create driver
       await prisma.driver.create({
         data: {
+          organizationId,
           transporterId: generateTransporterId(),
           name,
           email,
@@ -335,11 +372,7 @@ async function main() {
           dbsStatus,
           onboardingComplete: Math.random() > 0.2,
           classroomComplete: Math.random() > 0.2,
-          user: {
-            connect: {
-              id: user.id,
-            },
-          },
+          userId: user.id,
         },
       });
 

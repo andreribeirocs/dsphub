@@ -7,21 +7,29 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Better Auth Core Tables
 model User {
-  id                    String            @id @default(uuid())
-  email                 String            @unique
-  password              String
-  name                  String
-  role                  UserRole
-  status                UserStatus        @default(ACTIVE)
-  phoneNumber           String?
-  lastLogin             DateTime?
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
-  twoFactorEnabled      Boolean           @default(false)
-  twoFactorSecret       String?
-  refreshToken          String?
-  avatar                String?
+  id            String   @id @default(cuid())
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  name          String
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Our custom fields
+  role        UserRole   @default(DRIVER)
+  status      UserStatus @default(ACTIVE)
+  phoneNumber String?
+  lastLogin   DateTime?
+  avatar      String?
+
+  // Better Auth relations
+  sessions Session[]
+  accounts Account[]
+  members  Member[]
+
+  // Our custom relations
   candidate             Candidate?
   driverProfile         Driver?
   processedPayments     DriverPayment[]
@@ -29,25 +37,170 @@ model User {
   paymentHistoryChanges PaymentHistory[]
   routePriceUpdates     RoutePrice[]
   suspiciousLogins      SuspiciousLogin[]
-  sessions              UserSession[]
+  sentInvoices          DriverInvoice[]
 
   @@index([role])
   @@index([status])
   @@index([lastLogin])
   @@index([createdAt])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Better Auth specific
+  activeOrganizationId String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("session")
+}
+
+model Account {
+  id           String    @id @default(cuid())
+  userId       String
+  accountId    String
+  providerId   String
+  accessToken  String?
+  refreshToken String?
+  idToken      String?
+  expiresAt    DateTime?
+  password     String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([identifier, value])
+  @@map("verification")
+}
+
+// Better Auth Organization Tables
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Our custom fields for company branding
+  address            String?
+  city               String?
+  postcode           String?
+  country            String? @default("United Kingdom")
+  phone              String?
+  email              String?
+  website            String?
+  taxId              String?
+  registrationNumber String?
+  vatNumber          String? // VAT Number for invoices
+  companyRegNumber   String? // Company Registration Number
+  logoBase64         String? @db.Text
+  bankName           String?
+  bankAccountNumber  String?
+  bankSortCode       String?
+  iban               String?
+  swiftCode          String?
+  termsAndConditions String? @db.Text
+  footerText         String?
+  invoicePrefix      String? @default("INV") // Invoice number prefix
+  invoiceFooter      String? @db.Text // Custom footer for invoices
+  depots             Json? // Array of depot locations {name, address}
+  isActive           Boolean @default(true)
+
+  // Relations
+  members     Member[]
+  invitations Invitation[]
+
+  // Our custom relations
+  drivers            Driver[]
+  candidates         Candidate[]
+  driverPayments     DriverPayment[]
+  invoices           DriverInvoice[]
+  vans               Van[]
+  contracts          Contract[]
+  parts              Part[]
+  maintenanceRecords MaintenanceRecord[]
+  routePrices        RoutePrice[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@map("organization")
+}
+
+model Member {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("member")
+}
+
+model Invitation {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String
+  role           String?
+  status         String   @default("pending")
+  expiresAt      DateTime
+  inviterId      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@index([email])
+  @@map("invitation")
 }
 
 model RoutePrice {
-  id            String           @id @default(uuid())
-  routeType     RouteType        @unique
-  dailyRate     Decimal          @db.Decimal(8, 2)
-  lastUpdated   DateTime         @default(now())
-  updatedBy     String
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  priceHistory  PaymentHistory[]
-  updatedByUser User             @relation(fields: [updatedBy], references: [id])
+  id             String           @id @default(uuid())
+  organizationId String
+  routeType      RouteType
+  dailyRate      Decimal          @db.Decimal(8, 2)
+  lastUpdated    DateTime         @default(now())
+  updatedBy      String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  priceHistory   PaymentHistory[]
+  updatedByUser  User             @relation(fields: [updatedBy], references: [id])
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  @@unique([organizationId, routeType])
+  @@index([organizationId])
   @@index([routeType])
   @@index([lastUpdated])
   @@index([updatedBy])
@@ -75,6 +228,7 @@ model PaymentHistory {
 
 model Driver {
   id                  String           @id @default(uuid())
+  organizationId      String
   userId              String           @unique
   contractType        String?
   licenseNumber       String?
@@ -110,11 +264,16 @@ model Driver {
   rtwStatus           String           @default("PENDING")
   status              String           @default("PENDING")
   totalTrips          Int              @default(0)
-  transporterId       String           @unique
+  transporterId       String
   user                User             @relation(fields: [userId], references: [id])
+  organization        Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   paymentRecords      DriverPayment[]
   schedules           DriverSchedule[]
+  invoices            DriverInvoice[]
 
+  @@unique([organizationId, transporterId])
+  @@index([organizationId])
+  @@index([organizationId, userId])
   @@index([status])
   @@index([depot])
   @@index([email])
@@ -131,29 +290,43 @@ model Driver {
 }
 
 model DriverPayment {
-  id              String    @id @default(uuid())
-  driverId        String
-  workDate        DateTime  @db.Date
-  routeType       RouteType
-  dailyRate       Decimal   @db.Decimal(8, 2)
-  hoursWorked     Decimal?  @db.Decimal(4, 2)
-  totalPaid       Decimal   @db.Decimal(8, 2)
-  isPaid          Boolean   @default(false)
-  paidDate        DateTime?
-  paidBy          String?
-  notes           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deductionAmount Decimal?  @db.Decimal(8, 2)
-  extraAmount     Decimal?  @db.Decimal(8, 2)
-  routeCode       String?
-  sourceSheet     String?
-  vanCharge       Decimal?  @db.Decimal(8, 2)
-  isHelper        Boolean   @default(false)
-  helperFor       String?   // ID of the primary driver if this is a helper
-  driver          Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  paidByUser      User?     @relation(fields: [paidBy], references: [id])
+  id                  String        @id @default(uuid())
+  organizationId      String
+  driverId            String
+  workDate            DateTime      @db.Date
+  routeType           RouteType
+  dailyRate           Decimal       @db.Decimal(8, 2)
+  hoursWorked         Decimal?      @db.Decimal(4, 2)
+  totalPaid           Decimal       @db.Decimal(8, 2)
+  isPaid              Boolean       @default(false)
+  paidDate            DateTime?
+  paidBy              String?
+  notes               String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  deductionAmount     Decimal?      @db.Decimal(8, 2)
+  extraAmount         Decimal?      @db.Decimal(8, 2)
+  routeCode           String?
+  sourceSheet         String?
+  vanCharge           Decimal?      @db.Decimal(8, 2)
+  isHelper            Boolean       @default(false)
+  helperFor           String? // ID of the primary driver if this is a helper
+  // New fields for 7 Days invoice system
+  depot               String? // Which depot this payment is for
+  weekNumber          Int? // Week number (e.g., 40)
+  deliveryServiceType String? // DS type (DXW3, DRG3, etc.)
+  mileage             Decimal?      @db.Decimal(6, 2) // Mileage for the route
+  mileageCost         Decimal?      @db.Decimal(6, 2) // Mileage payment (£/mile)
+  byod                Decimal?      @db.Decimal(6, 2) // BYOD payment
+  incentive           Decimal?      @db.Decimal(6, 2) // Performance incentive
+  awayDriver          Boolean       @default(false) // If this is an "AWAY DRIVER" payment
+  awayDriverAmount    Decimal?      @db.Decimal(6, 2) // Away driver additional payment
+  driver              Driver        @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  paidByUser          User?         @relation(fields: [paidBy], references: [id])
+  organization        Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceItems        InvoiceItem[]
 
+  @@index([organizationId])
   @@index([driverId])
   @@index([workDate])
   @@index([routeType])
@@ -164,65 +337,70 @@ model DriverPayment {
   @@index([driverId, workDate])
   @@index([helperFor])
   @@index([isHelper])
+  @@index([depot])
+  @@index([weekNumber])
   @@map("driver_payments")
 }
 
 model Candidate {
-  id                          String          @id @default(uuid())
-  name                        String
-  email                       String?         // Personal EMAIL
-  phoneNumber                 String          // Phone
-  status                      CandidateStatus @default(LEAD)
-  source                      String?
-  notes                       String?
-  
-  // Personal Information
-  dateOfBirth                 DateTime?       // Date of Birth
-  age                         Int?            // Age (calculated)
-  citizenship                 String?         // Citizenship
-  
-  // Address Information
-  address                     String?
-  postalCode                  String?         // Post Code
-  
-  // Document Information
-  documentNumber              String?         // Doc Number
-  insuranceNumber             String?         // NIN (National Insurance Number)
-  driverLicense               String?         // DL Number
-  
-  // Expiry Dates
-  passportVisaExpiry          DateTime?       // Passport Visa Expire
-  rtwExpiry                   DateTime?       // RTW Expiry (Right to Work)
-  licenceExpiry               DateTime?       // Licence Expiry
-  
-  // DVLA Information
-  points                      Int?            @default(0) // points
-  nextDVLA                    DateTime?       // Next DVLA
-  
-  // System Fields
-  lastCheck                   DateTime?       // Last Check on
-  lastCheckOn                 DateTime?       // last Check (duplicate for compatibility)
-  
-  // Agreement Information
-  sla                         String?         // SLA
-  account                     String?         // Account
-  formCompleted               Boolean?        @default(false) // Form
-  
-  // Document Storage
-  documents                   Json?
-  
-  // System Management
-  userId                      String?         @unique
-  smsToken                    String?
-  tokenExpiry                 DateTime?
-  classroomDate               DateTime?
-  rideAlongDate               DateTime?
-  createdAt                   DateTime        @default(now())
-  updatedAt                   DateTime        @updatedAt
-  
-  // Relations
-  user                        User?           @relation(fields: [userId], references: [id])
+  id             String          @id @default(uuid())
+  organizationId String
+  name           String
+  email          String? // Personal EMAIL
+  phoneNumber    String // Phone
+  status         CandidateStatus @default(LEAD)
+  source         String?
+  notes          String?
 
+  // Personal Information
+  dateOfBirth DateTime? // Date of Birth
+  age         Int? // Age (calculated)
+  citizenship String? // Citizenship
+
+  // Address Information
+  address    String?
+  postalCode String? // Post Code
+
+  // Document Information
+  documentNumber  String? // Doc Number
+  insuranceNumber String? // NIN (National Insurance Number)
+  driverLicense   String? // DL Number
+
+  // Expiry Dates
+  passportVisaExpiry DateTime? // Passport Visa Expire
+  rtwExpiry          DateTime? // RTW Expiry (Right to Work)
+  licenceExpiry      DateTime? // Licence Expiry
+
+  // DVLA Information
+  points   Int?      @default(0) // points
+  nextDVLA DateTime? // Next DVLA
+
+  // System Fields
+  lastCheck   DateTime? // Last Check on
+  lastCheckOn DateTime? // last Check (duplicate for compatibility)
+
+  // Agreement Information
+  sla           String? // SLA
+  account       String? // Account
+  formCompleted Boolean? @default(false) // Form
+
+  // Document Storage
+  documents Json?
+
+  // System Management
+  userId        String?   @unique
+  smsToken      String?
+  tokenExpiry   DateTime?
+  classroomDate DateTime?
+  rideAlongDate DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  user         User?        @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
   @@index([phoneNumber])
   @@index([email])
   @@index([status])
@@ -263,46 +441,7 @@ model DriverSchedule {
   @@map("driver_schedules")
 }
 
-model UserSession {
-  id            String    @id @default(uuid())
-  userId        String
-  sessionToken  String    @unique
-  refreshToken  String    @unique
-  deviceInfo    String?
-  ipAddress     String?
-  location      String?
-  isActive      Boolean   @default(true)
-  lastActivity  DateTime  @default(now())
-  createdAt     DateTime  @default(now())
-  expiresAt     DateTime
-  isRevoked     Boolean   @default(false)
-  revokedAt     DateTime?
-  revokedReason String?
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([sessionToken])
-  @@index([refreshToken])
-  @@index([isActive])
-  @@index([expiresAt])
-  @@index([userId, isActive])
-  @@map("user_sessions")
-}
-
-model RevokedToken {
-  id        String   @id @default(uuid())
-  token     String   @unique
-  tokenType String
-  userId    String?
-  reason    String?
-  revokedAt DateTime @default(now())
-  expiresAt DateTime
-
-  @@index([token])
-  @@index([expiresAt])
-  @@index([userId])
-  @@map("revoked_tokens")
-}
+// Old session models removed - replaced by Better Auth Session model
 
 model LoginAttempt {
   id          String   @id @default(uuid())
@@ -375,8 +514,9 @@ model SecurityEvent {
 
 model Van {
   id                 String              @id @default(uuid())
-  vanNumber          String              @unique
-  registration       String              @unique
+  organizationId     String
+  vanNumber          String
+  registration       String
   make               String
   model              String
   year               Int?
@@ -386,7 +526,7 @@ model Van {
   motReminder        Boolean             @default(true)
   contractId         String?
   monthlyRental      Decimal?            @db.Decimal(8, 2)
-  vin                String?             @unique
+  vin                String?
   engineNumber       String?
   fuelType           String?
   capacity           String?
@@ -401,7 +541,12 @@ model Van {
   updatedAt          DateTime            @updatedAt
   maintenanceRecords MaintenanceRecord[]
   contract           Contract?           @relation(fields: [contractId], references: [id])
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  @@unique([organizationId, vanNumber])
+  @@unique([organizationId, registration])
+  @@unique([organizationId, vin])
+  @@index([organizationId])
   @@index([vanNumber])
   @@index([registration])
   @@index([status])
@@ -415,24 +560,28 @@ model Van {
 }
 
 model Contract {
-  id           String         @id @default(uuid())
-  name         String         @unique
-  depot        String
-  hireName     String
-  rentalRate   Decimal        @db.Decimal(8, 2)
-  status       ContractStatus @default(ACTIVE)
-  hasInsurance Boolean        @default(false)
-  supplier     String?
-  startDate    DateTime
-  endDate      DateTime?
-  contactEmail String?
-  contactPhone String?
-  description  String?
-  terms        Json?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  vans         Van[]
+  id             String         @id @default(uuid())
+  organizationId String
+  name           String
+  depot          String
+  hireName       String
+  rentalRate     Decimal        @db.Decimal(8, 2)
+  status         ContractStatus @default(ACTIVE)
+  hasInsurance   Boolean        @default(false)
+  supplier       String?
+  startDate      DateTime
+  endDate        DateTime?
+  contactEmail   String?
+  contactPhone   String?
+  description    String?
+  terms          Json?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  vans           Van[]
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  @@unique([organizationId, name])
+  @@index([organizationId])
   @@index([name])
   @@index([depot])
   @@index([status])
@@ -444,6 +593,7 @@ model Contract {
 
 model MaintenanceRecord {
   id              String              @id @default(uuid())
+  organizationId  String
   vanId           String
   type            String
   description     String
@@ -466,7 +616,9 @@ model MaintenanceRecord {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   van             Van                 @relation(fields: [vanId], references: [id], onDelete: Cascade)
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  @@index([organizationId])
   @@index([vanId])
   @@index([status])
   @@index([priority])
@@ -478,26 +630,29 @@ model MaintenanceRecord {
 }
 
 model Part {
-  id            String   @id @default(uuid())
-  name          String
-  category      String?
-  fordPrice     Decimal? @db.Decimal(8, 2)
-  mercedesPrice Decimal? @db.Decimal(8, 2)
-  peugeotPrice  Decimal? @db.Decimal(8, 2)
-  partNumber    String?
-  supplier      String?
-  description   String?
-  stockLevel    Int      @default(0)
-  minStockLevel Int      @default(0)
-  maxStockLevel Int      @default(100)
-  weight        Decimal? @db.Decimal(8, 3)
-  dimensions    String?
-  warrantyDays  Int?     @default(365)
-  isActive      Boolean  @default(true)
-  lastUpdated   DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  category       String?
+  fordPrice      Decimal?     @db.Decimal(8, 2)
+  mercedesPrice  Decimal?     @db.Decimal(8, 2)
+  peugeotPrice   Decimal?     @db.Decimal(8, 2)
+  partNumber     String?
+  supplier       String?
+  description    String?
+  stockLevel     Int          @default(0)
+  minStockLevel  Int          @default(0)
+  maxStockLevel  Int          @default(100)
+  weight         Decimal?     @db.Decimal(8, 3)
+  dimensions     String?
+  warrantyDays   Int?         @default(365)
+  isActive       Boolean      @default(true)
+  lastUpdated    DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  @@index([organizationId])
   @@index([name])
   @@index([category])
   @@index([partNumber])
@@ -507,8 +662,58 @@ model Part {
   @@map("parts")
 }
 
+model DriverInvoice {
+  id             String        @id @default(uuid())
+  organizationId String
+  driverId       String
+  driver         Driver        @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceNumber  String        @unique
+  weekStartDate  DateTime      @db.Date
+  weekEndDate    DateTime      @db.Date
+  status         InvoiceStatus @default(DRAFT)
+  totalAmount    Decimal       @db.Decimal(10, 2)
+  currency       String        @default("GBP")
+  notes          String?
+  pdfUrl         String?
+  sentAt         DateTime?
+  sentBy         String?
+  sentByUser     User?         @relation(fields: [sentBy], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  items          InvoiceItem[]
+
+  @@index([organizationId])
+  @@index([driverId])
+  @@index([weekStartDate, weekEndDate])
+  @@index([status])
+  @@index([invoiceNumber])
+  @@index([sentAt])
+  @@map("driver_invoices")
+}
+
+model InvoiceItem {
+  id          String         @id @default(uuid())
+  invoiceId   String
+  invoice     DriverInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  paymentId   String?
+  payment     DriverPayment? @relation(fields: [paymentId], references: [id])
+  date        DateTime       @db.Date
+  description String
+  routeType   RouteType
+  routeCode   String?
+  amount      Decimal        @db.Decimal(8, 2)
+
+  @@index([invoiceId])
+  @@index([paymentId])
+  @@index([date])
+  @@map("invoice_items")
+}
+
 enum UserRole {
-  DIRECTOR
+  SUPER_ADMIN // Can manage all organizations (system-wide)
+  OWNER // Organization owner (maps to Better Auth admin role)
+  DIRECTOR // Company director
   MANAGER_FINANCIAL
   MANAGER_FLEET
   MANAGER_ONSITE
@@ -540,6 +745,15 @@ enum RouteType {
   STANDARD_PARCEL_WITH_HELPER
   STANDARD_PARCEL_RIDE_ALONG_IRONHIDE_MEDIUM_VAN
   STANDARD_PARCEL_RIDE_ALONG_MENTEE_IRONHIDE_MEDIUM_VAN
+  OSM_RATE // On Site Manager
+  OSM_COVER // On Site Manager Cover
+  HELPER_FLEET // Helper + Fleet
+  SWEEPER
+  HELPER
+  ROUTE_9H // Route 9 hours
+  LEAD_DRIVER
+  RESCUE_2 // Rescue 2
+  RESCUE_6 // Rescue 6
 }
 
 enum CandidateStatus {
@@ -605,4 +819,12 @@ enum MaintenancePriority {
   MEDIUM
   HIGH
   URGENT
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  SENT
+  CANCELLED
 }

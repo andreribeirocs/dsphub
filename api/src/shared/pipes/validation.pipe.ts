@@ -26,6 +26,21 @@ export class EnhancedValidationPipe extends NestValidationPipe {
         target: false,
         value: false,
       },
+      exceptionFactory: (errors) => {
+        const formattedErrors = errors.map((error) => ({
+          field: error.property,
+          constraints: error.constraints,
+          value: error.value,
+        }));
+        const logger = new Logger("ValidationPipe");
+        logger.error(
+          `Validation failed: ${JSON.stringify(formattedErrors, null, 2)}`
+        );
+        return new BadRequestException({
+          message: "Validation failed",
+          errors: formattedErrors,
+        });
+      },
     });
   }
 

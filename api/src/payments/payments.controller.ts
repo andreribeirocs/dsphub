@@ -34,7 +34,7 @@ import {
   ImportXlsxPaymentsDto,
 } from "./dto/daily-payment.dto";
 
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { BetterAuthGuard } from "../auth/guards/better-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "../auth/enums/role.enum";
@@ -57,7 +57,7 @@ interface AuthenticatedRequest {
 @ApiTags("payments")
 @Controller("payments")
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(BetterAuthGuard, RolesGuard)
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
@@ -129,13 +129,13 @@ export class PaymentsController {
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ThrottleModerate()
   @Get("dashboard")
-  async getDashboard(): Promise<{
+  async getDashboard(@Request() req: AuthenticatedRequest): Promise<{
     routePrices: RoutePrice[];
     stats: DashboardStats;
   }> {
     const [routePrices, stats] = await Promise.all([
-      this.paymentsService.getAllRoutePrices(),
-      this.paymentsService.getDashboardStats(),
+      this.paymentsService.getAllRoutePrices(req.user.id),
+      this.paymentsService.getDashboardStats(req.user.id),
     ]);
 
     return {
@@ -183,7 +183,7 @@ export class PaymentsController {
   })
   @ApiResponse({ status: 404, description: "Route price not found" })
   @UseGuards(RolesGuard)
-  @Roles(Role.DIRECTOR, Role.MANAGER_FINANCIAL)
+  @Roles(Role.SUPER_ADMIN, Role.OWNER, Role.DIRECTOR, Role.MANAGER_FINANCIAL)
   @ThrottleModerate()
   @Put("route-prices")
   async updateRoutePrice(
@@ -314,6 +314,8 @@ export class PaymentsController {
   @ApiResponse({ status: 200, description: "Daily payments saved" })
   @UseGuards(RolesGuard)
   @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
     Role.DIRECTOR,
     Role.MANAGER_FINANCIAL,
     Role.MANAGER_FLEET,
@@ -369,6 +371,8 @@ export class PaymentsController {
   })
   @UseGuards(RolesGuard)
   @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
     Role.DIRECTOR,
     Role.MANAGER_FINANCIAL,
     Role.MANAGER_FLEET,
@@ -428,6 +432,8 @@ export class PaymentsController {
   @ApiResponse({ status: 404, description: "Driver not found" })
   @UseGuards(RolesGuard)
   @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
     Role.DIRECTOR,
     Role.MANAGER_FINANCIAL,
     Role.MANAGER_FLEET,
@@ -587,6 +593,8 @@ export class PaymentsController {
   @ApiResponse({ status: 404, description: "Payment record not found" })
   @UseGuards(RolesGuard)
   @Roles(
+    Role.SUPER_ADMIN,
+    Role.OWNER,
     Role.DIRECTOR,
     Role.MANAGER_FINANCIAL,
     Role.MANAGER_FLEET,
