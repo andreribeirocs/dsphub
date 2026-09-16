@@ -1,32 +1,31 @@
-node_modules
-api/dist
-dist
-/Users/065388/Personal/hub/api/dist/src/auth/auth.controller.d.ts
-/Users/065388/Personal/hub/api/dist/src/auth/auth.controller.js
-/Users/065388/Personal/hub/api/dist/src/auth/auth.controller.js.map
-/Users/065388/Personal/hub/api/dist/src/auth/auth.service.d.ts
-/Users/065388/Personal/hub/api/dist/src/auth/auth.service.js
-/Users/065388/Personal/hub/api/dist/src/auth/auth.service.js.map
-/Users/065388/Personal/hub/api/dist/src/main.js
-/Users/065388/Personal/hub/api/dist/src/main.js.map
-/Users/065388/Personal/hub/api/dist/src/users/users.module.js
-/Users/065388/Personal/hub/api/dist/src/users/users.module.js.map
-/Users/065388/Personal/hub/api/dist/src/users/users.service.d.ts
-/Users/065388/Personal/hub/api/dist/src/users/users.service.js
-/Users/065388/Personal/hub/api/dist/src/users/users.service.js.map
-/Users/065388/Personal/hub/api/dist/tsconfig.build.tsbuildinfo
-dist/src/auth/auth.controller.d.ts
-dist/src/auth/auth.controller.js
-dist/src/auth/auth.controller.js.map
-dist/src/auth/auth.service.d.ts
-dist/src/auth/auth.service.js
-dist/src/auth/auth.service.js.map
-dist/src/main.js
-dist/src/main.js.map
-dist/src/users/users.module.js
-dist/src/users/users.module.js.map
-dist/src/users/users.service.d.ts
-dist/src/users/users.service.js
-dist/src/users/users.service.js.map
-dist/tsconfig.build.tsbuildinfo
+# Dependências e build
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Segredos — nunca versionar. Use .env.example como modelo.
 .env
+.env.*
+!.env.example
+cookies.txt
+
+# Arquivos gerados em runtime (invoices, avatares, documentos de motoristas — dados pessoais/GDPR)
+uploads/
+
+# Backups e lixo de sistema/editor
+*.bak
+*.bak[0-9]*
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+
+# Utilitários locais de diagnóstico (setup de 15/09/2026)
+setup-local.sh
+find-pass.js
+find-db-password.sh
+find-postgres.ps1
+diag-db.js
+ll

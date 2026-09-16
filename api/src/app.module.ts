@@ -69,6 +69,7 @@ import { SchedulerModule } from "./scheduler/scheduler.module";
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     // Apply organization middleware to all routes
-    consumer.apply(OrganizationMiddleware).forRoutes("*");
+    // NestJS 11: named wildcard; "{*splat}" also matches the root path
+    consumer.apply(OrganizationMiddleware).forRoutes("{*splat}");
   }
 }

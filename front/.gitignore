@@ -1,3 +1,13 @@
-node_modules
+node_modules/
 .angular/
 dist/
+coverage/
+
+# Segredos
+.env
+.env.*
+
+# Lixo de sistema/editor
+.DS_Store
+Thumbs.db
+*.log

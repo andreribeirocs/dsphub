@@ -7,11 +7,40 @@ import {
 } from "./shared/pipes/validation.pipe";
 import * as express from "express";
 import * as cookieParser from "cookie-parser";
+import helmet from "helmet";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     bodyParser: true,
   });
+
+  const isProduction = process.env.NODE_ENV === "production";
+
+  // Security headers (HTTP headers, not <meta> — browsers ignore X-Frame-Options
+  // and CSP frame-ancestors when set via <meta>)
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          "default-src": ["'self'"],
+          "frame-ancestors": ["'none'"],
+          "object-src": ["'none'"],
+          "base-uri": ["'self'"],
+          // Swagger UI (/api) uses inline styles and data: images
+          "style-src": ["'self'", "'unsafe-inline'"],
+          "img-src": ["'self'", "data:"],
+          // In dev (http://localhost) upgrading requests to https would break Swagger
+          "upgrade-insecure-requests": isProduction ? [] : null,
+        },
+      },
+      frameguard: { action: "deny" },
+      // Front (e.g. localhost:4200 / app.domain) loads /uploads images from the API.
+      // "same-site" allows sibling subdomains; revisit if a DSP uses a separate domain.
+      crossOriginResourcePolicy: { policy: "same-site" },
+      hsts: isProduction,
+    })
+  );
 
   // Configure body parser for larger payloads (50MB limit for file uploads)
   app.use(express.json({ limit: "50mb" }));

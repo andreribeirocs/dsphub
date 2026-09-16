@@ -15,7 +15,8 @@ export class BetterAuthController {
    * - POST /api/auth/organization/add-member
    * - etc.
    */
-  @All("*")
+  // NestJS 11 / path-to-regexp v8: wildcards must be named ("*" alone triggers a warning)
+  @All("*path")
   async handleAuth(@Req() req: Request, @Res() res: Response): Promise<void> {
     // Use Better Auth's Node.js adapter for Express
     // toNodeHandler returns a handler function that we need to await
