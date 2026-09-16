@@ -37,13 +37,13 @@ The following environment variables are required:
 
 - `JWT_SECRET` - Secret key for JWT token generation
 
-### WhatsApp Service (Twilio)
+### Messaging (WhatsApp / SMS)
 
-- `TWILIO_ACCOUNT_SID` - Your Twilio Account SID
-- `TWILIO_AUTH_TOKEN` - Your Twilio Auth Token
-- `TWILIO_WHATSAPP_NUMBER` - Your Twilio WhatsApp Business number (e.g., `whatsapp:+14155238886`)
-- `TWILIO_WHATSAPP_TEMPLATE_SID` - Your approved WhatsApp message template SID (required for business messaging)
-- `TWILIO_MOCK` - Set to `true` in development to mock WhatsApp messages (optional)
+No messaging provider is connected yet. All sending goes through `src/messaging`
+(`MessagingProvider` interface, bound in `messaging.module.ts`). While the default
+log-only provider is active, nothing is sent and the API reports that messaging is not configured.
+
+- `RECRUITMENT_INVITE_TEMPLATE` - WhatsApp template name used for candidate registration invites (optional, default `registration_link`)
 
 ### Email Service (SMTP)
 

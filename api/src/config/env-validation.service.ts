@@ -8,12 +8,6 @@ export interface EnvironmentVariables {
   readonly JWT_SECRET: string;
   readonly JWT_REFRESH_SECRET?: string;
   readonly CORS_ORIGIN?: string;
-  readonly TWILIO_ACCOUNT_SID: string;
-  readonly TWILIO_AUTH_TOKEN: string;
-  readonly TWILIO_WHATSAPP_NUMBER: string;
-  readonly TWILIO_WHATSAPP_TEMPLATE_SID?: string;
-  readonly TWILIO_WHATSAPP_TEMPLATE_HELLO_THERE?: string;
-  readonly TWILIO_DISABLE_SSL_VALIDATION?: boolean;
   readonly MAX_FILE_SIZE?: number;
   readonly MAX_PDF_SIZE?: number;
   readonly MAX_IMAGE_SIZE?: number;
@@ -61,43 +55,6 @@ export class EnvValidationService {
       .pattern(/^https?:\/\/[^\s,]+(,\s*https?:\/\/[^\s,]+)*$/)
       .optional()
       .description("Must be valid HTTP/HTTPS URLs separated by commas"),
-
-    TWILIO_ACCOUNT_SID: Joi.string()
-      .pattern(/^AC[a-f0-9]{32}$/)
-      .required()
-      .description("Must be a valid Twilio Account SID starting with AC"),
-
-    TWILIO_AUTH_TOKEN: Joi.string()
-      .length(32)
-      .pattern(/^[a-f0-9]{32}$/)
-      .required()
-      .description("Must be a valid 32-character Twilio Auth Token"),
-
-    TWILIO_WHATSAPP_NUMBER: Joi.string()
-      .pattern(/^whatsapp:\+[1-9]\d{1,14}$/)
-      .required()
-      .description(
-        "Must be a valid WhatsApp number format: whatsapp:+1234567890"
-      ),
-
-    TWILIO_WHATSAPP_TEMPLATE_SID: Joi.string()
-      .pattern(/^HX[a-f0-9]{32}$/)
-      .optional()
-      .description("Must be a valid Twilio Template SID starting with HX"),
-
-    TWILIO_WHATSAPP_TEMPLATE_HELLO_THERE: Joi.string()
-      .pattern(/^HX[a-f0-9]{32}$/)
-      .optional()
-      .description("Must be a valid Twilio Template SID starting with HX"),
-
-    TWILIO_DISABLE_SSL_VALIDATION: Joi.boolean()
-      .default(false)
-      .when("NODE_ENV", {
-        is: "production",
-        then: Joi.boolean().valid(false),
-        otherwise: Joi.boolean().optional(),
-      })
-      .description("SSL validation should never be disabled in production"),
 
     MAX_FILE_SIZE: Joi.number()
       .min(1024) // 1KB minimum
@@ -171,10 +128,6 @@ export class EnvValidationService {
     if (config.NODE_ENV === "production") {
       if (!config.CORS_ORIGIN) {
         errors.push("CORS_ORIGIN must be set in production");
-      }
-
-      if (config.TWILIO_DISABLE_SSL_VALIDATION) {
-        errors.push("SSL validation cannot be disabled in production");
       }
 
       if (config.JWT_SECRET.length < 64) {
@@ -259,7 +212,7 @@ export class EnvValidationService {
       `   Rate Limiting: ${config.RATE_LIMIT_MAX_REQUESTS}req/${Math.round((config.RATE_LIMIT_WINDOW_MS || 0) / 1000)}s`
     );
     this.logger.log(
-      `   Security Features: JWT:✅, Bcrypt:${config.BCRYPT_ROUNDS}rounds, SSL:${!config.TWILIO_DISABLE_SSL_VALIDATION ? "✅" : "❌"}`
+      `   Security Features: JWT:✅, Bcrypt:${config.BCRYPT_ROUNDS}rounds`
     );
   }
 }

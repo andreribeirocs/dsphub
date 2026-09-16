@@ -3,6 +3,8 @@ import { WhatsAppService } from "./whatsapp.service";
 import { WhatsAppController } from "./whatsapp.controller";
 import { WhatsAppGateway } from "./whatsapp.gateway";
 
+// MESSAGING_PROVIDER comes from the global MessagingModule
+
 @Module({
   controllers: [WhatsAppController],
   providers: [WhatsAppService, WhatsAppGateway],

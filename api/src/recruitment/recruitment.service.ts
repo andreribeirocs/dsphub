@@ -1,4 +1,5 @@
 import {
+  Inject,
   Injectable,
   NotFoundException,
   BadRequestException,
@@ -6,7 +7,11 @@ import {
 } from "@nestjs/common";
 import { SecureErrorUtil } from "../shared/utils/secure-error.util";
 import { PrismaService } from "../prisma/prisma.service";
-import { WhatsAppService } from "../shared/services/twilio.service";
+import {
+  MESSAGING_PROVIDER,
+  MessagingProvider,
+} from "../messaging/messaging.types";
+import { toE164 } from "../messaging/phone.util";
 import { ConfigService } from "@nestjs/config";
 import { CreateCandidateDto } from "./dto/create-candidate.dto";
 import { CompleteRegistrationDto } from "./dto/complete-registration.dto";
@@ -26,7 +31,8 @@ export class RecruitmentService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly whatsappService: WhatsAppService,
+    @Inject(MESSAGING_PROVIDER)
+    private readonly messagingProvider: MessagingProvider,
     private readonly configService: ConfigService
   ) {}
 
@@ -83,53 +89,39 @@ export class RecruitmentService {
 
     const registrationLink = `https://careers.dsphub.co.uk/register/${candidate.smsToken}`;
 
-    // Get the template SID from environment variables - now required for WhatsApp
-    const templateSid = this.configService.get<string>(
-      "TWILIO_WHATSAPP_TEMPLATE_SID"
-    );
+    const templateName =
+      this.configService.get<string>("RECRUITMENT_INVITE_TEMPLATE") ||
+      "registration_link";
 
-    if (!templateSid) {
-      this.logger.error(
-        "TWILIO_WHATSAPP_TEMPLATE_SID is required for WhatsApp business messaging"
-      );
+    const result = await this.messagingProvider.send({
+      channel: "whatsapp",
+      to: toE164(candidate.phoneNumber),
+      template: { name: templateName, variables: [registrationLink] },
+    });
+
+    if (result.status === "not_configured") {
       throw new BadRequestException(
-        "WhatsApp template not configured. Please set TWILIO_WHATSAPP_TEMPLATE_SID environment variable with your approved template SID."
+        `WhatsApp messaging is not configured yet, so nothing was sent. Share this registration link with the candidate manually: ${registrationLink}`
       );
     }
 
-    // Validate template SID format (should start with HX)
-    if (!templateSid.startsWith("HX")) {
+    if (!result.success) {
       this.logger.error(
-        `Invalid template SID format: ${templateSid}. Template SID should start with 'HX'`
+        `Failed to send registration invite to candidate ${candidateId}: ${result.error}`
       );
-      throw new BadRequestException(
-        'Invalid WhatsApp template configuration. The template SID should start with "HX". Please check your Twilio Console for the correct template SID.'
-      );
-    }
-
-    // Use template with variables (required for WhatsApp business messaging)
-    const templateVariables = [registrationLink];
-
-    const smsSent = await this.whatsappService.sendWhatsAppTemplate(
-      candidate.phoneNumber,
-      templateSid,
-      templateVariables
-    );
-
-    if (smsSent) {
-      await this.prisma.candidate.update({
-        where: { id: candidateId },
-        data: { status: "SMS_SENT" },
-      });
-
-      return {
-        success: true,
-        message: "WhatsApp message sent successfully",
-        registrationLink,
-      };
-    } else {
       throw new BadRequestException("Failed to send WhatsApp message");
     }
+
+    await this.prisma.candidate.update({
+      where: { id: candidateId },
+      data: { status: "SMS_SENT" },
+    });
+
+    return {
+      success: true,
+      message: "WhatsApp message sent successfully",
+      registrationLink,
+    };
   }
 
   async validateToken(token: string) {

@@ -8,12 +8,10 @@ import {
   BadRequestException,
   NotFoundException,
   Logger,
-  HttpCode,
-  HttpStatus,
+  HttpException,
 } from "@nestjs/common";
 import { SecureErrorUtil } from "../shared/utils/secure-error.util";
 import { WhatsAppService } from "./whatsapp.service";
-import { TwilioWebhookPayload } from "./whatsapp.service";
 import { SendMessageDto } from "./dto/send-message.dto";
 import { BetterAuthGuard } from "src/auth/guards/better-auth.guard";
 import { RolesGuard } from "src/auth/guards/roles.guard";
@@ -50,45 +48,14 @@ export class WhatsAppController {
         message,
       };
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw SecureErrorUtil.handleExternalServiceError(
         error,
         "WhatsApp",
         "send message"
       );
-    }
-  }
-
-  @Post("webhook")
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: "Handle Twilio webhook for incoming messages and status updates",
-  })
-  @ApiResponse({ status: 200, description: "Webhook processed successfully" })
-  handleWebhook(@Body() payload: TwilioWebhookPayload): {
-    success: boolean;
-    error?: string;
-  } {
-    try {
-      this.logger.log(
-        "Received Twilio webhook:",
-        JSON.stringify(payload, null, 2)
-      );
-
-      // Handle different types of webhooks
-      if (payload.MessageStatus) {
-        // Status update webhook
-        this.whatsAppService.handleStatusUpdate(payload);
-      } else if (payload.Body) {
-        // Incoming message webhook
-        this.whatsAppService.handleIncomingMessage(payload);
-      }
-
-      return { success: true };
-    } catch (error) {
-      this.logger.error("Error processing webhook:", error);
-
-      // Don't expose internal errors to webhook callers - return generic response
-      return { success: false, error: "Webhook processing failed" };
     }
   }
 
@@ -144,20 +111,23 @@ export class WhatsAppController {
   }
 
   @Post("template")
-  @ApiOperation({ summary: "Send a WhatsApp template message" })
+  @ApiOperation({ summary: "Send a pre-approved WhatsApp template message" })
   @ApiBody({
     schema: {
       type: "object",
       properties: {
         to: { type: "string", description: "Recipient phone number" },
-        templateSid: { type: "string", description: "Template SID" },
+        templateName: {
+          type: "string",
+          description: "Template name as approved in the provider",
+        },
         variables: {
           type: "array",
           items: { type: "string" },
           description: "Template variables",
         },
       },
-      required: ["to", "templateSid"],
+      required: ["to", "templateName"],
     },
   })
   @ApiResponse({
@@ -166,20 +136,21 @@ export class WhatsAppController {
   })
   @ApiResponse({ status: 400, description: "Invalid request data" })
   @ApiResponse({ status: 429, description: "Too many requests." })
+  @ApiResponse({ status: 503, description: "Messaging not configured" })
   @ThrottleStrict()
   async sendTemplateMessage(
-    @Body() body: { to: string; templateSid: string; variables?: string[] }
+    @Body() body: { to: string; templateName: string; variables?: string[] }
   ) {
     try {
-      if (!body.to || !body.templateSid) {
+      if (!body.to || !body.templateName) {
         throw new BadRequestException(
-          "Phone number and template SID are required"
+          "Phone number and template name are required"
         );
       }
 
-      const success = await this.whatsAppService.sendWhatsAppTemplate(
+      const success = await this.whatsAppService.sendTemplate(
         body.to,
-        body.templateSid,
+        body.templateName,
         body.variables || []
       );
 
@@ -187,13 +158,14 @@ export class WhatsAppController {
         throw new BadRequestException("Failed to send template message");
       }
 
-      this.logger.log(`Template message sent to ${body.to}`);
-
       return {
         success: true,
         message: "Template message sent successfully",
       };
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw SecureErrorUtil.handleExternalServiceError(
         error,
         "WhatsApp",
@@ -209,11 +181,13 @@ export class WhatsAppController {
     return {
       status: "ok",
       service: "WhatsApp",
+      provider: this.whatsAppService.providerName,
+      configured: this.whatsAppService.isConfigured(),
       timestamp: new Date().toISOString(),
       features: {
-        messaging: true,
-        templates: true,
-        webhooks: true,
+        messaging: this.whatsAppService.isConfigured(),
+        templates: this.whatsAppService.isConfigured(),
+        webhooks: false,
         conversations: true,
       },
     };
@@ -223,7 +197,7 @@ export class WhatsAppController {
   @ApiOperation({ summary: "Get available message templates" })
   @ApiResponse({ status: 200, description: "List of available templates" })
   getTemplates() {
-    // In a real implementation, this would fetch from Twilio or a database
+    // Static examples; real templates will come from the chosen provider
     const templates = [
       {
         id: "greeting",

@@ -13,6 +13,7 @@ import { OrganizationMiddleware } from "./common/middleware/organization.middlew
 import { UsersModule } from "./users/users.module";
 import { RecruitmentModule } from "./recruitment/recruitment.module";
 import { DriversModule } from "./drivers/drivers.module";
+import { MessagingModule } from "./messaging/messaging.module";
 import { WhatsAppModule } from "./whatsapp/whatsapp.module";
 import { PdfModule } from "./pdf/pdf.module";
 import { PaymentsModule } from "./payments/payments.module";
@@ -44,6 +45,7 @@ import { SchedulerModule } from "./scheduler/scheduler.module";
     UsersModule,
     RecruitmentModule,
     DriversModule,
+    MessagingModule, // WhatsApp/SMS provider (none configured yet)
     WhatsAppModule,
     PdfModule,
     PaymentsModule,

@@ -88,13 +88,8 @@ ${
     : 'CORS_ORIGIN="http://localhost:4200,http://localhost:3000"'
 }
 
-# Twilio Configuration
-TWILIO_ACCOUNT_SID="YOUR_TWILIO_ACCOUNT_SID"
-TWILIO_AUTH_TOKEN="YOUR_TWILIO_AUTH_TOKEN"
-TWILIO_WHATSAPP_NUMBER="whatsapp:+1234567890"
-TWILIO_WHATSAPP_TEMPLATE_SID="YOUR_TEMPLATE_SID"
-TWILIO_WHATSAPP_TEMPLATE_HELLO_THERE="YOUR_HELLO_TEMPLATE_SID"
-${environment === "production" ? "TWILIO_DISABLE_SSL_VALIDATION=false" : "# TWILIO_DISABLE_SSL_VALIDATION=true"}
+# Messaging (WhatsApp/SMS) — no provider connected yet, see src/messaging
+# RECRUITMENT_INVITE_TEMPLATE="registration_link"
 
 # Security Configuration
 BCRYPT_ROUNDS=${environment === "production" ? "14" : "12"}
