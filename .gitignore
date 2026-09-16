@@ -1,0 +1,12 @@
+# Pastas locais de backup/migração do Git
+_historico-limpo/
+_backup-git/
+
+# Segredos
+.env
+.env.*
+!.env.example
+
+# Sistema
+.DS_Store
+Thumbs.db
