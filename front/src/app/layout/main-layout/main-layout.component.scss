@@ -1,0 +1,49 @@
+/* Main Layout Component Styles */
+
+.profile-dropdown-container {
+  position: relative;
+
+  /* Ensure dropdown appears above other elements */
+  .absolute {
+    z-index: 50;
+  }
+}
+
+/* Dropdown menu animations */
+.dropdown-menu {
+  transition: all 0.2s ease-in-out;
+  transform-origin: bottom center;
+  
+  &.menu-hidden {
+    display: none;
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+    pointer-events: none;
+  }
+  
+  &.menu-visible {
+    display: block;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+}
+
+/* Smooth transitions for buttons */
+button {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Sidebar transitions */
+.sidebar-transition {
+  transition: width 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+/* Profile menu item hover effects */
+.profile-menu-item {
+  transition: background-color 0.15s ease-in-out;
+  
+  &:hover {
+    background-color: #f3f4f6;
+  }
+}

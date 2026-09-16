@@ -1,0 +1,305 @@
+<div
+  class="min-h-screen bg-gray-50 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8"
+>
+  <div
+    class="sm:mx-auto sm:w-full sm:max-w-md bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10"
+  >
+    <div class="sm:mx-auto sm:w-full sm:max-w-md text-center">
+      <div class="flex justify-center items-center">
+        <div class="bg-white p-2 rounded-lg shadow-md">
+          <svg
+            version="1.0"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 640.000000 640.000000"
+            preserveAspectRatio="xMidYMid meet"
+            class="h-10 w-10"
+            fill="blue"
+          >
+            <g
+              transform="translate(0.000000,640.000000) scale(0.100000,-0.100000)"
+            >
+              <path
+                d="M2967 4922 c-131 -229 -308 -538 -394 -687 -86 -148 -253 -439 -371
+-645 -118 -206 -334 -582 -480 -835 -146 -253 -316 -548 -377 -655 -143 -248
+-268 -465 -436 -755 -73 -126 -186 -322 -251 -435 l-118 -205 2672 -3 c1469
+-1 2673 0 2675 2 3 2 -148 266 -477 831 -75 129 -316 545 -459 793 -61 107
+-111 198 -111 204 0 5 30 80 66 166 73 173 195 494 190 499 -5 6 -90 -108
+-211 -282 -163 -236 -408 -560 -566 -750 -172 -207 -517 -552 -683 -684 -393
+-311 -790 -504 -1147 -557 -169 -25 -412 -16 -532 20 -243 72 -403 198 -497
+391 -47 97 -68 174 -76 286 -12 157 37 385 117 538 l39 76 -7 -55 c-14 -99 -9
+-250 11 -310 46 -137 150 -252 289 -320 138 -66 185 -75 407 -75 178 1 204 3
+305 28 433 108 813 308 1361 719 274 205 702 585 719 638 4 12 -27 75 -91 187
+-153 266 -391 678 -529 918 -70 121 -178 308 -240 415 -371 645 -473 823 -509
+887 -23 40 -43 73 -46 72 -3 0 -112 -187 -243 -417z"
+              />
+            </g>
+          </svg>
+        </div>
+        <h1 class="ml-1 text-3xl font-extrabold text-gray-900">DSPHub</h1>
+      </div>
+      <p class="mt-2 text-sm text-gray-600">Connecting everything</p>
+      <h2 class="mt-8 text-2xl font-bold text-gray-900">Welcome back</h2>
+      <p class="mt-2 text-sm text-gray-600">Sign in to your driver dashboard</p>
+    </div>
+
+    <form
+      class="mt-8 space-y-6"
+      [formGroup]="loginForm"
+      (ngSubmit)="onSubmit()"
+    >
+      <!-- Error Alert -->
+      @if (error()) {
+      <div
+        class="bg-red-50 border-l-4 border-red-500 p-4 rounded-md"
+        role="alert"
+      >
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg
+              class="h-5 w-5 text-red-400"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 001.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-red-700">{{ error() }}</p>
+          </div>
+        </div>
+      </div>
+      }
+
+      <div>
+        <label for="email" class="block text-sm font-medium text-gray-700">
+          Email Address
+        </label>
+        <div class="mt-1 relative rounded-md shadow-sm">
+          <div
+            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
+          >
+            <svg
+              class="h-5 w-5 text-gray-400"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"
+              />
+              <path
+                d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"
+              />
+            </svg>
+          </div>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            formControlName="email"
+            autocomplete="email"
+            required
+            class="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            placeholder="driver@example.com"
+            [class.border-red-500]="
+              loginForm.get('email')?.invalid && loginForm.get('email')?.touched
+            "
+          />
+        </div>
+      </div>
+
+      <div>
+        <label for="password" class="block text-sm font-medium text-gray-700">
+          Password
+        </label>
+        <div class="mt-1 relative rounded-md shadow-sm">
+          <div
+            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
+          >
+            <svg
+              class="h-5 w-5 text-gray-400"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </div>
+          <input
+            id="password"
+            name="password"
+            [type]="passwordVisible() ? 'text' : 'password'"
+            formControlName="password"
+            autocomplete="current-password"
+            required
+            class="appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            placeholder="Enter your password"
+            [class.border-red-500]="
+              loginForm.get('password')?.invalid &&
+              loginForm.get('password')?.touched
+            "
+          />
+          <div
+            class="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5"
+          >
+            <button
+              type="button"
+              (click)="togglePasswordVisibility()"
+              class="text-gray-500 hover:text-gray-700"
+              aria-label="Toggle password visibility"
+            >
+              @if (passwordVisible()) {
+              <!-- Eye open icon -->
+              <svg
+                class="h-5 w-5"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                <path
+                  fill-rule="evenodd"
+                  d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              } @else {
+              <!-- Eye closed icon -->
+              <svg
+                class="h-5 w-5"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <path
+                  d="M2 2L22 22"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M6.71277 6.7226C3.66479 8.79527 2 12 2 12C2 12 5.63636 19 12 19C14.0503 19 15.8174 18.2734 17.2711 17.2884M11 5.05822C11.3254 5.02013 11.6588 5 12 5C18.3636 5 22 12 22 12C22 12 21.3082 13.3317 20 14.8335"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M14 14.2362C13.4692 14.7112 12.7684 15.0001 12 15.0001C10.3431 15.0001 9 13.657 9 12.0001C9 11.1764 9.33193 10.4303 9.86932 9.88818"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between">
+        <div class="flex items-center">
+          <input
+            id="remember-me"
+            name="remember-me"
+            type="checkbox"
+            formControlName="rememberMe"
+            class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          />
+          <label for="remember-me" class="ml-2 block text-sm text-gray-900">
+            Remember me
+          </label>
+        </div>
+
+        <div class="text-sm">
+          <a
+            routerLink="/forgot-password"
+            class="font-medium text-blue-600 hover:text-blue-500"
+          >
+            Forgot password?
+          </a>
+        </div>
+      </div>
+
+      <div>
+        <button
+          type="submit"
+          class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+          [disabled]="loginForm.invalid || loading()"
+        >
+          @if (loading()) {
+          <span class="flex items-center">
+            <svg
+              class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            Signing in...
+          </span>
+          } @else {
+          <span class="flex items-center">
+            Sign In
+            <svg
+              class="h-5 w-5 ml-2"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </span>
+          }
+        </button>
+      </div>
+
+      <div class="relative">
+        <div class="absolute inset-0 flex items-center">
+          <div class="w-full border-t border-gray-300"></div>
+        </div>
+        <div class="relative flex justify-center text-sm">
+          <span class="px-2 bg-white text-gray-500"> Need help? </span>
+        </div>
+      </div>
+
+      <div class="text-center text-sm">
+        <p class="mt-2 text-gray-600">
+          Having trouble?
+          <a
+            routerLink="/support"
+            class="font-medium text-blue-600 hover:text-blue-500"
+          >
+            Contact Support
+          </a>
+        </p>
+      </div>
+    </form>
+  </div>
+</div>

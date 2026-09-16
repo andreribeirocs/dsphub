@@ -1,0 +1,608 @@
+<div
+  class="fixed inset-0 z-[9999] overflow-y-auto"
+  aria-labelledby="modal-title"
+  role="dialog"
+  aria-modal="true"
+>
+  <div
+    class="flex min-h-screen items-end justify-center px-4 pb-20 pt-4 text-center sm:block sm:p-0"
+  >
+    <div
+      class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-[9998]"
+      aria-hidden="true"
+      (click)="onCancel()"
+    ></div>
+
+    <span
+      class="hidden sm:inline-block sm:h-screen sm:align-middle"
+      aria-hidden="true"
+      >&#8203;</span
+    >
+
+    <div
+      class="relative z-[9999] inline-block transform overflow-hidden rounded-lg bg-white text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-4xl sm:align-middle"
+    >
+      <form [formGroup]="form" (ngSubmit)="onSubmit()">
+        <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+          <div class="mb-4 flex items-center justify-between">
+            <h3
+              class="text-lg font-medium leading-6 text-gray-900"
+              id="modal-title"
+            >
+              {{ organization ? "Edit Organization" : "Create Organization" }}
+            </h3>
+            <button
+              type="button"
+              (click)="onCancel()"
+              class="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <span class="sr-only">Close</span>
+              <svg
+                class="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+
+          @if (error()) {
+          <div
+            class="mb-4 rounded-md border border-red-300 bg-red-50 p-4 text-red-800"
+            role="alert"
+          >
+            <p class="text-sm">{{ error() }}</p>
+          </div>
+          }
+
+          <div class="max-h-[70vh] space-y-6 overflow-y-auto pr-2">
+            <!-- Basic Information -->
+            <div class="rounded-lg border border-gray-200 p-4">
+              <h4 class="mb-4 text-sm font-medium text-gray-900">
+                Basic Information
+              </h4>
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label
+                    for="name"
+                    class="block text-sm font-medium text-gray-700"
+                    >Organization Name *</label
+                  >
+                  <input
+                    type="text"
+                    id="name"
+                    formControlName="name"
+                    (blur)="generateSlug()"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    [class.border-red-300]="
+                      form.get('name')?.invalid && form.get('name')?.touched
+                    "
+                  />
+                </div>
+                <div>
+                  <label
+                    for="slug"
+                    class="block text-sm font-medium text-gray-700"
+                    >Slug *</label
+                  >
+                  <input
+                    type="text"
+                    id="slug"
+                    formControlName="slug"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    [class.border-red-300]="
+                      form.get('slug')?.invalid && form.get('slug')?.touched
+                    "
+                  />
+                  <p class="mt-1 text-xs text-gray-500">
+                    Lowercase letters, numbers, and hyphens only
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Logo -->
+            <div class="rounded-lg border border-gray-200 p-4">
+              <h4 class="mb-4 text-sm font-medium text-gray-900">Logo</h4>
+              <div class="flex items-center space-x-4">
+                @if (logoPreview()) {
+                <div class="relative">
+                  <img
+                    [src]="logoPreview()"
+                    alt="Logo preview"
+                    class="h-20 w-20 rounded-lg object-cover"
+                  />
+                  <button
+                    type="button"
+                    (click)="removeLogo()"
+                    class="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white hover:bg-red-600"
+                  >
+                    <svg
+                      class="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                }
+                <div class="flex-1">
+                  <label
+                    for="logo"
+                    class="cursor-pointer rounded-md bg-white px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {{ logoPreview() ? "Change Logo" : "Upload Logo" }}
+                  </label>
+                  <input
+                    type="file"
+                    id="logo"
+                    accept="image/*"
+                    (change)="onLogoChange($event)"
+                    class="sr-only"
+                  />
+                  <p class="mt-1 text-xs text-gray-500">PNG, JPG up to 2MB</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Address -->
+            <div class="rounded-lg border border-gray-200 p-4">
+              <h4 class="mb-4 text-sm font-medium text-gray-900">Address</h4>
+              <div class="grid grid-cols-1 gap-4">
+                <div>
+                  <label
+                    for="address"
+                    class="block text-sm font-medium text-gray-700"
+                    >Street Address</label
+                  >
+                  <input
+                    type="text"
+                    id="address"
+                    formControlName="address"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div>
+                    <label
+                      for="city"
+                      class="block text-sm font-medium text-gray-700"
+                      >City</label
+                    >
+                    <input
+                      type="text"
+                      id="city"
+                      formControlName="city"
+                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      for="postcode"
+                      class="block text-sm font-medium text-gray-700"
+                      >Postcode</label
+                    >
+                    <input
+                      type="text"
+                      id="postcode"
+                      formControlName="postcode"
+                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      for="country"
+                      class="block text-sm font-medium text-gray-700"
+                      >Country</label
+                    >
+                    <input
+                      type="text"
+                      id="country"
+                      formControlName="country"
+                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="rounded-lg border border-gray-200 p-4">
+              <h4 class="mb-4 text-sm font-medium text-gray-900">
+                Contact Information
+              </h4>
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
+                  <label
+                    for="phone"
+                    class="block text-sm font-medium text-gray-700"
+                    >Phone</label
+                  >
+                  <input
+                    type="tel"
+                    id="phone"
+                    formControlName="phone"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label
+                    for="email"
+                    class="block text-sm font-medium text-gray-700"
+                    >Email</label
+                  >
+                  <input
+                    type="email"
+                    id="email"
+                    formControlName="email"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    [class.border-red-300]="
+                      form.get('email')?.invalid && form.get('email')?.touched
+                    "
+                  />
+                </div>
+                <div>
+                  <label
+                    for="website"
+                    class="block text-sm font-medium text-gray-700"
+                    >Website</label
+                  >
+                  <input
+                    type="url"
+                    id="website"
+                    formControlName="website"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Legal Information -->
+            <div class="rounded-lg border border-gray-200 p-4">
+              <h4 class="mb-4 text-sm font-medium text-gray-900">
+                Legal Information
+              </h4>
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label
+                    for="vatNumber"
+                    class="block text-sm font-medium text-gray-700"
+                    >VAT Number</label
+                  >
+                  <input
+                    type="text"
+                    id="vatNumber"
+                    formControlName="vatNumber"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label
+                    for="companyRegNumber"
+                    class="block text-sm font-medium text-gray-700"
+                    >Company Registration Number</label
+                  >
+                  <input
+                    type="text"
+                    id="companyRegNumber"
+                    formControlName="companyRegNumber"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label
+                    for="taxId"
+                    class="block text-sm font-medium text-gray-700"
+                    >Tax ID</label
+                  >
+                  <input
+                    type="text"
+                    id="taxId"
+                    formControlName="taxId"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label
+                    for="registrationNumber"
+                    class="block text-sm font-medium text-gray-700"
+                    >Registration Number</label
+                  >
+                  <input
+                    type="text"
+                    id="registrationNumber"
+                    formControlName="registrationNumber"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Banking Information -->
+            <div class="rounded-lg border border-gray-200 p-4">
+              <h4 class="mb-4 text-sm font-medium text-gray-900">
+                Banking Information
+              </h4>
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label
+                    for="bankName"
+                    class="block text-sm font-medium text-gray-700"
+                    >Bank Name</label
+                  >
+                  <input
+                    type="text"
+                    id="bankName"
+                    formControlName="bankName"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label
+                    for="bankAccountNumber"
+                    class="block text-sm font-medium text-gray-700"
+                    >Account Number</label
+                  >
+                  <input
+                    type="text"
+                    id="bankAccountNumber"
+                    formControlName="bankAccountNumber"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label
+                    for="bankSortCode"
+                    class="block text-sm font-medium text-gray-700"
+                    >Sort Code</label
+                  >
+                  <input
+                    type="text"
+                    id="bankSortCode"
+                    formControlName="bankSortCode"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label
+                    for="iban"
+                    class="block text-sm font-medium text-gray-700"
+                    >IBAN</label
+                  >
+                  <input
+                    type="text"
+                    id="iban"
+                    formControlName="iban"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label
+                    for="swiftCode"
+                    class="block text-sm font-medium text-gray-700"
+                    >SWIFT Code</label
+                  >
+                  <input
+                    type="text"
+                    id="swiftCode"
+                    formControlName="swiftCode"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Invoice Settings -->
+            <div class="rounded-lg border border-gray-200 p-4">
+              <h4 class="mb-4 text-sm font-medium text-gray-900">
+                Invoice Settings
+              </h4>
+              <div class="grid grid-cols-1 gap-4">
+                <div>
+                  <label
+                    for="invoicePrefix"
+                    class="block text-sm font-medium text-gray-700"
+                    >Invoice Prefix</label
+                  >
+                  <input
+                    type="text"
+                    id="invoicePrefix"
+                    formControlName="invoicePrefix"
+                    placeholder="INV"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                  <p class="mt-1 text-xs text-gray-500">
+                    Prefix for invoice numbers (e.g., INV-2025-40-1589)
+                  </p>
+                </div>
+                <div>
+                  <label
+                    for="termsAndConditions"
+                    class="block text-sm font-medium text-gray-700"
+                    >Terms and Conditions</label
+                  >
+                  <textarea
+                    id="termsAndConditions"
+                    formControlName="termsAndConditions"
+                    rows="3"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  ></textarea>
+                </div>
+                <div>
+                  <label
+                    for="invoiceFooter"
+                    class="block text-sm font-medium text-gray-700"
+                    >Invoice Footer</label
+                  >
+                  <textarea
+                    id="invoiceFooter"
+                    formControlName="invoiceFooter"
+                    rows="2"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  ></textarea>
+                </div>
+                <div>
+                  <label
+                    for="footerText"
+                    class="block text-sm font-medium text-gray-700"
+                    >General Footer Text</label
+                  >
+                  <textarea
+                    id="footerText"
+                    formControlName="footerText"
+                    rows="2"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  ></textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Depots -->
+            <div class="rounded-lg border border-gray-200 p-4">
+              <div class="mb-4 flex items-center justify-between">
+                <h4 class="text-sm font-medium text-gray-900">Depots</h4>
+                <button
+                  type="button"
+                  (click)="addDepot()"
+                  class="rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                >
+                  Add Depot
+                </button>
+              </div>
+              <div formArrayName="depots" class="space-y-3">
+                @for (depot of depots.controls; track $index; let i = $index) {
+                <div
+                  [formGroupName]="i"
+                  class="flex items-start space-x-3 rounded-md border border-gray-200 p-3"
+                >
+                  <div class="flex-1 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label
+                        [for]="'depot-name-' + i"
+                        class="block text-xs font-medium text-gray-700"
+                        >Depot Name *</label
+                      >
+                      <input
+                        type="text"
+                        [id]="'depot-name-' + i"
+                        formControlName="name"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        [for]="'depot-address-' + i"
+                        class="block text-xs font-medium text-gray-700"
+                        >Address *</label
+                      >
+                      <input
+                        type="text"
+                        [id]="'depot-address-' + i"
+                        formControlName="address"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    (click)="removeDepot(i)"
+                    class="mt-6 rounded-md p-1 text-red-600 hover:bg-red-50"
+                  >
+                    <svg
+                      class="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                } @if (depots.length === 0) {
+                <p class="text-sm text-gray-500">No depots added yet.</p>
+                }
+              </div>
+            </div>
+
+            <!-- Status -->
+            @if (organization) {
+            <div class="rounded-lg border border-gray-200 p-4">
+              <h4 class="mb-4 text-sm font-medium text-gray-900">Status</h4>
+              <div class="flex items-center">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  formControlName="isActive"
+                  class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label for="isActive" class="ml-2 block text-sm text-gray-900">
+                  Organization is active
+                </label>
+              </div>
+            </div>
+            }
+          </div>
+        </div>
+
+        <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+          <button
+            type="submit"
+            [disabled]="submitting()"
+            class="inline-flex w-full justify-center rounded-md bg-blue-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 sm:ml-3 sm:w-auto sm:text-sm"
+          >
+            @if (submitting()) {
+            <svg
+              class="-ml-1 mr-2 h-5 w-5 animate-spin text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            Saving... } @else {
+            {{ organization ? "Update" : "Create" }}
+            }
+          </button>
+          <button
+            type="button"
+            (click)="onCancel()"
+            [disabled]="submitting()"
+            class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 sm:ml-3 sm:mt-0 sm:w-auto sm:text-sm"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

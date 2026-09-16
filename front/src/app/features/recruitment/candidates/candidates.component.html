@@ -1,0 +1,722 @@
+<div class="container mx-auto px-4 py-6">
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Candidate Management</h1>
+    <button
+      (click)="openAddModal()"
+      class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+    >
+      Add New Candidate
+    </button>
+  </div>
+
+  <!-- Search and Filter Section -->
+  <div class="bg-white rounded-lg shadow p-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- Search -->
+      <div>
+        <label for="search" class="block text-sm font-medium text-gray-700 mb-1"
+          >Search</label
+        >
+        <div class="relative">
+          <input
+            type="text"
+            id="search"
+            [(ngModel)]="searchTerm"
+            (keyup.enter)="applyFilters()"
+            class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Search by name or phone"
+          />
+          <div
+            class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none"
+          >
+            <svg
+              class="h-5 w-5 text-gray-400"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Filter -->
+      <div>
+        <label for="status" class="block text-sm font-medium text-gray-700 mb-1"
+          >Status</label
+        >
+        <select
+          id="status"
+          [(ngModel)]="selectedStatus"
+          (change)="applyFilters()"
+          class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option [value]="''">All Statuses</option>
+          @for (status of statusOptions; track status) {
+          <option [value]="status">
+            {{ statusLabels[status].label || status }}
+          </option>
+          }
+        </select>
+      </div>
+
+      <!-- Page Size -->
+      <div>
+        <label
+          for="pageSize"
+          class="block text-sm font-medium text-gray-700 mb-1"
+          >Items per page</label
+        >
+        <select
+          id="pageSize"
+          [(ngModel)]="pageSize"
+          (change)="applyFilters()"
+          class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option [value]="5">5</option>
+          <option [value]="10">10</option>
+          <option [value]="25">25</option>
+          <option [value]="50">50</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Candidates Table -->
+  <div class="bg-white rounded-lg shadow overflow-hidden">
+    @if (loading()) {
+    <div class="flex justify-center items-center p-8">
+      <svg
+        class="animate-spin h-8 w-8 text-blue-500"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          class="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          stroke-width="4"
+        ></circle>
+        <path
+          class="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+        ></path>
+      </svg>
+    </div>
+    } @if (!loading() && candidates().length > 0) {
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th
+            scope="col"
+            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+          >
+            Name
+          </th>
+          <th
+            scope="col"
+            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+          >
+            Phone
+          </th>
+          <th
+            scope="col"
+            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+          >
+            Status
+          </th>
+          <th
+            scope="col"
+            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+          >
+            Created
+          </th>
+          <th
+            scope="col"
+            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+          >
+            Actions
+          </th>
+          <th
+            scope="col"
+            class="center px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+          >
+            Edit
+          </th>
+        </tr>
+      </thead>
+      <tbody class="bg-white divide-y divide-gray-200">
+        @for (candidate of candidates(); track candidate.id) {
+        <tr
+          class="hover:bg-gray-50 cursor-pointer"
+          (click)="openProfileOverlay(candidate)"
+        >
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm font-medium text-gray-900">
+              {{ candidate.name }}
+            </div>
+            @if (candidate.email) {
+            <div class="text-sm text-gray-500">
+              {{ candidate.email }}
+            </div>
+            }
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            {{ candidate.phoneNumber }}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span
+              class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+              [class]="
+                statusLabels[candidate.status].color ||
+                'bg-gray-100 text-gray-800'
+              "
+            >
+              {{ statusLabels[candidate.status].label || candidate.status }}
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            {{ formatDate(candidate.createdAt) }}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            @if (candidate.status === 'LEAD') {
+            <button
+              (click)="openSendSmsModal(candidate); $event.stopPropagation()"
+              class="text-indigo-600 hover:text-indigo-900"
+            >
+              Send WhatsApp
+            </button>
+            } @else {
+            <span class="text-gray-400">WhatsApp Sent</span>
+            }
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <div class="flex space-x-2">
+              <button
+                (click)="
+                  openCandidateModal(candidate); $event.stopPropagation()
+                "
+                class="text-blue-600 hover:text-blue-900"
+                title="Quick View"
+              >
+                <svg
+                  class="h-5 w-5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                  <path
+                    fill-rule="evenodd"
+                    d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                (click)="
+                  viewCandidateDetails(candidate); $event.stopPropagation()
+                "
+                class="text-green-600 hover:text-green-900"
+                title="View Details"
+              >
+                <svg
+                  class="h-5 w-5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
+          </td>
+        </tr>
+        }
+      </tbody>
+    </table>
+    } @if (!loading() && candidates().length === 0) {
+    <div class="p-8 text-center">
+      <p class="text-gray-500">
+        No candidates found. Add some candidates to get started.
+      </p>
+    </div>
+    }
+
+    <!-- Pagination Controls -->
+    @if (!loading() && pagination()) {
+    <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+      <div class="flex items-center justify-between">
+        <div class="text-sm text-gray-700">
+          Showing
+          <span class="font-medium">{{
+            pagination()!.page * pagination()!.pageSize + 1
+          }}</span>
+          to
+          <span class="font-medium">{{
+            Math.min(
+              (pagination()!.page + 1) * pagination()!.pageSize,
+              pagination()!.total
+            )
+          }}</span>
+          of
+          <span class="font-medium">{{ pagination()!.total }}</span> candidates
+        </div>
+        <div class="flex space-x-2">
+          <button
+            (click)="goToPage(pagination()!.page - 1)"
+            [disabled]="pagination()!.page === 0"
+            class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Previous
+          </button>
+
+          @for (page of getPaginationArray(); track page) {
+          <button
+            (click)="goToPage(page)"
+            class="px-3 py-1 border rounded-md text-sm font-medium"
+            [class.border-indigo-500]="page === pagination()!.page"
+            [class.text-white]="page === pagination()!.page"
+            [class.bg-indigo-500]="page === pagination()!.page"
+            [class.border-gray-300]="page !== pagination()!.page"
+            [class.text-gray-700]="page !== pagination()!.page"
+            [class.bg-white]="page !== pagination()!.page"
+            [class.hover:bg-gray-50]="page !== pagination()!.page"
+          >
+            {{ page + 1 }}
+          </button>
+          }
+
+          <button
+            (click)="goToPage(pagination()!.page + 1)"
+            [disabled]="pagination()!.page >= pagination()!.pageCount - 1"
+            class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    </div>
+    }
+  </div>
+
+  <!-- Add Candidate Modal -->
+  @if (showAddModal()) {
+  <div class="fixed inset-0 bg-black/62 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-medium text-gray-900">Add New Candidate</h3>
+        <button
+          (click)="closeAddModal()"
+          class="text-gray-400 hover:text-gray-500"
+        >
+          <svg
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
+
+      @if (error()) {
+      <div class="mb-4 text-red-500 text-sm">
+        {{ error() }}
+      </div>
+      }
+
+      <form [formGroup]="candidateForm" (ngSubmit)="submitCandidate()">
+        <div class="mb-4">
+          <label
+            for="candidate-name-add"
+            class="block text-sm font-medium text-gray-700 mb-2"
+          >
+            Name
+          </label>
+          <input
+            id="candidate-name-add"
+            type="text"
+            formControlName="name"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter candidate name"
+          />
+          @if (candidateForm.get('name')?.invalid &&
+          candidateForm.get('name')?.touched) {
+          <p class="mt-1 text-sm text-red-600">Name is required</p>
+          }
+        </div>
+
+        <div class="mb-4">
+          <label
+            for="candidate-phone-add"
+            class="block text-sm font-medium text-gray-700 mb-2"
+          >
+            Phone Number
+          </label>
+          <input
+            id="candidate-phone-add"
+            type="tel"
+            formControlName="phoneNumber"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter phone number"
+          />
+          @if (candidateForm.get('phoneNumber')?.invalid &&
+          candidateForm.get('phoneNumber')?.touched) {
+          <div class="mt-1 text-sm text-red-600">
+            @if (candidateForm.get('phoneNumber')?.errors?.['required']) {
+            <span>Phone number is required</span>
+            } @if (candidateForm.get('phoneNumber')?.errors?.['pattern']) {
+            <span>Please enter a valid phone number</span>
+            }
+          </div>
+          }
+        </div>
+
+        <div class="flex justify-end space-x-2">
+          <button
+            type="button"
+            (click)="closeAddModal()"
+            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            [disabled]="candidateForm.invalid"
+            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+          >
+            Add Candidate
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  }
+
+  <!-- Send SMS Modal -->
+  @if (showSendSmsModal()) {
+  <div class="fixed inset-0 bg-black/62 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-medium text-gray-900">Send WhatsApp Message</h3>
+        <button
+          (click)="closeSendSmsModal()"
+          class="text-gray-400 hover:text-gray-500"
+        >
+          <svg
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
+
+      @if (error()) {
+      <div class="mb-4 text-red-500 text-sm">
+        {{ error() }}
+      </div>
+      }
+
+      <div class="mb-4">
+        <p class="text-sm text-gray-600">
+          Send a WhatsApp message to:
+          <strong>{{ selectedCandidate()?.name }}</strong>
+        </p>
+        <p class="text-sm text-gray-500">
+          Phone: {{ selectedCandidate()?.phoneNumber }}
+        </p>
+      </div>
+
+      <div class="flex justify-end space-x-2">
+        <button
+          type="button"
+          (click)="closeSendSmsModal()"
+          class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+        >
+          Cancel
+        </button>
+        <button
+          (click)="sendSms()"
+          [disabled]="sendingSms()"
+          class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center"
+        >
+          @if (sendingSms()) {
+          <svg
+            class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            ></circle>
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
+          Sending... } @else { Send WhatsApp }
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- Profile Overlay -->
+  @if (showProfileOverlay()) {
+  <div
+    class="fixed inset-0 bg-black/50 z-50 transition-opacity duration-300"
+    [class.opacity-0]="!overlayVisible()"
+    [class.opacity-100]="overlayVisible()"
+  >
+    <div class="flex items-center justify-center min-h-screen p-4">
+      <div
+        class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300"
+        [class.scale-95]="!overlayVisible()"
+        [class.scale-100]="overlayVisible()"
+      >
+        <!-- Profile content -->
+        <div class="p-6">
+          <div class="flex justify-between items-start mb-6">
+            <div class="flex items-center space-x-4">
+              <div
+                class="h-16 w-16 rounded-full bg-blue-500 flex items-center justify-center"
+              >
+                <span class="text-xl font-bold text-white">
+                  {{ getInitials(selectedCandidateForProfile()?.name || "") }}
+                </span>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-gray-900">
+                  {{ selectedCandidateForProfile()?.name }}
+                </h2>
+                <p class="text-gray-600">
+                  {{ selectedCandidateForProfile()?.phoneNumber }}
+                </p>
+                @if (selectedCandidateForProfile()?.status === 'LEAD') {
+                <button
+                  (click)="openSendSmsModal(selectedCandidateForProfile()!)"
+                  class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm"
+                >
+                  Send WhatsApp Message
+                </button>
+                }
+              </div>
+            </div>
+            <button
+              (click)="closeProfileOverlay()"
+              class="text-gray-400 hover:text-gray-600"
+            >
+              <svg
+                class="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Personal Information -->
+            <div>
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                Personal Information
+              </h3>
+              <div class="space-y-3">
+                <div>
+                  <h5 class="text-sm font-medium text-gray-500">Status</h5>
+                  <p class="mt-1">
+                    <span
+                      class="px-2 py-1 text-xs font-semibold rounded-full"
+                      [class]="
+                        statusLabels[
+                          selectedCandidateForProfile()?.status || ''
+                        ].color || 'bg-gray-100 text-gray-800'
+                      "
+                    >
+                      {{
+                        statusLabels[
+                          selectedCandidateForProfile()?.status || ""
+                        ].label || selectedCandidateForProfile()?.status
+                      }}
+                    </span>
+                  </p>
+                </div>
+
+                <div>
+                  <h5 class="text-sm font-medium text-gray-500">
+                    Phone Number
+                  </h5>
+                  <p class="mt-1 text-sm text-gray-900">
+                    {{ selectedCandidateForProfile()?.phoneNumber }}
+                  </p>
+                </div>
+
+                @if (selectedCandidateForProfile()?.email) {
+                <div>
+                  <h5 class="text-sm font-medium text-gray-500">Email</h5>
+                  <p class="mt-1 text-sm text-gray-900">
+                    {{ selectedCandidateForProfile()?.email }}
+                  </p>
+                </div>
+                } @if (selectedCandidateForProfile()?.address) {
+                <div>
+                  <h5 class="text-sm font-medium text-gray-500">Address</h5>
+                  <p class="mt-1 text-sm text-gray-900">
+                    {{ selectedCandidateForProfile()?.address }}
+                  </p>
+                </div>
+                }
+
+                <div>
+                  <h5 class="text-sm font-medium text-gray-500">Created</h5>
+                  <p class="mt-1 text-sm text-gray-900">
+                    {{
+                      formatDate(selectedCandidateForProfile()?.createdAt || "")
+                    }}
+                  </p>
+                </div>
+
+                <div>
+                  <h5 class="text-sm font-medium text-gray-500">
+                    Last Updated
+                  </h5>
+                  <p class="mt-1 text-sm text-gray-900">
+                    {{
+                      formatDate(selectedCandidateForProfile()?.updatedAt || "")
+                    }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Documents and Additional Information -->
+            <div>
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                Documents & Information
+              </h3>
+              <div class="space-y-3">
+                <div>
+                  <h5 class="text-sm font-medium text-gray-500">
+                    Documents Count
+                  </h5>
+                  <p class="mt-1 text-sm text-gray-900">
+                    {{ selectedCandidateForProfile()?.documentsCount || 0 }}
+                    documents uploaded
+                  </p>
+                </div>
+
+                @if (selectedCandidateForProfile()?.insuranceNumber) {
+                <div>
+                  <h5 class="text-sm font-medium text-gray-500">
+                    Insurance Number
+                  </h5>
+                  <p class="mt-1 text-sm text-gray-900">
+                    {{ selectedCandidateForProfile()?.insuranceNumber }}
+                  </p>
+                </div>
+                } @if (selectedCandidateForProfile()?.driverLicense) {
+                <div>
+                  <h5 class="text-sm font-medium text-gray-500">
+                    Driver License
+                  </h5>
+                  <p class="mt-1 text-sm text-gray-900">
+                    {{ selectedCandidateForProfile()?.driverLicense }}
+                  </p>
+                </div>
+                }
+              </div>
+
+              <div class="mt-6">
+                <h4 class="text-md font-semibold text-gray-900 mb-3">
+                  Actions
+                </h4>
+                <div class="space-y-2">
+                  <button
+                    (click)="
+                      openCandidateModal(selectedCandidateForProfile()!);
+                      closeProfileOverlay()
+                    "
+                    class="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm"
+                  >
+                    Edit Candidate
+                  </button>
+                  <button
+                    (click)="closeProfileOverlay()"
+                    class="w-full bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 text-sm"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              @if (selectedCandidateForProfile()?.notes) {
+              <div class="mt-8">
+                <h5 class="text-sm font-medium text-gray-500">Notes</h5>
+                <div class="mt-1 p-3 bg-gray-50 rounded-md">
+                  <p class="text-sm text-gray-900">
+                    {{ selectedCandidateForProfile()?.notes }}
+                  </p>
+                </div>
+              </div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- Candidate Modal Component -->
+  <app-candidate-modal
+    [show]="showCandidateModal()"
+    [candidate]="selectedCandidateForModal()"
+    (closeModal)="closeCandidateModal()"
+    (saved)="onCandidateSaved($event)"
+    (deleted)="onCandidateDeleted($event)"
+  ></app-candidate-modal>
+</div>

@@ -1,0 +1,70 @@
+<!-- src/app/features/recruitment/recruitment.component.html -->
+<div class="container mx-auto px-4 py-6">
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Recruitment Management</h1>
+    <a
+      routerLink="/candidates"
+      class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+    >
+      View Candidates
+    </a>
+  </div>
+
+  <div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-xl font-semibold mb-4">Recruitment Process</h2>
+    <p class="text-gray-600 mb-6">
+      Follow these steps to recruit and onboard new drivers on DSPHub.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      @for (step of recruitmentSteps; track step.title) {
+      <div class="border rounded-lg p-4 hover:shadow-md transition-shadow">
+        <div class="flex items-start">
+          <div class="bg-primary-100 p-3 rounded-full mr-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-6 w-6 text-blue-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                [attr.d]="step.icon"
+              />
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-medium text-gray-900">{{ step.title }}</h3>
+            <p class="text-sm text-gray-500 mt-1">{{ step.description }}</p>
+          </div>
+        </div>
+      </div>
+      }
+    </div>
+
+    <div class="mt-8 border-t pt-6">
+      <h3 class="font-semibold text-lg mb-4">Recruitment Statistics</h3>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+          <p class="text-sm font-medium text-blue-800">New Leads</p>
+          <p class="text-2xl font-bold text-blue-600">12</p>
+        </div>
+        <div class="bg-green-50 p-4 rounded-lg border border-green-100">
+          <p class="text-sm font-medium text-green-800">Form Completed</p>
+          <p class="text-2xl font-bold text-green-600">8</p>
+        </div>
+        <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-100">
+          <p class="text-sm font-medium text-yellow-800">In Process</p>
+          <p class="text-2xl font-bold text-yellow-600">5</p>
+        </div>
+        <div class="bg-purple-50 p-4 rounded-lg border border-purple-100">
+          <p class="text-sm font-medium text-purple-800">Completed</p>
+          <p class="text-2xl font-bold text-purple-600">3</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

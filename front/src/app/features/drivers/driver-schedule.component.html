@@ -1,0 +1,989 @@
+<div class="min-h-screen bg-gray-50">
+  <!-- Header -->
+  <div class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
+    <div class="px-6 py-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900">Driver Availability</h1>
+          <p class="text-gray-600 mt-1">
+            Manage daily work availability for all drivers
+          </p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button
+            (click)="exportSchedule()"
+            class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <svg
+              class="w-4 h-4 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              ></path>
+            </svg>
+            Export
+          </button>
+          <button
+            (click)="saveAllChanges()"
+            [disabled]="!hasUnsavedChanges() || isSaving()"
+            class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            @if (isSaving()) {
+            <app-loading
+              size="sm"
+              color="white"
+              [center]="false"
+              [showSpinner]="true"
+              message=""
+            />
+            <span class="ml-2">Saving...</span>
+            } @else {
+            <svg
+              class="w-4 h-4 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 13l4 4L19 7"
+              ></path>
+            </svg>
+            Save Changes @if (hasUnsavedChanges()) {
+            <span
+              class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-white bg-opacity-20"
+            >
+              {{ pendingChanges().length }}
+            </span>
+            } }
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="p-6">
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      @for (stat of stats(); track stat.title) {
+      <div
+        class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-600">
+              {{ stat.title }}
+            </p>
+            <p class="text-2xl font-bold text-gray-900 mt-1">
+              {{ stat.value }}
+            </p>
+            <p class="text-xs text-gray-500 mt-1">{{ stat.change }}</p>
+          </div>
+          <div [class]="'p-3 rounded-full ' + stat.bgColor">
+            <svg
+              [class]="'w-5 h-5 ' + stat.color"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              @switch (stat.icon) { @case ('calendar') {
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              ></path>
+              } @case ('users') {
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m3 4.197a4 4 0 11-8 0 4 4 0 018 0z"
+              ></path>
+              } @case ('clock') {
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              ></path>
+              } @case ('trending-up') {
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+              ></path>
+              } }
+            </svg>
+          </div>
+        </div>
+      </div>
+      }
+    </div>
+
+    <!-- Week Navigation and Filters -->
+    <div class="bg-white rounded-lg shadow mb-6">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-4">
+            <button
+              (click)="previousWeek()"
+              class="p-2 hover:bg-gray-100 rounded-md week-nav-button"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 19l-7-7 7-7"
+                ></path>
+              </svg>
+            </button>
+            <div class="text-lg font-semibold text-gray-900">
+              {{ formatWeekRange() }}
+            </div>
+            <button
+              (click)="nextWeek()"
+              class="p-2 hover:bg-gray-100 rounded-md week-nav-button"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5l7 7-7 7"
+                ></path>
+              </svg>
+            </button>
+            <button
+              (click)="goToCurrentWeek()"
+              class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Today
+            </button>
+
+            <!-- Search Bar -->
+            <div class="relative">
+              <div
+                class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
+              >
+                <svg
+                  class="h-4 w-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  ></path>
+                </svg>
+              </div>
+              <input
+                type="text"
+                [value]="searchQuery()"
+                (input)="updateSearchQuery($event)"
+                placeholder="Search drivers..."
+                class="block w-64 pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              />
+              @if (searchQuery()) {
+              <button
+                (click)="clearSearch()"
+                class="absolute inset-y-0 right-0 pr-3 flex items-center"
+              >
+                <svg
+                  class="h-4 w-4 text-gray-400 hover:text-gray-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  ></path>
+                </svg>
+              </button>
+              }
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <select
+              [value]="filters().status"
+              (change)="updateStatusFilter($event)"
+              class="block border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            >
+              @for (option of scheduleStatusOptions; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+            <select
+              [value]="filters().depot"
+              (change)="updateDepotFilter($event)"
+              class="block border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            >
+              <option value="all">All Depots</option>
+              <option value="north">North Depot</option>
+              <option value="south">South Depot</option>
+              <option value="central">Central Depot</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    @if (isLoading()) {
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+      <div class="p-12">
+        <app-loading
+          size="lg"
+          message="Loading driver schedules..."
+          color="blue"
+          [center]="true"
+        />
+      </div>
+    </div>
+    } @else {
+    <!-- Availability Grid -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+      <div class="flex">
+        <!-- Fixed Driver Column -->
+        <div class="w-80 flex-shrink-0 border-r border-gray-200">
+          <!-- Driver Column Header -->
+          <div
+            class="px-6 py-4 bg-gray-50 border-b border-gray-200 h-20 flex items-center"
+          >
+            <h3 class="text-sm font-semibold text-gray-900">
+              Drivers ({{ filteredDrivers().length }})
+            </h3>
+          </div>
+          <!-- Driver List -->
+          <div>
+            @for (driver of filteredDrivers(); track driver.id) {
+            <div
+              class="px-4 hover:bg-gray-50 transition-colors min-h-24 py-3 border-b border-gray-200"
+            >
+              <div class="flex items-start gap-3">
+                <div
+                  [class]="
+                    'w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm driver-avatar flex-shrink-0 ' +
+                    getDriverAvatarColor(driver.id)
+                  "
+                >
+                  {{ getInitials(driver.name) }}
+                </div>
+                <div class="w-48 flex-shrink-0">
+                  <div
+                    class="text-sm font-medium text-gray-900 break-normal leading-tight"
+                    [title]="driver.name"
+                  >
+                    {{ driver.name }}
+                  </div>
+                  <p class="text-xs text-gray-500 uppercase tracking-wide mt-1">
+                    {{ driver.status }}
+                  </p>
+                </div>
+              </div>
+            </div>
+            }
+          </div>
+        </div>
+
+        <!-- Scrollable Weeks Section -->
+        <div class="flex-1 overflow-x-auto">
+          <!-- Weeks Header -->
+          <div class="flex bg-gray-50 border-b border-gray-200 min-w-max h-20">
+            <!-- Week 1 (Current Week) -->
+            <div class="flex border-r-2 border-blue-300 bg-blue-50 h-full">
+              @for (day of currentWeek().days; track day.date) {
+              <div
+                class="min-w-36 px-4 text-center border-r border-gray-200 last:border-r-0 flex flex-col justify-center h-full"
+              >
+                <div
+                  class="text-xs font-medium text-blue-600 uppercase tracking-wide font-semibold"
+                >
+                  {{ day.dayName }}
+                </div>
+                <div
+                  [class]="
+                    'text-lg font-bold mt-1 ' +
+                    (day.isToday ? 'text-blue-600' : 'text-gray-900')
+                  "
+                >
+                  {{ day.dayNumber }}
+                </div>
+              </div>
+              }
+            </div>
+            <!-- Week 2 (Next Week) -->
+            <div class="flex border-r-2 border-green-300 bg-green-50 h-full">
+              @for (day of currentWeek().days; track day.date + '-week2'; let i
+              = $index) {
+              <div
+                class="min-w-36 px-4 text-center border-r border-gray-200 last:border-r-0 flex flex-col justify-center h-full"
+              >
+                <div
+                  class="text-xs font-medium text-green-600 uppercase tracking-wide font-semibold"
+                >
+                  {{ day.dayName }}
+                </div>
+                <div class="text-lg font-bold mt-1 text-gray-900">
+                  {{ getNextWeekDayNumber(day.date, 7) }}
+                </div>
+              </div>
+              }
+            </div>
+            <!-- Week 3 (Week After) -->
+            <div class="flex bg-purple-50 h-full">
+              @for (day of currentWeek().days; track day.date + '-week3'; let i
+              = $index) {
+              <div
+                class="min-w-36 px-4 text-center border-r border-gray-200 last:border-r-0 flex flex-col justify-center h-full"
+              >
+                <div
+                  class="text-xs font-medium text-purple-600 uppercase tracking-wide font-semibold"
+                >
+                  {{ day.dayName }}
+                </div>
+                <div class="text-lg font-bold mt-1 text-gray-900">
+                  {{ getNextWeekDayNumber(day.date, 14) }}
+                </div>
+              </div>
+              }
+            </div>
+          </div>
+
+          <!-- Availability Rows -->
+          <div class="min-w-max">
+            @for (driver of filteredDrivers(); track driver.id) {
+            <div
+              class="flex hover:bg-gray-50 transition-colors min-h-24 py-3 border-b border-gray-200"
+            >
+              <!-- Week 1 (Current Week) -->
+              <div class="flex border-r-2 border-blue-300 bg-blue-50/30 h-full">
+                @for (day of currentWeek().days; track day.date) {
+                <div
+                  class="min-w-36 px-4 border-r border-gray-100 last:border-r-0 flex items-center justify-center h-full"
+                >
+                  @if (getScheduleForDriverAndDate(driver.id, day.date); as
+                  schedule) {
+                  <button
+                    (click)="editSchedule(driver.id, day.date, schedule)"
+                    [class]="
+                      'w-full px-3 py-2 rounded-md text-xs font-medium cursor-pointer transition-all hover:shadow-sm schedule-button ' +
+                      getScheduleStatusClass(schedule.status)
+                    "
+                  >
+                    {{ getScheduleDisplayText(schedule) }}
+                  </button>
+                  } @else {
+                  <div class="relative">
+                    <button
+                      (click)="toggleDropdown(driver.id, day.date)"
+                      [attr.data-dropdown-id]="driver.id + '-' + day.date"
+                      class="w-full px-3 py-2 rounded-md text-xs font-medium cursor-pointer transition-all hover:shadow-sm bg-gray-50 text-gray-600 hover:bg-blue-50 hover:text-blue-600 border border-dashed border-gray-300 hover:border-blue-400 add-schedule-btn"
+                    >
+                      + Add
+                      <svg
+                        class="ml-1 w-3 h-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M19 9l-7 7-7-7"
+                        ></path>
+                      </svg>
+                    </button>
+
+                    @if (showDropdown() === driver.id + '-' + day.date) {
+                    <div
+                      class="fixed bg-white border border-gray-200 rounded-md shadow-lg z-50 min-w-36"
+                      [style.left.px]="
+                        getDropdownPosition(driver.id + '-' + day.date).left
+                      "
+                      [style.top.px]="
+                        getDropdownPosition(driver.id + '-' + day.date).top
+                      "
+                    >
+                      <button
+                        (click)="
+                          quickAddSchedule(driver.id, day.date, 'FULL_ROUTE')
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-blue-50 hover:text-blue-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Full Route</span>
+                        <span class="text-gray-400 text-xs">F</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(driver.id, day.date, 'HOLIDAY')
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-green-50 hover:text-green-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Holiday</span>
+                        <span class="text-gray-400 text-xs">H</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(driver.id, day.date, 'RIDE_ALONG')
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-purple-50 hover:text-purple-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Ride Along</span>
+                        <span class="text-gray-400 text-xs">R</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(driver.id, day.date, 'TRAINING_DAY')
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-yellow-50 hover:text-yellow-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Training Day</span>
+                        <span class="text-gray-400 text-xs">T</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(driver.id, day.date, 'SAME_DAY')
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-indigo-50 hover:text-indigo-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Same Day</span>
+                        <span class="text-gray-400 text-xs">S</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(driver.id, day.date, 'NURSERY_ROUTE')
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-pink-50 hover:text-pink-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Nursery Route</span>
+                        <span class="text-gray-400 text-xs">N</span>
+                      </button>
+                      <button
+                        (click)="quickAddSchedule(driver.id, day.date, 'OFF')"
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 hover:text-gray-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Off</span>
+                        <span class="text-gray-400 text-xs">O</span>
+                      </button>
+                      <button
+                        (click)="addSchedule(driver.id, day.date)"
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 hover:text-gray-600 transition-colors font-medium flex justify-between items-center"
+                      >
+                        <span>Custom...</span>
+                        <span class="text-gray-400 text-xs">C</span>
+                      </button>
+                    </div>
+                    }
+                  </div>
+                  }
+                </div>
+                }
+              </div>
+              <!-- Week 2 (Next Week) -->
+              <div
+                class="flex border-r-2 border-green-300 bg-green-50/30 h-full"
+              >
+                @for (day of currentWeek().days; track day.date + '-week2') {
+                <div
+                  class="min-w-36 px-4 border-r border-gray-200 last:border-r-0 flex items-center justify-center h-full"
+                >
+                  @if (getScheduleForDriverAndDate(driver.id,
+                  getNextWeekDate(day.date, 7)); as schedule) {
+                  <button
+                    (click)="
+                      editSchedule(
+                        driver.id,
+                        getNextWeekDate(day.date, 7),
+                        schedule
+                      )
+                    "
+                    [class]="
+                      'w-full px-3 py-2 rounded-md text-xs font-medium cursor-pointer transition-all hover:shadow-sm schedule-button ' +
+                      getScheduleStatusClass(schedule.status)
+                    "
+                  >
+                    {{ getScheduleDisplayText(schedule) }}
+                  </button>
+                  } @else {
+                  <div class="relative">
+                    <button
+                      (click)="
+                        toggleDropdown(driver.id, getNextWeekDate(day.date, 7))
+                      "
+                      [attr.data-dropdown-id]="
+                        driver.id + '-' + getNextWeekDate(day.date, 7)
+                      "
+                      class="w-full px-3 py-2 rounded-md text-xs font-medium cursor-pointer transition-all hover:shadow-sm bg-gray-50 text-gray-600 hover:bg-green-50 hover:text-green-600 border border-dashed border-green-300 hover:border-green-400 add-schedule-btn"
+                    >
+                      + Add
+                      <svg
+                        class="ml-1 w-3 h-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M19 9l-7 7-7-7"
+                        ></path>
+                      </svg>
+                    </button>
+
+                    @if (showDropdown() === driver.id + '-' +
+                    getNextWeekDate(day.date, 7)) {
+                    <div
+                      class="fixed bg-white border border-gray-200 rounded-md shadow-lg z-50 min-w-36"
+                      [style.left.px]="
+                        getDropdownPosition(
+                          driver.id + '-' + getNextWeekDate(day.date, 7)
+                        ).left
+                      "
+                      [style.top.px]="
+                        getDropdownPosition(
+                          driver.id + '-' + getNextWeekDate(day.date, 7)
+                        ).top
+                      "
+                    >
+                      <button
+                        (click)="
+                          quickAddSchedule(
+                            driver.id,
+                            getNextWeekDate(day.date, 7),
+                            'FULL_ROUTE'
+                          )
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-blue-50 hover:text-blue-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Full Route</span>
+                        <span class="text-gray-400 text-xs">F</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(
+                            driver.id,
+                            getNextWeekDate(day.date, 7),
+                            'HOLIDAY'
+                          )
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-green-50 hover:text-green-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Holiday</span>
+                        <span class="text-gray-400 text-xs">H</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(
+                            driver.id,
+                            getNextWeekDate(day.date, 7),
+                            'RIDE_ALONG'
+                          )
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-purple-50 hover:text-purple-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Ride Along</span>
+                        <span class="text-gray-400 text-xs">R</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(
+                            driver.id,
+                            getNextWeekDate(day.date, 7),
+                            'TRAINING_DAY'
+                          )
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-yellow-50 hover:text-yellow-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Training Day</span>
+                        <span class="text-gray-400 text-xs">T</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(
+                            driver.id,
+                            getNextWeekDate(day.date, 7),
+                            'SAME_DAY'
+                          )
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-indigo-50 hover:text-indigo-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Same Day</span>
+                        <span class="text-gray-400 text-xs">S</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(
+                            driver.id,
+                            getNextWeekDate(day.date, 7),
+                            'NURSERY_ROUTE'
+                          )
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-pink-50 hover:text-pink-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Nursery Route</span>
+                        <span class="text-gray-400 text-xs">N</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(
+                            driver.id,
+                            getNextWeekDate(day.date, 7),
+                            'OFF'
+                          )
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 hover:text-gray-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Off</span>
+                        <span class="text-gray-400 text-xs">O</span>
+                      </button>
+                      <button
+                        (click)="
+                          addSchedule(driver.id, getNextWeekDate(day.date, 7))
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 hover:text-gray-600 transition-colors font-medium flex justify-between items-center"
+                      >
+                        <span>Custom...</span>
+                        <span class="text-gray-400 text-xs">C</span>
+                      </button>
+                    </div>
+                    }
+                  </div>
+                  }
+                </div>
+                }
+              </div>
+              <!-- Week 3 (Week After) -->
+              <div class="flex bg-purple-50/30 h-full">
+                @for (day of currentWeek().days; track day.date + '-week3') {
+                <div
+                  class="min-w-36 px-4 border-r border-gray-200 last:border-r-0 flex items-center justify-center h-full"
+                >
+                  @if (getScheduleForDriverAndDate(driver.id,
+                  getNextWeekDate(day.date, 14)); as schedule) {
+                  <button
+                    (click)="
+                      editSchedule(
+                        driver.id,
+                        getNextWeekDate(day.date, 14),
+                        schedule
+                      )
+                    "
+                    [class]="
+                      'w-full px-3 py-2 rounded-md text-xs font-medium cursor-pointer transition-all hover:shadow-sm schedule-button ' +
+                      getScheduleStatusClass(schedule.status)
+                    "
+                  >
+                    {{ getScheduleDisplayText(schedule) }}
+                  </button>
+                  } @else {
+                  <div class="relative">
+                    <button
+                      (click)="
+                        toggleDropdown(driver.id, getNextWeekDate(day.date, 14))
+                      "
+                      [attr.data-dropdown-id]="
+                        driver.id + '-' + getNextWeekDate(day.date, 14)
+                      "
+                      class="w-full px-3 py-2 rounded-md text-xs font-medium cursor-pointer transition-all hover:shadow-sm bg-gray-50 text-gray-600 hover:bg-purple-50 hover:text-purple-600 border border-dashed border-purple-300 hover:border-purple-400 add-schedule-btn"
+                    >
+                      + Add
+                      <svg
+                        class="ml-1 w-3 h-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M19 9l-7 7-7-7"
+                        ></path>
+                      </svg>
+                    </button>
+
+                    @if (showDropdown() === driver.id + '-' +
+                    getNextWeekDate(day.date, 14)) {
+                    <div
+                      class="fixed bg-white border border-gray-200 rounded-md shadow-lg z-50 min-w-36"
+                      [style.left.px]="
+                        getDropdownPosition(
+                          driver.id + '-' + getNextWeekDate(day.date, 14)
+                        ).left
+                      "
+                      [style.top.px]="
+                        getDropdownPosition(
+                          driver.id + '-' + getNextWeekDate(day.date, 14)
+                        ).top
+                      "
+                    >
+                      <button
+                        (click)="
+                          quickAddSchedule(
+                            driver.id,
+                            getNextWeekDate(day.date, 14),
+                            'FULL_ROUTE'
+                          )
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-blue-50 hover:text-blue-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Full Route</span>
+                        <span class="text-gray-400 text-xs">F</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(
+                            driver.id,
+                            getNextWeekDate(day.date, 14),
+                            'HOLIDAY'
+                          )
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-green-50 hover:text-green-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Holiday</span>
+                        <span class="text-gray-400 text-xs">H</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(
+                            driver.id,
+                            getNextWeekDate(day.date, 14),
+                            'RIDE_ALONG'
+                          )
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-purple-50 hover:text-purple-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Ride Along</span>
+                        <span class="text-gray-400 text-xs">R</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(
+                            driver.id,
+                            getNextWeekDate(day.date, 14),
+                            'TRAINING_DAY'
+                          )
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-yellow-50 hover:text-yellow-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Training Day</span>
+                        <span class="text-gray-400 text-xs">T</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(
+                            driver.id,
+                            getNextWeekDate(day.date, 14),
+                            'SAME_DAY'
+                          )
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-indigo-50 hover:text-indigo-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Same Day</span>
+                        <span class="text-gray-400 text-xs">S</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(
+                            driver.id,
+                            getNextWeekDate(day.date, 14),
+                            'NURSERY_ROUTE'
+                          )
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-pink-50 hover:text-pink-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Nursery Route</span>
+                        <span class="text-gray-400 text-xs">N</span>
+                      </button>
+                      <button
+                        (click)="
+                          quickAddSchedule(
+                            driver.id,
+                            getNextWeekDate(day.date, 14),
+                            'OFF'
+                          )
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 hover:text-gray-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+                      >
+                        <span>Off</span>
+                        <span class="text-gray-400 text-xs">O</span>
+                      </button>
+                      <button
+                        (click)="
+                          addSchedule(driver.id, getNextWeekDate(day.date, 14))
+                        "
+                        class="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 hover:text-gray-600 transition-colors font-medium flex justify-between items-center"
+                      >
+                        <span>Custom...</span>
+                        <span class="text-gray-400 text-xs">C</span>
+                      </button>
+                    </div>
+                    }
+                  </div>
+                  }
+                </div>
+                }
+              </div>
+            </div>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+    }
+  </div>
+</div>
+
+<!-- Availability Modal -->
+@if (showScheduleModal()) {
+<div
+  class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 modal-backdrop"
+>
+  <div
+    class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white modal-content"
+  >
+    <div class="mt-3">
+      <h3 class="text-lg font-medium text-gray-900 mb-4">
+        {{ modalMode() === "edit" ? "Edit" : "Add" }} Availability
+      </h3>
+      <div class="space-y-4">
+        <div>
+          <h4 class="block text-sm font-medium text-gray-700 mb-1">Driver</h4>
+          <p class="text-sm text-gray-900">
+            {{ getDriverName(selectedDriverId()) }}
+          </p>
+        </div>
+        <div>
+          <h4 class="block text-sm font-medium text-gray-700 mb-1">Date</h4>
+          <p class="text-sm text-gray-900">
+            {{ formatDate(selectedDate()) }}
+          </p>
+        </div>
+        <div>
+          <label
+            for="schedule-status"
+            class="block text-sm font-medium text-gray-700 mb-1"
+            >Status</label
+          >
+          <select
+            id="schedule-status"
+            [value]="scheduleForm().status"
+            (change)="updateScheduleForm('status', $event)"
+            class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+          >
+            <option value="FULL_DAY">Full Day (8:00 - 16:00)</option>
+            <option value="MORNING">Morning</option>
+            <option value="EVENING">Evening</option>
+            <option value="REMOTE">Remote</option>
+            <option value="VACATION">Vacation</option>
+            <option value="OFF">Off</option>
+          </select>
+        </div>
+        @if (scheduleForm().status === 'TRAINING_DAY' || scheduleForm().status
+        === 'RIDE_ALONG') {
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label
+              for="schedule-start-time"
+              class="block text-sm font-medium text-gray-700 mb-1"
+              >Start Time</label
+            >
+            <input
+              id="schedule-start-time"
+              type="time"
+              [value]="scheduleForm().startTime || ''"
+              (input)="updateScheduleForm('startTime', $event)"
+              class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            />
+          </div>
+          <div>
+            <label
+              for="schedule-end-time"
+              class="block text-sm font-medium text-gray-700 mb-1"
+              >End Time</label
+            >
+            <input
+              id="schedule-end-time"
+              type="time"
+              [value]="scheduleForm().endTime || ''"
+              (input)="updateScheduleForm('endTime', $event)"
+              class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            />
+          </div>
+        </div>
+        }
+        <div>
+          <label
+            for="schedule-notes"
+            class="block text-sm font-medium text-gray-700 mb-1"
+            >Notes (Optional)</label
+          >
+          <textarea
+            id="schedule-notes"
+            [value]="scheduleForm().notes || ''"
+            (input)="updateScheduleForm('notes', $event)"
+            rows="3"
+            class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            placeholder="Add any additional notes..."
+          ></textarea>
+        </div>
+      </div>
+      <div class="flex justify-between pt-4">
+        <div>
+          @if (modalMode() === 'edit') {
+          <button
+            (click)="deleteSchedule()"
+            class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700"
+          >
+            Delete
+          </button>
+          }
+        </div>
+        <div class="flex gap-2">
+          <button
+            (click)="closeModal()"
+            class="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-400"
+          >
+            Cancel
+          </button>
+          <button
+            (click)="saveSchedule()"
+            class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
+          >
+            {{ modalMode() === "edit" ? "Update" : "Create" }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+}

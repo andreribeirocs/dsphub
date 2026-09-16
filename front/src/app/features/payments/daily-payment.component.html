@@ -1,0 +1,796 @@
+<!-- Daily Payment Management -->
+<div class="min-h-screen bg-gray-50">
+  <!-- Header -->
+  <div class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
+    <div class="px-6 py-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900">Daily Payment</h1>
+          <p class="text-gray-600 mt-1">
+            Manage daily driver payments independently - add manually or import
+            from Amazon XLSX
+          </p>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-sm text-gray-500">
+            {{ date() | date : "EEEE, d MMMM yyyy" }}
+          </span>
+          <button
+            (click)="openImportModal()"
+            [disabled]="loading() || importing()"
+            class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:bg-gray-100"
+          >
+            <svg
+              class="w-4 h-4 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
+              ></path>
+            </svg>
+            Import XLSX
+          </button>
+          <button
+            (click)="save()"
+            [disabled]="loading() || !hasChanges()"
+            class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            @if (loading()) {
+            <svg
+              class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            <span class="ml-2">Saving...</span>
+            } @else {
+            <svg
+              class="w-4 h-4 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 13l4 4L19 7"
+              ></path>
+            </svg>
+            @if (hasChanges()) { Save Changes @if (items().length > 0) {
+            <span
+              class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-white bg-opacity-20"
+            >
+              {{ items().length }}
+            </span>
+            } } @else { No Changes } }
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="p-6">
+    <!-- Info Banner -->
+    <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+      <p class="text-sm text-blue-800">
+        <strong>Independent System:</strong> Daily Payment operates separately
+        from Driver Availability. Driver Availability is for scheduling only.
+        This system tracks actual work performed and payments. Add drivers
+        manually or import from Amazon XLSX files.
+      </p>
+    </div>
+
+    <!-- Loading State -->
+    @if (loading()) {
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+      <div class="p-12">
+        <div class="flex items-center justify-center">
+          <div
+            class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"
+          ></div>
+          <span class="ml-3 text-lg text-gray-600"
+            >Loading daily payments...</span
+          >
+        </div>
+      </div>
+    </div>
+    } @else {
+    <!-- Controls Panel -->
+    <div class="bg-white rounded-lg shadow mb-6">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900">
+              Payment Controls
+            </h2>
+            <p class="text-gray-600 text-sm mt-1">
+              Configure date, source, and add new payment entries
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
+          <!-- Date Input -->
+          <div>
+            <label
+              for="work-date"
+              class="block text-sm font-medium text-gray-700 mb-1"
+              >Work Date</label
+            >
+            <input
+              id="work-date"
+              type="date"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              [ngModel]="date()"
+              (ngModelChange)="onDateChange($event)"
+            />
+          </div>
+
+          <!-- Include Existing Toggle -->
+          <div>
+            <label
+              for="include-existing"
+              class="block text-sm font-medium text-gray-700 mb-1"
+              >Options</label
+            >
+            <div class="flex items-center mt-2">
+              <input
+                id="include-existing"
+                type="checkbox"
+                class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                [ngModel]="includeExisting()"
+                (ngModelChange)="onIncludeExistingChange($event)"
+              />
+              <span class="ml-2 text-sm text-gray-700"
+                >Include existing payments</span
+              >
+            </div>
+          </div>
+
+          <!-- Source Sheet -->
+          <div>
+            <label
+              for="source-sheet"
+              class="block text-sm font-medium text-gray-700 mb-1"
+              >Source Sheet</label
+            >
+            <input
+              id="source-sheet"
+              type="text"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              placeholder="e.g., Thu 25-07-13"
+              [ngModel]="sourceSheet()"
+              (ngModelChange)="sourceSheet.set($event)"
+            />
+          </div>
+
+          <!-- Summary -->
+          <div>
+            <div class="block text-sm font-medium text-gray-700 mb-1">
+              Summary
+            </div>
+            <div class="text-sm text-gray-600 mt-2">
+              <div>Entries: {{ totalRows() }}</div>
+              <div class="font-semibold text-gray-900">
+                Total: £{{ totalAmount() | number : "1.2-2" }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Driver Search and Add Row -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <div class="relative flex-1">
+            <label
+              for="driver-search"
+              class="block text-sm font-medium text-gray-700 mb-1"
+              >Add Driver</label
+            >
+            <div class="relative">
+              <input
+                id="driver-search"
+                type="text"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                placeholder="Search active drivers (min 2 characters)..."
+                [ngModel]="driverSearch()"
+                (ngModelChange)="refreshDriverOptions($event)"
+              />
+              @if (isSearching()) {
+              <div class="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <svg
+                  class="animate-spin h-4 w-4 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+              </div>
+              }
+            </div>
+            @if (driverOptions().length > 0 && driverSearch().length >= 2) {
+            <div
+              class="absolute z-20 bg-white border border-gray-300 rounded-lg shadow-lg w-full mt-1 max-h-48 overflow-auto"
+            >
+              @for (driver of driverOptions(); track driver.id) {
+              <button
+                type="button"
+                class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b border-gray-100 last:border-b-0 focus:outline-none focus:bg-blue-50"
+                (click)="selectDriverForNewRow(driver)"
+              >
+                <div class="font-medium text-gray-900">{{ driver.name }}</div>
+                <div class="text-xs text-gray-500">
+                  {{ driver.transporterId || "No ID" }} • {{ driver.email }}
+                </div>
+                <div class="text-xs text-green-600 font-medium">
+                  {{ driver.status }}
+                </div>
+              </button>
+              }
+            </div>
+            } @else if (!isSearching() && driverSearch().length >= 2 &&
+            driverOptions().length === 0) {
+            <div
+              class="absolute z-20 bg-white border border-gray-300 rounded-lg shadow-lg w-full mt-1 p-3 text-sm text-gray-500 text-center"
+            >
+              No drivers found matching "{{ driverSearch() }}"
+            </div>
+            }
+          </div>
+          <div class="sm:mt-6">
+            <button
+              type="button"
+              (click)="addEmptyRow()"
+              class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+            >
+              <svg
+                class="w-4 h-4 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                ></path>
+              </svg>
+              Add Empty Row
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Payment Data Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900">Payment Entries</h2>
+            <p class="text-gray-600 text-sm mt-1">
+              Review and adjust daily payment calculations
+            </p>
+          </div>
+          @if (items().length > 0) {
+          <div class="text-sm text-gray-500">
+            {{ items().length }} entries for {{ date() | date : "d/M/yyyy" }}
+          </div>
+          }
+        </div>
+      </div>
+
+      @if (items().length === 0) {
+      <!-- Empty State -->
+      <div class="p-12 text-center">
+        <svg
+          class="mx-auto h-12 w-12 text-gray-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          ></path>
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">
+          No payment entries
+        </h3>
+        <p class="mt-1 text-sm text-gray-500">
+          No drivers are available for the selected date, or change the date to
+          view different entries.
+        </p>
+      </div>
+      } @else {
+      <!-- Data Table -->
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Date
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Driver
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-0"
+              >
+                Service Type
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Route Code
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Daily Rate
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Extra
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Deduction
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Van Charge
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Total
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Status
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            @for (item of items(); track item.driverId + '_' + i; let i =
+            $index) {
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                {{ item.workDate | date : "d/M/yy" }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div class="text-sm font-medium text-gray-900">
+                  {{ item.driverName }}
+                </div>
+                <div class="text-xs text-gray-500">
+                  {{ item.transporterId || "No ID" }}
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="relative">
+                  <button
+                    type="button"
+                    (click)="toggleRouteDropdown(i)"
+                    [class]="
+                      'w-full px-3 py-2 pr-8 rounded-md text-xs font-medium cursor-pointer transition-all hover:shadow-sm border-0 min-w-max text-left ' +
+                      getRouteTypeClass(item.routeType)
+                    "
+                  >
+                    {{ getRouteTypeLabel(item.routeType) }}
+                    <svg
+                      class="absolute right-2 top-1/2 transform -translate-y-1/2 w-3 h-3 pointer-events-none"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M19 9l-7 7-7-7"
+                      ></path>
+                    </svg>
+                  </button>
+
+                  @if (openRouteDropdown() === i) {
+                  <div
+                    class="absolute z-50 bg-white border border-gray-200 rounded-md shadow-lg min-w-36 mt-1 left-0"
+                  >
+                    @for (option of routeTypeOptions; track option.value) {
+                    <button
+                      type="button"
+                      (click)="selectRouteType(i, option.value)"
+                      [class]="
+                        'w-full px-3 py-2 text-xs text-left transition-colors border-b border-gray-100 last:border-b-0 flex justify-between items-center ' +
+                        getRouteTypeHoverClass(option.value)
+                      "
+                    >
+                      <span>{{ option.label }}</span>
+                      @if (option.shortKey) {
+                      <span class="text-gray-400 text-xs">{{
+                        option.shortKey
+                      }}</span>
+                      }
+                    </button>
+                    }
+                  </div>
+                  }
+                </div>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <input
+                  type="text"
+                  class="w-full px-2 py-1 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  placeholder="CA_A270"
+                  [ngModel]="item.routeCode || ''"
+                  (ngModelChange)="onCellChange(i, 'routeCode', $event)"
+                />
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div class="relative">
+                  <span
+                    class="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500"
+                    >£</span
+                  >
+                  <input
+                    type="number"
+                    step="0.01"
+                    class="w-full pl-5 pr-2 py-1 text-xs border border-gray-300 rounded-md bg-gray-50 text-right cursor-not-allowed"
+                    [ngModel]="item.dailyRate"
+                    readonly
+                    title="Daily rates are managed in Payment Dashboard"
+                  />
+                </div>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div class="relative">
+                  <span
+                    class="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500"
+                    >£</span
+                  >
+                  <input
+                    type="number"
+                    step="0.01"
+                    class="w-full pl-5 pr-2 py-1 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-right"
+                    [ngModel]="item.extraAmount || 0"
+                    (ngModelChange)="onCellChange(i, 'extraAmount', +$event)"
+                  />
+                </div>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div class="relative">
+                  <span
+                    class="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500"
+                    >£</span
+                  >
+                  <input
+                    type="number"
+                    step="0.01"
+                    class="w-full pl-5 pr-2 py-1 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-right"
+                    [ngModel]="item.deductionAmount || 0"
+                    (ngModelChange)="
+                      onCellChange(i, 'deductionAmount', +$event)
+                    "
+                  />
+                </div>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div class="relative">
+                  <span
+                    class="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500"
+                    >£</span
+                  >
+                  <input
+                    type="number"
+                    step="0.01"
+                    class="w-full pl-5 pr-2 py-1 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-right"
+                    [ngModel]="item.vanCharge || 0"
+                    (ngModelChange)="onCellChange(i, 'vanCharge', +$event)"
+                  />
+                </div>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div class="text-sm font-semibold text-gray-900">
+                  £{{ item.totalSuggested | number : "1.2-2" }}
+                </div>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                @if (item.exists) {
+                <span
+                  class="inline-flex items-center px-3 py-2 rounded-md text-xs font-medium bg-green-100 text-green-800 border border-green-200"
+                >
+                  Saved
+                </span>
+                } @else {
+                <span
+                  class="inline-flex items-center px-3 py-2 rounded-md text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200"
+                >
+                  New
+                </span>
+                }
+              </td>
+              <td
+                class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium"
+              >
+                <button
+                  type="button"
+                  (click)="removeRow(i)"
+                  class="text-red-600 hover:text-red-900 transition-colors"
+                >
+                  <svg
+                    class="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    ></path>
+                  </svg>
+                </button>
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      }
+    </div>
+    }
+  </div>
+  <!-- End of p-6 -->
+</div>
+<!-- End of main container -->
+
+<!-- XLSX Import Modal -->
+@if (showImportModal()) {
+<div
+  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+>
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+    <!-- Modal Header -->
+    <div class="flex items-center justify-between p-6 border-b border-gray-200">
+      <h3 class="text-lg font-semibold text-gray-900">Import XLSX File</h3>
+      <button
+        (click)="closeImportModal()"
+        [disabled]="importing()"
+        class="text-gray-400 hover:text-gray-600 transition-colors"
+      >
+        <svg
+          class="w-6 h-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M6 18L18 6M6 6l12 12"
+          ></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="p-6">
+      @if (!importing() && !importResult()) {
+      <!-- File Upload -->
+      <div class="space-y-4">
+        <div>
+          <label
+            for="xlsx-file-input"
+            class="block text-sm font-medium text-gray-700 mb-2"
+          >
+            Select Amazon XLSX File
+          </label>
+          <input
+            id="xlsx-file-input"
+            type="file"
+            accept=".xlsx,.xls"
+            (change)="onFileSelected($event)"
+            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+          />
+          <p class="mt-2 text-xs text-gray-500">
+            Select an Excel file (.xlsx or .xls) from Amazon containing driver
+            payment data for {{ date() | date : "d/M/yyyy" }}.
+          </p>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <h4 class="text-sm font-medium text-gray-900 mb-2">
+            Expected Amazon XLSX Format:
+          </h4>
+          <div class="text-xs text-gray-600 space-y-1">
+            <p><strong>Column A:</strong> Route code (e.g., CA_A221)</p>
+            <p><strong>Column B:</strong> DSP</p>
+            <p><strong>Column C:</strong> Transporter ID</p>
+            <p><strong>Column D:</strong> Driver name (required)</p>
+            <p><strong>Column E:</strong> Route progress</p>
+            <p><strong>Column F:</strong> Delivery service type (required)</p>
+            <p class="text-gray-500 mt-2 italic">
+              Daily rates and additional amounts will be set to £0.00 and can be
+              filled manually after import.
+            </p>
+          </div>
+        </div>
+      </div>
+      } @if (importing()) {
+      <!-- Loading State -->
+      <div class="text-center py-8">
+        <svg
+          class="animate-spin mx-auto h-12 w-12 text-blue-600"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          ></circle>
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
+        </svg>
+        <p class="mt-4 text-lg font-medium text-gray-900">
+          Processing XLSX file...
+        </p>
+        <p class="text-sm text-gray-500">
+          Please wait while we import your data
+        </p>
+      </div>
+      } @if (importResult() && !importing()) {
+      <!-- Import Results -->
+      <div class="space-y-4">
+        <div class="text-center">
+          @if (importResult()!.errors.length === 0) {
+          <div
+            class="mx-auto flex items-center justify-center w-12 h-12 bg-green-100 rounded-full"
+          >
+            <svg
+              class="w-6 h-6 text-green-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 13l4 4L19 7"
+              ></path>
+            </svg>
+          </div>
+          <h4 class="mt-3 text-lg font-medium text-gray-900">
+            Import Successful!
+          </h4>
+          } @else {
+          <div
+            class="mx-auto flex items-center justify-center w-12 h-12 bg-yellow-100 rounded-full"
+          >
+            <svg
+              class="w-6 h-6 text-yellow-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"
+              ></path>
+            </svg>
+          </div>
+          <h4 class="mt-3 text-lg font-medium text-gray-900">
+            Import Completed with Warnings
+          </h4>
+          }
+        </div>
+
+        <div class="bg-gray-50 rounded-lg p-4 space-y-2">
+          <div class="flex justify-between">
+            <span class="text-sm text-gray-600">Records Created:</span>
+            <span class="text-sm font-medium text-green-600">{{
+              importResult()!.created
+            }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-sm text-gray-600">Records Updated:</span>
+            <span class="text-sm font-medium text-blue-600">{{
+              importResult()!.updated
+            }}</span>
+          </div>
+          @if (importResult()!.errors.length > 0) {
+          <div class="flex justify-between">
+            <span class="text-sm text-gray-600">Errors:</span>
+            <span class="text-sm font-medium text-red-600">{{
+              importResult()!.errors.length
+            }}</span>
+          </div>
+          }
+        </div>
+
+        @if (importResult()!.errors.length > 0) {
+        <div class="max-h-40 overflow-y-auto">
+          <h5 class="text-sm font-medium text-gray-900 mb-2">Error Details:</h5>
+          <div class="space-y-1">
+            @for (error of importResult()!.errors; track error) {
+            <p class="text-xs text-red-600 bg-red-50 p-2 rounded">
+              {{ error }}
+            </p>
+            }
+          </div>
+        </div>
+        }
+
+        <div class="flex justify-end">
+          <button
+            (click)="closeImportModal()"
+            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+      }
+    </div>
+  </div>
+</div>
+}

@@ -1,0 +1,254 @@
+<div class="container mx-auto px-4 py-6">
+  <!-- Header -->
+  <div class="mb-6">
+    <button
+      (click)="goBack()"
+      class="mb-4 flex items-center text-blue-600 hover:text-blue-800"
+    >
+      <svg
+        class="mr-2 h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M10 19l-7-7m0 0l7-7m-7 7h18"
+        />
+      </svg>
+      Back to Invoices
+    </button>
+    <h1 class="text-3xl font-bold text-gray-900">Generate Weekly Invoices</h1>
+    <p class="mt-1 text-sm text-gray-500">
+      Select a week to generate invoices for all active drivers
+    </p>
+  </div>
+
+  <!-- Week Selection -->
+  <div class="mb-6 rounded-lg bg-white p-6 shadow">
+    <h2 class="mb-4 text-lg font-semibold text-gray-900">
+      Select Week Start Date
+    </h2>
+    <div class="max-w-md">
+      <label
+        for="weekStartDate"
+        class="mb-2 block text-sm font-medium text-gray-700"
+        >Week Start (Sunday)</label
+      >
+      <input
+        id="weekStartDate"
+        type="date"
+        [(ngModel)]="weekStartDate"
+        class="w-full rounded-lg border border-gray-300 px-4 py-2"
+        [disabled]="generating()"
+      />
+      <p class="mt-2 text-sm text-gray-500">
+        Select the Sunday of the week you want to generate invoices for. The
+        system will include all driver payments from Sunday to Saturday of that
+        week.
+      </p>
+    </div>
+
+    <div class="mt-6">
+      <button
+        (click)="generateInvoices()"
+        [disabled]="!weekStartDate || generating()"
+        class="rounded-lg bg-blue-600 px-6 py-3 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        @if (generating()) {
+        <span class="flex items-center">
+          <svg
+            class="mr-2 h-5 w-5 animate-spin"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            ></circle>
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
+          Generating...
+        </span>
+        } @else { Generate Invoices }
+      </button>
+    </div>
+  </div>
+
+  <!-- Results -->
+  @if (result()) {
+  <div class="mb-6 rounded-lg bg-white p-6 shadow">
+    <h2 class="mb-4 text-lg font-semibold text-gray-900">Generation Results</h2>
+
+    <!-- Summary Stats -->
+    <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div class="rounded-lg bg-green-50 p-4">
+        <div class="text-3xl font-bold text-green-600">
+          {{ result()!.generated }}
+        </div>
+        <div class="text-sm text-green-800">Generated</div>
+      </div>
+      <div class="rounded-lg bg-yellow-50 p-4">
+        <div class="text-3xl font-bold text-yellow-600">
+          {{ result()!.skipped }}
+        </div>
+        <div class="text-sm text-yellow-800">Skipped</div>
+      </div>
+      <div class="rounded-lg bg-red-50 p-4">
+        <div class="text-3xl font-bold text-red-600">
+          {{ result()!.errors }}
+        </div>
+        <div class="text-sm text-red-800">Errors</div>
+      </div>
+    </div>
+
+    <!-- Generated Invoices -->
+    @if (result()!.generated > 0) {
+    <div class="mb-6">
+      <h3 class="mb-3 text-base font-semibold text-gray-900">
+        Successfully Generated ({{ result()!.invoices.length }})
+      </h3>
+      <div class="overflow-hidden rounded-lg border border-gray-200">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500"
+              >
+                Invoice #
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500"
+              >
+                Driver
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500"
+              >
+                Total Amount
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500"
+              >
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 bg-white">
+            @for (invoice of result()!.invoices; track invoice.invoiceId) {
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3 text-sm text-gray-900">
+                {{ invoice.invoiceNumber }}
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-900">
+                {{ invoice.driverName }}
+              </td>
+              <td class="px-4 py-3 text-sm font-medium text-gray-900">
+                £{{ invoice.totalAmount.toFixed(2) }}
+              </td>
+              <td class="px-4 py-3">
+                <button
+                  (click)="viewInvoice(invoice.invoiceId)"
+                  class="text-blue-600 hover:text-blue-800"
+                >
+                  View
+                </button>
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+    }
+
+    <!-- Errors -->
+    @if (result()!.errorDetails && result()!.errorDetails!.length > 0) {
+    <div class="mb-6">
+      <h3 class="mb-3 text-base font-semibold text-red-900">
+        Errors ({{ result()!.errorDetails!.length }})
+      </h3>
+      <div class="space-y-2">
+        @for (error of result()!.errorDetails!; track error.driverId) {
+        <div class="rounded-lg bg-red-50 p-3">
+          <div class="font-medium text-red-900">
+            {{ error.driverName }}
+          </div>
+          <div class="text-sm text-red-700">{{ error.error }}</div>
+        </div>
+        }
+      </div>
+    </div>
+    }
+
+    <!-- Actions -->
+    <div class="flex gap-3">
+      <button
+        (click)="goToInvoices()"
+        class="rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700"
+      >
+        View All Invoices
+      </button>
+      <button
+        (click)="resetAndGenerate()"
+        class="rounded-lg border border-gray-300 px-6 py-2 hover:bg-gray-50"
+      >
+        Generate Another Week
+      </button>
+    </div>
+  </div>
+  }
+
+  <!-- Info Box -->
+  <div class="rounded-lg bg-blue-50 p-4">
+    <div class="flex">
+      <svg
+        class="h-5 w-5 text-blue-400"
+        fill="currentColor"
+        viewBox="0 0 20 20"
+      >
+        <path
+          fill-rule="evenodd"
+          d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+          clip-rule="evenodd"
+        />
+      </svg>
+      <div class="ml-3">
+        <h3 class="text-sm font-medium text-blue-800">How it works</h3>
+        <div class="mt-2 text-sm text-blue-700">
+          <ul class="list-inside list-disc space-y-1">
+            <li>
+              The system will find all active drivers with payment records for
+              the selected week
+            </li>
+            <li>
+              Invoices will be created in DRAFT status for review and editing
+            </li>
+            <li>
+              If an invoice already exists for a driver and week, it will be
+              skipped
+            </li>
+            <li>
+              Each invoice includes all daily payments, extras, deductions, and
+              van charges
+            </li>
+            <li>
+              After generation, review the invoices, approve them, and send them
+              via email
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

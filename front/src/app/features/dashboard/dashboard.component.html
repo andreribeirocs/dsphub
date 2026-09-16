@@ -1,0 +1,155 @@
+<!-- src/app/features/dashboard/dashboard.component.html -->
+<div class="container mx-auto px-4">
+  <h1 class="text-2xl font-semibold text-gray-800 mb-6">Dashboard</h1>
+
+  <div class="bg-white rounded-lg shadow p-6">
+    @if (loading()) {
+    <!-- Loading state -->
+    <div class="flex items-center justify-center py-8">
+      <div
+        class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"
+      ></div>
+      <span class="ml-2 text-gray-600">Loading user profile...</span>
+    </div>
+    } @else if (hasTokenButNoUser()) {
+    <!-- Error state with retry option -->
+    <div class="flex flex-col items-center justify-center py-8">
+      <div class="text-yellow-600 mb-4">
+        <svg
+          class="w-12 h-12"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 16.5c-.77.833.192 2.5 1.732 2.5z"
+          ></path>
+        </svg>
+      </div>
+      <h3 class="text-lg font-medium text-gray-900 mb-2">
+        Unable to load profile
+      </h3>
+      <p class="text-gray-600 mb-4 text-center">
+        There was an issue loading your profile data. This might be due to a
+        temporary network issue.
+      </p>
+      <button
+        (click)="retryLoadProfile()"
+        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+      >
+        Retry Loading Profile
+      </button>
+    </div>
+    } @else {
+    <!-- User content -->
+    <h2 class="text-lg font-medium mb-4">
+      Welcome, {{ user()?.name || "User" }}
+    </h2>
+    <p class="text-gray-600">
+      You are logged in as:
+      <span class="font-medium">{{ user()?.role || "Loading..." }}</span>
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+      <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+        <h3 class="font-medium text-blue-800">Active Drivers</h3>
+        <p class="text-2xl font-bold text-blue-600 mt-2">{{ dashboardStats().activeDrivers }}</p>
+      </div>
+
+      <div class="bg-green-50 p-4 rounded-lg border border-green-100">
+        <h3 class="font-medium text-green-800">Completed Routes</h3>
+        <p class="text-2xl font-bold text-green-600 mt-2">{{ dashboardStats().completedRoutes }}</p>
+      </div>
+
+      <div class="bg-purple-50 p-4 rounded-lg border border-purple-100">
+        <h3 class="font-medium text-purple-800">Pending Candidates</h3>
+        <p class="text-2xl font-bold text-purple-600 mt-2">{{ dashboardStats().pendingCandidates }}</p>
+      </div>
+
+      <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-100">
+        <h3 class="font-medium text-yellow-800">Vehicle Issues</h3>
+        <p class="text-2xl font-bold text-yellow-600 mt-2">{{ dashboardStats().vehicleIssues }}</p>
+      </div>
+    </div>
+    <div class="mt-8">
+      <h3 class="font-medium mb-4">Recent Activities</h3>
+      <div class="border rounded-lg overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Date
+              </th>
+              <th
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Activity
+              </th>
+              <th
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                User
+              </th>
+              <th
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Status
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            @for (activity of recentActivities(); track activity.id) {
+            <tr class="hover:bg-gray-50">
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {{ activity.timestamp | date : "short" }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <div class="flex items-center">
+                  <span class="mr-2">{{ getActivityIcon(activity.type) }}</span>
+                  {{ activity.activity }}
+                </div>
+                @if (activity.details) {
+                <div class="text-xs text-gray-500 mt-1 max-w-xs truncate" [title]="activity.details">
+                  {{ activity.details }}
+                </div>
+                }
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <div>{{ activity.user.name }}</div>
+                @if (activity.user.email) {
+                <div class="text-xs text-gray-400">{{ activity.user.email }}</div>
+                }
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span
+                  class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                  [ngClass]="getStatusClasses(activity.status)"
+                >
+                  {{ activity.status | titlecase }}
+                </span>
+              </td>
+            </tr>
+            } @empty {
+            <tr>
+              <td colspan="4" class="px-6 py-8 text-center text-gray-500">
+                <div class="flex flex-col items-center">
+                  <svg class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                  </svg>
+                  <span>No recent activities found</span>
+                </div>
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+    }
+  </div>
+</div>
