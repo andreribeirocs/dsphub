@@ -49,8 +49,9 @@ async function bootstrap(): Promise<void> {
   // Configure cookie parser for Better Auth session cookies
   app.use(cookieParser());
 
-  // Serve static files (avatars, invoices, etc.)
-  app.use("/uploads", express.static("uploads"));
+  // Uploaded files are NOT served statically: avatars go through
+  // GET /api/uploads/avatars/:file and invoice PDFs through
+  // GET /api/invoices/:id/pdf, both authenticated and scoped to the DSP.
 
   app.useGlobalPipes(
     new InputLengthValidationPipe(50000000), // 50MB for file uploads
@@ -80,35 +81,46 @@ async function bootstrap(): Promise<void> {
     maxAge: 86400, // 24 hours
   });
 
-  const config = new DocumentBuilder()
-    .setTitle("DSPHub API")
-    .setDescription("The DSPHub Management System API")
-    .setVersion("1.0")
-    .addTag("health", "Health check and system status endpoints")
-    .addTag("auth", "Authentication endpoints")
-    .addTag("session", "Session management endpoints")
-    .addTag("users", "User management endpoints")
-    .addTag("recruitment", "Recruitment process endpoints")
-    .addTag("drivers", "Driver management endpoints")
-    .addTag("schedule", "Driver Availability management endpoints")
-    .addTag("vans", "Van management endpoints")
-    .addTag("parts", "Van parts management endpoints")
-    .addTag("maintenance", "Van maintenance endpoints")
-    .addTag("contracts", "Contract management endpoints")
-    .addTag("payments", "Payment management endpoints")
-    .addTag("whatsapp", "WhatsApp messaging endpoints")
-    .addTag("PDF", "PDF generation endpoints")
-    .addBearerAuth()
-    .build();
+  // Behind a reverse proxy, trust X-Forwarded-Host so the DSP is resolved
+  // from the domain the visitor used
+  if (process.env.TRUST_PROXY === "true") {
+    app.getHttpAdapter().getInstance().set("trust proxy", true);
+  }
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup("api", app, document);
+  if (!isProduction) {
+    const config = new DocumentBuilder()
+      .setTitle("DSPHub API")
+      .setDescription("The DSPHub Management System API")
+      .setVersion("1.0")
+      .addTag("health", "Health check and system status endpoints")
+      .addTag("auth", "Authentication endpoints")
+      .addTag("session", "Session management endpoints")
+      .addTag("users", "User management endpoints")
+      .addTag("recruitment", "Recruitment process endpoints")
+      .addTag("drivers", "Driver management endpoints")
+      .addTag("schedule", "Driver Availability management endpoints")
+      .addTag("vans", "Van management endpoints")
+      .addTag("parts", "Van parts management endpoints")
+      .addTag("maintenance", "Van maintenance endpoints")
+      .addTag("contracts", "Contract management endpoints")
+      .addTag("payments", "Payment management endpoints")
+      .addTag("whatsapp", "WhatsApp messaging endpoints")
+      .addTag("PDF", "PDF generation endpoints")
+      .addBearerAuth()
+      .build();
+
+    const document = SwaggerModule.createDocument(app, config);
+    // API documentation only outside production
+    SwaggerModule.setup("api", app, document);
+  }
 
   const port = process.env.PORT || 3002;
   await app.listen(port);
 
   console.log(`🚀 Application running on port ${port}`);
-  console.log(`📚 API Documentation: http://localhost:${port}/api`);
+  if (!isProduction) {
+    console.log(`📚 API Documentation: http://localhost:${port}/api`);
+  }
   console.log(
     `🔒 CORS Origins: ${allowedOrigins.join(", ") || "None configured"}`
   );

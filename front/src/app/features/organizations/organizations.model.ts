@@ -36,6 +36,8 @@ export interface Organization {
   depots?: Depot[];
   // Status
   isActive: boolean;
+  /** How vans are allocated to drivers (see OperatingModel) */
+  operatingModel?: OperatingModel;
   // Counts (when included)
   _count?: {
     members?: number;
@@ -83,5 +85,40 @@ export interface CreateOrganizationDto {
 }
 
 export interface UpdateOrganizationDto extends Partial<CreateOrganizationDto> {
+  isActive?: boolean;
+  operatingModel?: OperatingModel;
+}
+
+/**
+ * DSP_1_0: the driver rents a van weekly and keeps it 24/7.
+ * DSP_2_0: vans stay in a depot pool and are picked up daily.
+ */
+export type OperatingModel = "DSP_1_0" | "DSP_2_0";
+
+/** A row of the depot table (GET /api/depots) */
+export interface DepotRecord {
+  id: string;
+  organizationId: string;
+  code: string;
+  name: string;
+  address: string | null;
+  postcode: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    homeDrivers: number;
+    vans: number;
+  };
+}
+
+export interface CreateDepotDto {
+  code: string;
+  name: string;
+  address?: string;
+  postcode?: string;
+}
+
+export interface UpdateDepotDto extends Partial<CreateDepotDto> {
   isActive?: boolean;
 }

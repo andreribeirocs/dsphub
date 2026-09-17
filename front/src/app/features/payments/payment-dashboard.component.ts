@@ -16,6 +16,9 @@ import {
 import { PaymentService } from "./payment.service";
 import { AuthService } from "../../../core/services/auth.service";
 import { AlertService } from "../../shared/services/alert.service";
+import { downloadCsv, today } from "../../shared/utils/csv";
+import { apiErrorMessage } from "../../shared/utils/api-error";
+import { PaymentHistoryModalComponent } from "./payment-history-modal.component";
 import {
   PaymentDashboard,
   PaymentHistoryResponse,
@@ -33,7 +36,7 @@ interface RouteTypeOption {
 
 @Component({
   selector: "app-payment-dashboard",
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, PaymentHistoryModalComponent],
   templateUrl: "./payment-dashboard.component.html",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -43,7 +46,6 @@ export class PaymentDashboardComponent implements OnInit {
   private readonly alertService = inject(AlertService);
   private readonly formBuilder = inject(FormBuilder);
 
-  // 🚀 Angular 20: Using signals for reactive state management
   protected readonly dashboard = signal<PaymentDashboard | null>(null);
   protected readonly paymentHistory = signal<PaymentHistoryResponse | null>(
     null
@@ -53,8 +55,8 @@ export class PaymentDashboardComponent implements OnInit {
   protected readonly showUpdatePriceModal = signal<boolean>(false);
   protected readonly isUpdatingPrice = signal<boolean>(false);
   protected readonly selectedPrice = signal<RoutePrice | null>(null);
+  protected readonly showHistoryModal = signal<boolean>(false);
 
-  // 🚀 Angular 20: Computed properties for derived state
   protected readonly currentUser = computed(() =>
     this.authService.currentUserValue()
   );
@@ -74,7 +76,7 @@ export class PaymentDashboardComponent implements OnInit {
   protected updatePriceForm: FormGroup;
 
   // Route type options for dropdown
-  protected readonly routeTypes: RouteTypeOption[] = [
+  private readonly allRouteTypes: RouteTypeOption[] = [
     {
       value: RouteType.FULL_ROUTE,
       label: ROUTE_TYPE_LABELS[RouteType.FULL_ROUTE],
@@ -146,6 +148,14 @@ export class PaymentDashboardComponent implements OnInit {
     },
   ];
 
+  /** The API can only update route types that already have a price */
+  protected readonly routeTypes = computed((): RouteTypeOption[] => {
+    const priced = new Set(
+      (this.dashboard()?.routePrices ?? []).map((price) => price.routeType)
+    );
+    return this.allRouteTypes.filter((option) => priced.has(option.value));
+  });
+
   constructor() {
     this.updatePriceForm = this.formBuilder.group({
       routeType: ["", [Validators.required]],
@@ -170,11 +180,11 @@ export class PaymentDashboardComponent implements OnInit {
       next: (data) => {
         this.dashboard.set(data);
         this.isLoading.set(false);
-        console.log("🚀 Dashboard loaded successfully:", data);
       },
-      error: (error) => {
-        console.error("❌ Error loading dashboard:", error);
-        this.error.set("Failed to load dashboard data. Please try again.");
+      error: (error: unknown) => {
+        this.error.set(
+          apiErrorMessage(error, "Failed to load dashboard data. Please try again.")
+        );
         this.isLoading.set(false);
         this.alertService.showError("Failed to load dashboard data");
       },
@@ -188,11 +198,12 @@ export class PaymentDashboardComponent implements OnInit {
     this.paymentService.getPaymentHistory({ page: 1, limit: 10 }).subscribe({
       next: (data) => {
         this.paymentHistory.set(data);
-        console.log("📊 Payment history loaded:", data);
       },
-      error: (error) => {
-        console.error("❌ Error loading payment history:", error);
-        this.alertService.showError("Failed to load payment history");
+      error: (error: unknown) => {
+        this.alertService.showError(
+          "Failed to load payment history",
+          apiErrorMessage(error, "Please try again")
+        );
       },
     });
   }
@@ -211,16 +222,18 @@ export class PaymentDashboardComponent implements OnInit {
     this.selectedPrice.set(price || null);
     this.showUpdatePriceModal.set(true);
 
+    const routeTypeControl = this.updatePriceForm.get("routeType");
     if (price) {
-      // Pre-fill form with existing price data
-      this.updatePriceForm.patchValue({
+      // Pre-fill form with existing price data; the route type is fixed
+      this.updatePriceForm.reset({
         routeType: price.routeType,
         dailyRate: price.dailyRate.toFixed(2),
         changeReason: "",
       });
+      routeTypeControl?.disable();
     } else {
-      // Reset form for new price
-      this.updatePriceForm.reset();
+      this.updatePriceForm.reset({ routeType: "", dailyRate: "", changeReason: "" });
+      routeTypeControl?.enable();
     }
   }
 
@@ -230,7 +243,8 @@ export class PaymentDashboardComponent implements OnInit {
   closeUpdatePriceModal(): void {
     this.showUpdatePriceModal.set(false);
     this.selectedPrice.set(null);
-    this.updatePriceForm.reset();
+    this.updatePriceForm.reset({ routeType: "", dailyRate: "", changeReason: "" });
+    this.updatePriceForm.get("routeType")?.enable();
   }
 
   /**
@@ -247,16 +261,21 @@ export class PaymentDashboardComponent implements OnInit {
 
     this.isUpdatingPrice.set(true);
 
-    const formValue = this.updatePriceForm.value;
+    // getRawValue includes the disabled route type control
+    const formValue = this.updatePriceForm.getRawValue() as {
+      routeType: RouteType;
+      dailyRate: string | number;
+      changeReason: string | null;
+    };
+    const changeReason = formValue.changeReason?.trim();
     const request: UpdateRoutePriceRequest = {
       routeType: formValue.routeType,
-      dailyRate: parseFloat(formValue.dailyRate).toFixed(2),
-      changeReason: formValue.changeReason || undefined,
+      dailyRate: Number(formValue.dailyRate).toFixed(2),
+      ...(changeReason ? { changeReason } : {}),
     };
 
     this.paymentService.updateRoutePrice(request).subscribe({
       next: (updatedPrice) => {
-        console.log("✅ Route price updated successfully:", updatedPrice);
         this.alertService.showSuccess(
           "Route price updated successfully",
           `${this.getRouteTypeLabel(
@@ -272,11 +291,10 @@ export class PaymentDashboardComponent implements OnInit {
         this.closeUpdatePriceModal();
         this.isUpdatingPrice.set(false);
       },
-      error: (error) => {
-        console.error("❌ Error updating route price:", error);
+      error: (error: unknown) => {
         this.alertService.showError(
           "Failed to update route price",
-          error.error?.message || "Please try again"
+          apiErrorMessage(error, "Please try again")
         );
         this.isUpdatingPrice.set(false);
       },
@@ -330,53 +348,34 @@ export class PaymentDashboardComponent implements OnInit {
   }
 
   /**
-   * Navigate to detailed payment history view
+   * Open the full price history (paginated, filterable, CSV export)
    */
   viewAllPaymentHistory(): void {
-    // TODO: Implement navigation to dedicated payment history page
-    console.log("Navigate to payment history page");
+    this.showHistoryModal.set(true);
+  }
+
+  closePaymentHistory(): void {
+    this.showHistoryModal.set(false);
   }
 
   /**
-   * Export dashboard data
+   * Export current route prices to CSV
    */
   exportDashboardData(): void {
     const dashboard = this.dashboard();
-    if (!dashboard) {
+    if (!dashboard || dashboard.routePrices.length === 0) {
       this.alertService.showError("No data available to export");
       return;
     }
 
-    // Create CSV data
-    const csvData = dashboard.routePrices.map((price) => ({
-      "Route Type": this.getRouteTypeLabel(price.routeType),
-      "Daily Rate": `£${price.dailyRate.toFixed(2)}`,
-      "Last Updated": this.formatDate(price.lastUpdated),
-      "Updated By": price.updatedByUser.name,
-    }));
+    downloadCsv<RoutePrice>(`route-prices-${today()}`, dashboard.routePrices, [
+      { header: "Route type", value: (price) => this.getRouteTypeLabel(price.routeType) },
+      { header: "Route type code", value: (price) => price.routeType },
+      { header: "Daily rate (GBP)", value: (price) => price.dailyRate.toFixed(2) },
+      { header: "Last updated", value: (price) => price.lastUpdated },
+      { header: "Updated by", value: (price) => price.updatedByUser?.name ?? "" },
+    ]);
 
-    // Convert to CSV string
-    const headers = Object.keys(csvData[0]);
-    const csvContent = [
-      headers.join(","),
-      ...csvData.map((row) =>
-        headers
-          .map((header) => `"${row[header as keyof typeof row]}"`)
-          .join(",")
-      ),
-    ].join("\n");
-
-    // Download CSV
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `payment-dashboard-${
-      new Date().toISOString().split("T")[0]
-    }.csv`;
-    link.click();
-    window.URL.revokeObjectURL(url);
-
-    this.alertService.showSuccess("Dashboard data exported successfully");
+    this.alertService.showSuccess("Route prices exported");
   }
 }

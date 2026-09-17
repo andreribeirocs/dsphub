@@ -380,7 +380,7 @@ export class InvoicesService {
 
     // If items are being updated, delete existing and create new
     if (dto.items) {
-      await this.prisma.$transaction(async (tx) => {
+      await this.prisma.tenantTransaction(async (tx) => {
         // Delete existing items
         await tx.invoiceItem.deleteMany({
           where: { invoiceId: id },

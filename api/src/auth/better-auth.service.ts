@@ -102,6 +102,23 @@ export class BetterAuthService {
   }
 
   /**
+   * Depots a member is limited to inside an organization.
+   * Empty list = no restriction (all depots).
+   */
+  async getMemberDepotIds(userId: string, organizationId: string): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<{ depotId: string }[]>`
+      SELECT md."depotId"
+      FROM "member_depot" md
+      JOIN "member" m ON m.id = md."memberId"
+      JOIN "depot" d ON d.id = md."depotId"
+      WHERE m."userId" = ${userId}
+      AND m."organizationId" = ${organizationId}
+      AND d."organizationId" = ${organizationId}
+    `;
+    return rows.map((row) => row.depotId);
+  }
+
+  /**
    * Check if user has access to organization
    */
   async hasOrganizationAccess(

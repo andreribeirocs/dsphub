@@ -11,6 +11,7 @@ import {
   MessagingProvider,
 } from "../messaging/messaging.types";
 import { toE164 } from "../messaging/phone.util";
+import { TenantContext } from "../tenancy/tenant-context";
 
 export interface WhatsAppMessage {
   id: string;
@@ -165,14 +166,23 @@ export class WhatsAppService {
     });
   }
 
+  /** In-memory conversations are kept per DSP: `${organizationId}:${phone}` */
+  private conversationKey(phoneDigits: string): string {
+    return `${TenantContext.requireOrganizationId()}:${phoneDigits}`;
+  }
+
   getConversations(): WhatsAppConversation[] {
-    return Array.from(this.conversations.values()).sort(
+    const prefix = `${TenantContext.requireOrganizationId()}:`;
+    return Array.from(this.conversations.entries())
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([, conversation]) => conversation)
+      .sort(
       (a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime()
     );
   }
 
   getConversation(phoneNumber: string): WhatsAppConversation | undefined {
-    return this.conversations.get(this.normalizePhoneNumber(phoneNumber));
+    return this.conversations.get(this.conversationKey(this.normalizePhoneNumber(phoneNumber)));
   }
 
   private recordMessage(message: WhatsAppMessage): void {
@@ -180,7 +190,7 @@ export class WhatsAppService {
       message.direction === "inbound" ? message.from : message.to;
     const key = this.normalizePhoneNumber(counterpart);
 
-    let conversation = this.conversations.get(key);
+    let conversation = this.conversations.get(this.conversationKey(key));
     if (!conversation) {
       conversation = {
         phoneNumber: key,
@@ -188,7 +198,7 @@ export class WhatsAppService {
         lastMessageAt: message.timestamp,
         unreadCount: 0,
       };
-      this.conversations.set(key, conversation);
+      this.conversations.set(this.conversationKey(key), conversation);
     }
 
     conversation.messages.push(message);

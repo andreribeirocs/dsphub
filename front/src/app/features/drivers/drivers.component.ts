@@ -1,404 +1,296 @@
-import {
-  Component,
-  signal,
-  computed,
-  inject,
-  effect,
-  ChangeDetectionStrategy,
-} from "@angular/core";
-import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
-import { Router } from "@angular/router";
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from "@angular/core";
+import { DatePipe } from "@angular/common";
+import { Router, RouterLink } from "@angular/router";
+import { AlertService } from "../../shared/services/alert.service";
+import { downloadCsv, today, type CsvColumn } from "../../shared/utils/csv";
+import { WhatsAppMessagingComponent } from "../whatsapp/whatsapp.component";
+import { DriverEditModalComponent } from "./driver-edit-modal.component";
 import { DriverService } from "./drivers.service";
 import {
-  Driver,
-  DriverStats,
-  DriverStatus,
+  DRIVER_STATUSES,
+  Depot,
   DocumentStatus,
+  Driver,
   StatCard,
-  ActivityItem,
+  apiErrorMessage,
+  documentStatus,
+  documentStatusClass,
+  driverStatusClass,
 } from "./drivers.model";
-import { WhatsAppMessagingComponent } from "../whatsapp/whatsapp.component";
+
+type DriversTab = "overview" | "compliance" | "whatsapp";
+
+interface ComplianceDoc {
+  readonly key: "passportExpiry" | "licenseExpiry" | "rtwExpiry";
+  readonly label: string;
+}
 
 @Component({
   selector: "app-drivers",
   standalone: true,
-  imports: [CommonModule, FormsModule, WhatsAppMessagingComponent],
+  imports: [DatePipe, RouterLink, WhatsAppMessagingComponent, DriverEditModalComponent],
   templateUrl: "./drivers.component.html",
   styleUrls: ["./drivers.component.scss"],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DriversComponent {
   private readonly driverService = inject(DriverService);
+  private readonly alertService = inject(AlertService);
   private readonly router = inject(Router);
 
-  // Signals for reactive state management
-  drivers = signal<Driver[]>([]);
-  searchTerm = signal("");
-  statusFilter = signal<string>("all");
-  depotFilter = signal<string>("all");
-  selectedDriver = signal<Driver | null>(null);
-  activeTab = signal<string>("overview");
-  showDriverModal = signal(false);
+  readonly statuses = DRIVER_STATUSES;
+  readonly tabs: readonly { id: DriversTab; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "compliance", label: "Compliance" },
+    { id: "whatsapp", label: "WhatsApp" },
+  ];
+  readonly complianceDocs: readonly ComplianceDoc[] = [
+    { key: "passportExpiry", label: "Passport / visa" },
+    { key: "licenseExpiry", label: "Licence" },
+    { key: "rtwExpiry", label: "Right to work" },
+  ];
 
-  // Computed values
-  filteredDrivers = computed(() => {
-    const drivers = this.drivers();
-    const search = this.searchTerm().toLowerCase();
+  readonly drivers = signal<Driver[]>([]);
+  readonly depots = signal<Depot[]>([]);
+  readonly loading = signal(false);
+  readonly loadError = signal<string | null>(null);
+  readonly searchTerm = signal("");
+  readonly statusFilter = signal<string>("all");
+  readonly depotFilter = signal<string>("all");
+  readonly activeTab = signal<DriversTab>("overview");
+  readonly editingDriver = signal<Driver | null>(null);
+  readonly deactivatingId = signal<string | null>(null);
+  readonly stats = signal<StatCard[]>([]);
+
+  readonly filteredDrivers = computed(() => {
+    const search = this.searchTerm().trim().toLowerCase();
     const status = this.statusFilter();
-    const depot = this.depotFilter();
 
-    return drivers.filter((driver) => {
+    return this.drivers().filter((driver) => {
       const matchesSearch =
         search === "" ||
-        driver.name.toLowerCase().includes(search) ||
-        driver.email.toLowerCase().includes(search) ||
-        driver.phone.includes(search);
-
+        (driver.name ?? "").toLowerCase().includes(search) ||
+        (driver.email ?? "").toLowerCase().includes(search) ||
+        (driver.phone ?? "").includes(search) ||
+        (driver.transporterId ?? "").toLowerCase().includes(search);
       const matchesStatus = status === "all" || driver.status === status;
-      const matchesDepot = depot === "all" || driver.depot === depot;
-
-      return matchesSearch && matchesStatus && matchesDepot;
+      return matchesSearch && matchesStatus;
     });
   });
 
-  stats = signal<StatCard[]>([
-    {
-      title: "Total Drivers",
-      value: "124",
-      change: "+12 this month",
-      icon: "user",
-      color: "text-blue-600",
-      bgColor: "bg-blue-100",
-    },
-    {
-      title: "Active Drivers",
-      value: "98",
-      change: "79% of total",
-      icon: "check-circle",
-      color: "text-green-600",
-      bgColor: "bg-green-100",
-    },
-    {
-      title: "Expiring Soon",
-      value: "8",
-      change: "Next 30 days",
-      icon: "alert-circle",
-      color: "text-orange-600",
-      bgColor: "bg-orange-100",
-    },
-    {
-      title: "Pending Review",
-      value: "5",
-      change: "Requires action",
-      icon: "file-text",
-      color: "text-red-600",
-      bgColor: "bg-red-100",
-    },
-  ]);
+  /** Counts over the drivers loaded for the selected depot (all statuses except inactive) */
+  readonly compliance = computed(() => {
+    const now = new Date();
+    let expired = 0;
+    let expiring = 0;
+    let checkOverdue = 0;
+    for (const driver of this.drivers()) {
+      if (driver.status === "INACTIVE") {
+        continue;
+      }
+      const statuses = this.complianceDocs.map((doc) => documentStatus(driver[doc.key], now));
+      if (statuses.includes("expired")) {
+        expired++;
+      } else if (statuses.includes("expiring")) {
+        expiring++;
+      }
+      if (driver.nextCheck && new Date(driver.nextCheck).getTime() < now.getTime()) {
+        checkOverdue++;
+      }
+    }
+    return { expired, expiring, checkOverdue };
+  });
 
-  recentActivities = signal<ActivityItem[]>([
-    {
-      id: 1,
-      driver: "John Smith",
-      action: "License Renewed - renewed until 2025",
-      time: "2 hours ago",
-      type: "success",
-    },
-    {
-      id: 2,
-      driver: "Sarah Johnson",
-      action: "Medical Check Due - required by next week",
-      time: "4 hours ago",
-      type: "warning",
-    },
-    {
-      id: 3,
-      driver: "Mike Davis",
-      action: "Background Check Complete - verification completed",
-      time: "1 day ago",
-      type: "success",
-    },
-    {
-      id: 4,
-      driver: "Emma Wilson",
-      action: "Document Upload - insurance document uploaded",
-      time: "2 days ago",
-      type: "pending",
-    },
-    {
-      id: 5,
-      driver: "David Brown",
-      action: "Status Update - changed to active",
-      time: "3 days ago",
-      type: "success",
-    },
-    {
-      id: 6,
-      driver: "Lisa Garcia",
-      action: "Alert - multiple documents expiring soon",
-      time: "3 days ago",
-      type: "warning",
-    },
-  ]);
-
-  // Effects for data loading
-  private readonly loadDataEffect = effect(() => {
+  constructor() {
+    this.loadDepots();
     this.loadDrivers();
     this.loadStats();
-  });
+  }
 
-  loadDrivers() {
-    this.driverService.getDrivers().subscribe({
-      next: (drivers: unknown[]) => {
-        // Transform the backend data to match frontend expectations
-        const transformedDrivers = drivers.map((driver) =>
-          this.transformDriverData(driver)
-        );
-        this.drivers.set(transformedDrivers);
+  loadDrivers(): void {
+    const depotId = this.depotFilter();
+    this.loading.set(true);
+    this.loadError.set(null);
+    this.driverService.getDrivers(depotId === "all" ? {} : { depotId }).subscribe({
+      next: (drivers) => {
+        this.drivers.set(drivers);
+        this.loading.set(false);
       },
-      error: (error: unknown) => {
-        console.error("Error loading drivers:", error);
+      error: (err: unknown) => {
+        this.loading.set(false);
+        this.loadError.set(apiErrorMessage(err, "Could not load drivers."));
       },
     });
   }
 
-  // Transform backend driver data to frontend format
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  transformDriverData(backendDriver: any): Driver {
-    return {
-      id: backendDriver.id,
-      name: backendDriver.name,
-      phone: backendDriver.phone,
-      email: backendDriver.email,
-      depot: backendDriver.depot,
-      address: backendDriver.address,
-      status: backendDriver.status,
-      citizenship: backendDriver.citizenship,
-      passportExpiry: this.formatDate(backendDriver.passportExpiry),
-      licenseExpiry: this.formatDate(backendDriver.licenseExpiry),
-      rtwExpiry: this.formatDate(backendDriver.rtwExpiry),
-      points: backendDriver.points,
-      lastCheck: this.formatDate(backendDriver.lastCheck),
-      nextCheck: this.formatDate(backendDriver.nextCheck),
-      age: backendDriver.age,
-      hasEndorsements: backendDriver.hasEndorsements,
-      joinDate: this.formatDate(backendDriver.joinDate),
-      completionRate: backendDriver.completionRate,
-      rating: backendDriver.rating,
-      totalTrips: backendDriver.totalTrips,
-      documents: {
-        passport: this.mapDocumentStatus(backendDriver.passportStatus),
-        license: this.mapDocumentStatus(backendDriver.licenseStatus),
-        rtw: this.mapDocumentStatus(backendDriver.rtwStatus),
-        medical: this.mapDocumentStatus(backendDriver.medicalStatus),
-        dbs: this.mapDocumentStatus(backendDriver.dbsStatus),
-      },
-    };
+  private loadDepots(): void {
+    this.driverService.getDepots().subscribe({
+      next: (depots) => this.depots.set(depots),
+      error: (err: unknown) =>
+        this.alertService.showError("Could not load depots", apiErrorMessage(err, "Depot filter unavailable.")),
+    });
   }
 
-  // Map backend document status to frontend format
-  mapDocumentStatus(backendStatus: string): DocumentStatus {
-    switch (backendStatus?.toUpperCase()) {
-      case "VERIFIED":
-      case "VALID":
-        return "valid";
-      case "EXPIRING":
-        return "expiring";
-      case "EXPIRED":
-        return "expired";
-      case "PENDING":
-        return "pending";
-      default:
-        return "pending";
-    }
-  }
-
-  // Format date from backend to display format
-  formatDate(dateString: string): string {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-GB"); // DD/MM/YYYY format
-  }
-
-  loadStats() {
+  loadStats(): void {
     this.driverService.getStats().subscribe({
-      next: (stats: DriverStats) => {
+      next: (stats) => {
+        const activeShare = stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0;
         this.stats.set([
           {
             title: "Total Drivers",
-            value: stats.total.toString(),
-            change: "+12 this month",
+            value: String(stats.total),
+            change: "All depots, all statuses",
             icon: "user",
             color: "text-blue-600",
             bgColor: "bg-blue-100",
           },
           {
             title: "Active Drivers",
-            value: stats.active.toString(),
-            change: `${Math.round(
-              (stats.active / stats.total) * 100
-            )}% of total`,
+            value: String(stats.active),
+            change: `${activeShare}% of total`,
             icon: "check-circle",
             color: "text-green-600",
             bgColor: "bg-green-100",
           },
           {
-            title: "Expiring Soon",
-            value: stats.expiring.toString(),
-            change: "Next 30 days",
+            title: "Documents Expiring",
+            value: String(stats.expiring),
+            change: "Expired or due in 30 days",
             icon: "alert-circle",
             color: "text-orange-600",
             bgColor: "bg-orange-100",
           },
           {
-            title: "Pending Review",
-            value: stats.pending.toString(),
-            change: "Requires action",
+            title: "Pending",
+            value: String(stats.pending),
+            change: "Drivers with status PENDING",
             icon: "file-text",
             color: "text-red-600",
             bgColor: "bg-red-100",
           },
         ]);
       },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      error: (error: any) => {
-        console.error("Error loading stats:", error);
-      },
+      error: () => this.stats.set([]),
     });
   }
 
-  onSearchChange(event: Event) {
-    const target = event.target as HTMLInputElement;
-    this.searchTerm.set(target.value);
+  onSearchChange(event: Event): void {
+    this.searchTerm.set((event.target as HTMLInputElement).value);
   }
 
-  onStatusFilterChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    this.statusFilter.set(target.value);
+  onStatusFilterChange(event: Event): void {
+    this.statusFilter.set((event.target as HTMLSelectElement).value);
   }
 
-  onDepotFilterChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    this.depotFilter.set(target.value);
+  onDepotFilterChange(event: Event): void {
+    this.depotFilter.set((event.target as HTMLSelectElement).value);
+    this.loadDrivers();
   }
 
-  setActiveTab(tab: string) {
+  setActiveTab(tab: DriversTab): void {
     this.activeTab.set(tab);
   }
 
-  openDriverModal(driver: Driver) {
-    this.selectedDriver.set(driver);
-    this.showDriverModal.set(true);
+  statusBadgeClass(status: string): string {
+    return driverStatusClass(status);
   }
 
-  closeDriverModal() {
-    this.selectedDriver.set(null);
-    this.showDriverModal.set(false);
+  docStatus(driver: Driver, doc: ComplianceDoc): DocumentStatus {
+    return documentStatus(driver[doc.key]);
   }
 
-  getStatusBadgeClass(status: DriverStatus | string): string {
-    switch (status.toLowerCase()) {
-      case "active":
-        return "bg-green-100 text-green-800";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "suspended":
-        return "bg-red-100 text-red-800";
-      case "expired":
-      case "inactive":
-        return "bg-gray-100 text-gray-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
+  docStatusClass(status: DocumentStatus): string {
+    return documentStatusClass(status);
   }
 
-  getDocumentStatusClass(status: DocumentStatus | string): string {
-    switch (status) {
-      case "valid":
-        return "bg-green-100 text-green-800";
-      case "expiring":
-        return "bg-orange-100 text-orange-800";
-      case "expired":
-        return "bg-red-100 text-red-800";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  }
-
-  getActivityIcon(type: string): string {
-    switch (type) {
-      case "success":
-        return "check-circle";
-      case "warning":
-        return "alert-circle";
-      case "pending":
-        return "clock";
-      default:
-        return "bell";
-    }
-  }
-
-  getActivityIconColor(type: string): string {
-    switch (type) {
-      case "success":
-        return "text-green-600";
-      case "warning":
-        return "text-orange-600";
-      case "pending":
-        return "text-yellow-600";
-      default:
-        return "text-blue-600";
-    }
-  }
-
-  isExpiringSoon(dateStr: string): boolean {
-    const date = new Date(dateStr.split("/").reverse().join("-"));
-    const today = new Date();
-    const diffTime = date.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 30 && diffDays >= 0;
+  depotLabel(driver: Driver): string {
+    return driver.homeDepot ? `${driver.homeDepot.code} · ${driver.homeDepot.name}` : driver.depot || "No home depot";
   }
 
   getInitials(name: string): string {
-    return name
+    return (name ?? "")
       .split(" ")
-      .map((n) => n[0])
-      .join("");
+      .filter(Boolean)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
   }
 
-  editDriver(driver: Driver) {
-    console.log("Edit driver:", driver);
-    // Implement edit functionality
+  viewDriverDetails(driver: Driver): void {
+    this.router.navigate(["/drivers", driver.id]);
   }
 
-  deleteDriver(driver: Driver) {
-    this.driverService.deleteDriver(driver.id).subscribe({
+  editDriver(driver: Driver): void {
+    this.editingDriver.set(driver);
+  }
+
+  closeEdit(): void {
+    this.editingDriver.set(null);
+  }
+
+  onDriverSaved(): void {
+    this.editingDriver.set(null);
+    this.loadDrivers();
+    this.loadStats();
+  }
+
+  deactivateDriver(driver: Driver): void {
+    if (driver.status === "INACTIVE") {
+      return;
+    }
+    const confirmed = confirm(
+      `Deactivate ${driver.name}?\n\nThe driver is not deleted: status becomes INACTIVE and payment history is kept.`
+    );
+    if (!confirmed) {
+      return;
+    }
+    this.deactivatingId.set(driver.id);
+    this.driverService.deactivateDriver(driver.id).subscribe({
       next: () => {
-        // Reload drivers after deletion
+        this.deactivatingId.set(null);
+        this.alertService.showSuccess("Driver deactivated", driver.name);
         this.loadDrivers();
-        console.log("Driver deleted successfully");
+        this.loadStats();
       },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      error: (error: any) => {
-        console.error("Error deleting driver:", error);
+      error: (err: unknown) => {
+        this.deactivatingId.set(null);
+        this.alertService.showError("Could not deactivate driver", apiErrorMessage(err, "Please try again."));
       },
     });
   }
 
-  exportData() {
-    console.log("Export data");
-    // Implement export functionality
+  /** Drivers are created from recruitment only (POST /api/drivers is forbidden) */
+  newCandidate(): void {
+    this.router.navigate(["/candidates"]);
   }
 
-  addNewDriver() {
-    console.log("Add new driver");
-    // Implement add driver functionality
-  }
-
-  viewDriverDetails(driver: Driver) {
-    this.router.navigate(["/drivers", driver.id]);
+  exportData(): void {
+    const rows = this.filteredDrivers();
+    if (rows.length === 0) {
+      this.alertService.showWarning("Nothing to export", "No drivers match the current filters.");
+      return;
+    }
+    const date = (value: string | null | undefined): string => (value ? value.slice(0, 10) : "");
+    const columns: CsvColumn<Driver>[] = [
+      { header: "Name", value: (d) => d.name },
+      { header: "Transporter ID", value: (d) => d.transporterId },
+      { header: "Status", value: (d) => d.status },
+      { header: "Home depot code", value: (d) => d.homeDepot?.code ?? "" },
+      { header: "Home depot", value: (d) => d.homeDepot?.name ?? d.depot },
+      { header: "Email", value: (d) => d.email },
+      { header: "Phone", value: (d) => d.phone },
+      { header: "Address", value: (d) => d.address },
+      { header: "Citizenship", value: (d) => d.citizenship },
+      { header: "Contract type", value: (d) => d.contractType },
+      { header: "Licence number", value: (d) => d.licenseNumber },
+      { header: "Licence expiry", value: (d) => date(d.licenseExpiry) },
+      { header: "Passport/visa expiry", value: (d) => date(d.passportExpiry) },
+      { header: "Right to work expiry", value: (d) => date(d.rtwExpiry) },
+      { header: "Next DVLA check", value: (d) => date(d.nextCheck) },
+      { header: "Licence points", value: (d) => d.points },
+      { header: "Endorsements", value: (d) => (d.hasEndorsements ? "Yes" : "No") },
+    ];
+    downloadCsv(`drivers-${today()}`, rows, columns);
   }
 }

@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { SecureErrorUtil } from "../shared/utils/secure-error.util";
 import { PrismaService } from "../prisma/prisma.service";
+import { TenantContext } from "../tenancy/tenant-context";
 import {
   MESSAGING_PROVIDER,
   MessagingProvider,
@@ -53,14 +54,6 @@ export class RecruitmentService {
       );
     }
 
-    // Get default organization
-    const organization = await this.prisma.organization.findUnique({
-      where: { slug: "default" },
-    });
-    if (!organization) {
-      throw new BadRequestException("Default organization not found");
-    }
-
     const smsToken = nanoid(SMS_TOKEN_LENGTH);
     const tokenExpiry = new Date();
     tokenExpiry.setHours(tokenExpiry.getHours() + TOKEN_EXPIRY_HOURS);
@@ -68,7 +61,8 @@ export class RecruitmentService {
     const candidate = await this.prisma.candidate.create({
       data: {
         ...createCandidateDto,
-        organizationId: organization.id,
+        // organizationId is set from the request domain (TenantContext)
+        organizationId: TenantContext.requireOrganizationId(),
         smsToken,
         tokenExpiry,
         status: "LEAD",
@@ -76,6 +70,16 @@ export class RecruitmentService {
     });
 
     return candidate;
+  }
+
+  /** Registration link on the DSP's own domain (the one this request came from) */
+  private buildRegistrationLink(token: string | null): string {
+    const domain = TenantContext.get()?.domain;
+    const isLocal = !domain || domain === "localhost" || domain === "127.0.0.1";
+    const base = isLocal
+      ? this.configService.get<string>("FRONTEND_DEV_URL") || "http://localhost:4200"
+      : `https://${domain}`;
+    return `${base}/register/${token ?? ""}`;
   }
 
   async sendSms(candidateId: string) {
@@ -87,7 +91,7 @@ export class RecruitmentService {
       throw new NotFoundException("Candidate not found");
     }
 
-    const registrationLink = `https://careers.dsphub.co.uk/register/${candidate.smsToken}`;
+    const registrationLink = this.buildRegistrationLink(candidate.smsToken);
 
     const templateName =
       this.configService.get<string>("RECRUITMENT_INVITE_TEMPLATE") ||

@@ -3,10 +3,11 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { User, UserRole, UserStatus, Prisma } from "@prisma/client";
-import * as bcrypt from "bcrypt";
+import { hashPassword } from "better-auth/crypto";
 import {
   CreateUserDto,
   UpdateUserDto,
@@ -15,9 +16,7 @@ import {
   PaginatedUsersResponseDto,
   UserStatsResponseDto,
 } from "./dto";
-
-// Constants
-const BCRYPT_ROUNDS = 10;
+import { TenantContext } from "../tenancy/tenant-context";
 
 interface CreateUserData {
   readonly email: string;
@@ -26,119 +25,150 @@ interface CreateUserData {
   readonly role: UserRole;
 }
 
-type UserWithoutPassword = User; // User model no longer has password field (moved to Account)
+/** The authenticated user performing the action */
+export interface Actor {
+  readonly id: string;
+  readonly role: string;
+}
 
+type UserWithoutPassword = User; // password lives in Account (better-auth)
+
+/** Member.role values used by the better-auth organization plugin */
+const memberRoleFor = (role: UserRole): string =>
+  role === UserRole.OWNER ? "owner" : role === UserRole.DIRECTOR ? "admin" : "member";
+
+const SORTABLE_FIELDS = new Set(["name", "email", "role", "status", "createdAt", "lastLogin"]);
+
+/**
+ * Users are global identities; a DSP only sees and manages users that are
+ * members of the current organization (TenantContext).
+ */
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Find a user by their ID
-   * @param id - User ID
-   * @returns User without password field
-   * @throws NotFoundException if user not found
-   */
-  async findById(id: string): Promise<UserWithoutPassword> {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-    });
+  private memberOfCurrentOrganization(): Prisma.UserWhereInput {
+    return {
+      members: { some: { organizationId: TenantContext.requireOrganizationId() } },
+    };
+  }
 
+  private assertRoleChangeAllowed(actor: Actor | undefined, role?: UserRole) {
+    if (role === UserRole.SUPER_ADMIN && actor?.role !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException("Only super administrators can grant this role");
+    }
+  }
+
+  private async findInOrganizationOrThrow(id: string): Promise<User> {
+    const user = await this.prisma.user.findFirst({
+      where: { id, ...this.memberOfCurrentOrganization() },
+    });
     if (!user) {
       throw new NotFoundException("User not found");
     }
-
     return user;
   }
 
+  private assertCanManage(actor: Actor | undefined, target: User) {
+    if (target.role === UserRole.SUPER_ADMIN && actor?.role !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException("You cannot change this user");
+    }
+  }
+
   /**
-   * Find a user by their email address
-   * @param email - User email
-   * @returns Complete user object including password (for authentication)
+   * Find a user of the current organization by id
+   * @throws NotFoundException if the user is not a member of this DSP
+   */
+  async findById(id: string): Promise<UserWithoutPassword> {
+    return this.findInOrganizationOrThrow(id);
+  }
+
+  /**
+   * Find a user by email (global lookup, used by authentication flows)
    */
   async findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
-      where: { email },
+    return this.prisma.user.findUnique({ where: { email } });
+  }
+
+  private async createMemberWithCredentials(
+    data: { email: string; name: string; role: UserRole; phoneNumber?: string },
+    password: string
+  ): Promise<User> {
+    const organizationId = TenantContext.requireOrganizationId();
+    const passwordHash = await hashPassword(password);
+
+    return this.prisma.tenantTransaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: data.email,
+          name: data.name,
+          role: data.role,
+          phoneNumber: data.phoneNumber,
+          status: UserStatus.ACTIVE,
+        },
+      });
+
+      await tx.account.create({
+        data: {
+          userId: user.id,
+          accountId: user.id,
+          providerId: "credential",
+          password: passwordHash,
+        },
+      });
+
+      await tx.member.create({
+        data: {
+          userId: user.id,
+          organizationId,
+          role: memberRoleFor(data.role),
+        },
+      });
+
+      return user;
     });
   }
 
   /**
-   * Create a new user with hashed password
-   * @param data - User creation data
-   * @returns Created user without password field
+   * Create a user (with login credentials) inside the current organization
    */
   async createUser(data: CreateUserData): Promise<UserWithoutPassword> {
-    const hashedPassword = await bcrypt.hash(data.password, BCRYPT_ROUNDS);
-
-    const user = await this.prisma.user.create({
-      data: {
-        email: data.email,
-        name: data.name,
-        role: data.role,
-      },
-    });
-
-    // Create account with password using Better Auth model
-    await this.prisma.account.create({
-      data: {
-        userId: user.id,
-        accountId: user.id,
-        providerId: "credential",
-        password: hashedPassword,
-      },
-    });
-
-    return user;
+    return this.createMemberWithCredentials(data, data.password);
   }
 
   /**
-   * Create a new user from DTO
-   * @param createUserDto - User creation data from DTO
-   * @returns Created user without password field
+   * Create a user from the admin screen
    */
   async createUserFromDto(
-    createUserDto: CreateUserDto
+    createUserDto: CreateUserDto,
+    actor?: Actor
   ): Promise<UserResponseDto> {
-    // Check if user with email already exists
+    this.assertRoleChangeAllowed(actor, createUserDto.role);
+
     const existingUser = await this.prisma.user.findUnique({
       where: { email: createUserDto.email },
+      select: { id: true },
     });
-
     if (existingUser) {
+      // Same message whether the account belongs to this DSP or another one
       throw new ConflictException("User with this email already exists");
     }
 
-    const hashedPassword = await bcrypt.hash(
-      createUserDto.password,
-      BCRYPT_ROUNDS
-    );
-
-    const user = await this.prisma.user.create({
-      data: {
+    const user = await this.createMemberWithCredentials(
+      {
         email: createUserDto.email,
         name: createUserDto.name,
         role: createUserDto.role,
         phoneNumber: createUserDto.phoneNumber,
-        status: UserStatus.ACTIVE, // Explicitly set to ACTIVE to prevent any issues
       },
-    });
-
-    // Create account with password using Better Auth model
-    await this.prisma.account.create({
-      data: {
-        userId: user.id,
-        accountId: user.id,
-        providerId: "credential",
-        password: hashedPassword,
-      },
-    });
+      createUserDto.password
+    );
 
     return this.mapToUserResponse(user);
   }
 
   /**
-   * Get all users with filtering and pagination
-   * @param filters - Query filters and pagination options
-   * @returns Paginated list of users
+   * List users of the current organization with filters and pagination
    */
   async findAllUsers(filters: GetUsersDto): Promise<PaginatedUsersResponseDto> {
     const {
@@ -151,8 +181,7 @@ export class UsersService {
       sortOrder = "desc",
     } = filters;
 
-    // Build where clause for filtering
-    const where: Prisma.UserWhereInput = {};
+    const where: Prisma.UserWhereInput = { ...this.memberOfCurrentOrganization() };
 
     if (search) {
       where.OR = [
@@ -160,72 +189,57 @@ export class UsersService {
         { email: { contains: search, mode: "insensitive" } },
       ];
     }
-
     if (role) {
       where.role = role;
     }
-
     if (status) {
       where.status = status;
     }
 
-    // Calculate skip for pagination
-    const skip = (page - 1) * limit;
-
-    // Build orderBy clause
+    const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const safePage = Math.max(Number(page) || 1, 1);
     const orderBy: Prisma.UserOrderByWithRelationInput = {
-      [sortBy]: sortOrder,
+      [SORTABLE_FIELDS.has(sortBy) ? sortBy : "createdAt"]: sortOrder === "asc" ? "asc" : "desc",
     };
 
-    // Execute queries in parallel
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
-        skip,
-        take: limit,
+        skip: (safePage - 1) * safeLimit,
+        take: safeLimit,
         orderBy,
       }),
       this.prisma.user.count({ where }),
     ]);
 
-    const totalPages = Math.ceil(total / limit);
-
     return {
       data: users.map((user) => this.mapToUserResponse(user)),
       pagination: {
-        page,
-        limit,
+        page: safePage,
+        limit: safeLimit,
         total,
-        totalPages,
+        totalPages: Math.ceil(total / safeLimit),
       },
     };
   }
 
   /**
-   * Update user information
-   * @param id - User ID
-   * @param updateUserDto - Update data
-   * @returns Updated user without password field
+   * Update a user of the current organization
    */
   async updateUser(
     id: string,
-    updateUserDto: UpdateUserDto
+    updateUserDto: UpdateUserDto,
+    actor?: Actor
   ): Promise<UserResponseDto> {
-    // Check if user exists
-    const existingUser = await this.prisma.user.findUnique({
-      where: { id },
-    });
+    const existingUser = await this.findInOrganizationOrThrow(id);
+    this.assertCanManage(actor, existingUser);
+    this.assertRoleChangeAllowed(actor, updateUserDto.role);
 
-    if (!existingUser) {
-      throw new NotFoundException("User not found");
-    }
-
-    // If email is being updated, check for conflicts
     if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
       const emailConflict = await this.prisma.user.findUnique({
         where: { email: updateUserDto.email },
+        select: { id: true },
       });
-
       if (emailConflict) {
         throw new ConflictException("User with this email already exists");
       }
@@ -236,178 +250,125 @@ export class UsersService {
       data: updateUserDto,
     });
 
+    if (updateUserDto.role) {
+      await this.prisma.member.updateMany({
+        where: { userId: id },
+        data: { role: memberRoleFor(updateUserDto.role) },
+      });
+    }
+
     return this.mapToUserResponse(updatedUser);
   }
 
   /**
-   * Update user password
-   * @param id - User ID
-   * @param newPassword - New password to set
-   * @returns void
+   * Update the profile of the logged-in user (no role/status changes)
    */
-  async updatePassword(id: string, newPassword: string): Promise<void> {
-    // Check if user exists
-    const user = await this.prisma.user.findUnique({
-      where: { id },
+  async updateOwnProfile(
+    userId: string,
+    data: { name?: string; phoneNumber?: string; avatar?: string }
+  ): Promise<UserResponseDto> {
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data,
     });
+    return this.mapToUserResponse(updatedUser);
+  }
 
-    if (!user) {
-      throw new NotFoundException("User not found");
-    }
+  /**
+   * Set a new password for a user of the current organization
+   */
+  async updatePassword(id: string, newPassword: string, actor?: Actor): Promise<void> {
+    const user = await this.findInOrganizationOrThrow(id);
+    this.assertCanManage(actor, user);
 
-    const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
-
-    // Update password in Account model (Better Auth)
+    const passwordHash = await hashPassword(newPassword);
     await this.prisma.account.updateMany({
-      where: {
-        userId: id,
-        providerId: "credential",
-      },
-      data: { password: hashedPassword },
+      where: { userId: id, providerId: "credential" },
+      data: { password: passwordHash },
     });
   }
 
   /**
-   * Update user status
-   * @param id - User ID
-   * @param status - New status to set
-   * @returns Updated user without password field
+   * Update the status of a user of the current organization
    */
-  async updateStatus(id: string, status: UserStatus): Promise<UserResponseDto> {
-    // Check if user exists
-    const existingUser = await this.prisma.user.findUnique({
-      where: { id },
-    });
-
-    if (!existingUser) {
-      throw new NotFoundException("User not found");
-    }
+  async updateStatus(id: string, status: UserStatus, actor?: Actor): Promise<UserResponseDto> {
+    const existingUser = await this.findInOrganizationOrThrow(id);
+    this.assertCanManage(actor, existingUser);
 
     const updatedUser = await this.prisma.user.update({
       where: { id },
       data: { status },
     });
-
     return this.mapToUserResponse(updatedUser);
   }
 
   /**
-   * Soft delete user by setting status to INACTIVE
-   * @param id - User ID
-   * @returns void
+   * Remove a user from the current organization.
+   * If the user belongs to no other DSP, the account is also deactivated.
    */
-  async softDeleteUser(id: string): Promise<void> {
-    // Check if user exists
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-    });
+  async softDeleteUser(id: string, actor?: Actor): Promise<void> {
+    const organizationId = TenantContext.requireOrganizationId();
+    const user = await this.findInOrganizationOrThrow(id);
+    this.assertCanManage(actor, user);
 
-    if (!user) {
-      throw new NotFoundException("User not found");
+    if (actor?.id === id) {
+      throw new BadRequestException("You cannot remove your own account");
     }
 
-    // Prevent deletion of the last DIRECTOR
-    if (user.role === UserRole.DIRECTOR) {
-      const directorCount = await this.prisma.user.count({
+    if (user.role === UserRole.DIRECTOR || user.role === UserRole.OWNER) {
+      const leaders = await this.prisma.user.count({
         where: {
-          role: UserRole.DIRECTOR,
+          ...this.memberOfCurrentOrganization(),
+          role: { in: [UserRole.DIRECTOR, UserRole.OWNER] },
           status: { not: UserStatus.INACTIVE },
         },
       });
-
-      if (directorCount <= 1) {
-        throw new BadRequestException("Cannot delete the last active director");
+      if (leaders <= 1) {
+        throw new BadRequestException("Cannot remove the last active director");
       }
     }
 
-    await this.prisma.user.update({
-      where: { id },
-      data: { status: UserStatus.INACTIVE },
-    });
+    await this.prisma.member.deleteMany({ where: { userId: id, organizationId } });
+
+    const otherMemberships = await TenantContext.runAsSystem(
+      async () => await this.prisma.member.count({ where: { userId: id } })
+    );
+    if (otherMemberships === 0) {
+      await this.prisma.user.update({
+        where: { id },
+        data: { status: UserStatus.INACTIVE },
+      });
+    }
   }
 
   /**
-   * Get user statistics for dashboard
-   * @returns User statistics
+   * User statistics for the current organization
    */
   async getUserStats(): Promise<UserStatsResponseDto> {
-    // Get basic counts
-    const [
-      totalUsers,
-      activeUsers,
-      inactiveUsers,
-      pendingUsers,
-      usersByRole,
-      newUsersThisMonth,
-    ] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.user.count({ where: { status: UserStatus.ACTIVE } }),
-      this.prisma.user.count({ where: { status: UserStatus.INACTIVE } }),
-      this.prisma.user.count({ where: { status: UserStatus.PENDING } }),
-      this.getUsersByRole(),
-      this.getNewUsersThisMonth(),
-    ]);
-
-    return {
-      totalUsers,
-      activeUsers,
-      inactiveUsers,
-      pendingUsers,
-      usersByRole,
-      newUsersThisMonth,
-    };
-  }
-
-  /**
-   * Helper method to get users count by role
-   * @returns Object with role counts
-   */
-  private async getUsersByRole(): Promise<Record<UserRole, number>> {
-    const roleCounts = await this.prisma.user.groupBy({
-      by: ["role"],
-      _count: { role: true },
-    });
-
-    const result: Record<UserRole, number> = {
-      [UserRole.SUPER_ADMIN]: 0,
-      [UserRole.OWNER]: 0,
-      [UserRole.DIRECTOR]: 0,
-      [UserRole.MANAGER_FINANCIAL]: 0,
-      [UserRole.MANAGER_FLEET]: 0,
-      [UserRole.MANAGER_ONSITE]: 0,
-      [UserRole.MANAGER_RECRUITMENT]: 0,
-      [UserRole.DRIVER]: 0,
-    };
-
-    roleCounts.forEach((item) => {
-      result[item.role] = item._count.role;
-    });
-
-    return result;
-  }
-
-  /**
-   * Helper method to get count of users created this month
-   * @returns Number of new users this month
-   */
-  private async getNewUsersThisMonth(): Promise<number> {
+    const scope = this.memberOfCurrentOrganization();
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    return this.prisma.user.count({
-      where: {
-        createdAt: {
-          gte: startOfMonth,
-        },
-      },
+    const [totalUsers, activeUsers, inactiveUsers, pendingUsers, roleCounts, newUsersThisMonth] =
+      await Promise.all([
+        this.prisma.user.count({ where: scope }),
+        this.prisma.user.count({ where: { ...scope, status: UserStatus.ACTIVE } }),
+        this.prisma.user.count({ where: { ...scope, status: UserStatus.INACTIVE } }),
+        this.prisma.user.count({ where: { ...scope, status: UserStatus.PENDING } }),
+        this.prisma.user.groupBy({ by: ["role"], where: scope, _count: { role: true } }),
+        this.prisma.user.count({ where: { ...scope, createdAt: { gte: startOfMonth } } }),
+      ]);
+
+    const usersByRole = Object.fromEntries(
+      Object.values(UserRole).map((role) => [role, 0])
+    ) as Record<UserRole, number>;
+    roleCounts.forEach((item) => {
+      usersByRole[item.role] = item._count.role;
     });
+
+    return { totalUsers, activeUsers, inactiveUsers, pendingUsers, usersByRole, newUsersThisMonth };
   }
 
-  /**
-   * Helper method to map User to UserResponseDto
-   * @param user - User object from database
-   * @returns UserResponseDto
-   */
   private mapToUserResponse(user: User): UserResponseDto {
     return {
       id: user.id,
@@ -419,7 +380,7 @@ export class UsersService {
       lastLogin: user.lastLogin,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      twoFactorEnabled: false, // TODO: Implement 2FA with Better Auth
+      twoFactorEnabled: false,
     };
   }
 }

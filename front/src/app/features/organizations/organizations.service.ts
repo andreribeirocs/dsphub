@@ -6,6 +6,9 @@ import type {
   Organization,
   CreateOrganizationDto,
   UpdateOrganizationDto,
+  DepotRecord,
+  CreateDepotDto,
+  UpdateDepotDto,
 } from "./organizations.model";
 
 @Injectable({
@@ -14,6 +17,34 @@ import type {
 export class OrganizationsService {
   private readonly http = inject(HttpClient);
   private readonly API_URL = `${environment.apiUrl}/organizations`;
+  private readonly DEPOTS_URL = `${environment.apiUrl}/depots`;
+
+  /** The DSP of the current domain */
+  getCurrent(): Observable<Organization> {
+    return this.http.get<Organization>(`${this.API_URL}/current`, {
+      withCredentials: true,
+    });
+  }
+
+  /** Depots of the current DSP */
+  getDepots(includeInactive = false): Observable<DepotRecord[]> {
+    return this.http.get<DepotRecord[]>(this.DEPOTS_URL, {
+      params: includeInactive ? { includeInactive: "true" } : {},
+      withCredentials: true,
+    });
+  }
+
+  createDepot(dto: CreateDepotDto): Observable<DepotRecord> {
+    return this.http.post<DepotRecord>(this.DEPOTS_URL, dto, {
+      withCredentials: true,
+    });
+  }
+
+  updateDepot(id: string, dto: UpdateDepotDto): Observable<DepotRecord> {
+    return this.http.patch<DepotRecord>(`${this.DEPOTS_URL}/${id}`, dto, {
+      withCredentials: true,
+    });
+  }
 
   getAll(): Observable<Organization[]> {
     return this.http.get<Organization[]>(this.API_URL, {

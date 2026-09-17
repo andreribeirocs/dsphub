@@ -60,6 +60,7 @@
         "serve": {
           "builder": "@angular/build:dev-server",
           "options": {
+            "proxyConfig": "proxy.conf.json",
             "headers": {
               "X-Frame-Options": "DENY",
               "Content-Security-Policy": "frame-ancestors 'none'",

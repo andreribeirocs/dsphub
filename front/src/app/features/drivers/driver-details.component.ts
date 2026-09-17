@@ -1,105 +1,187 @@
-import { Component, OnInit, inject } from "@angular/core";
-import { CommonModule } from "@angular/common";
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from "@angular/core";
+import { CurrencyPipe, DatePipe } from "@angular/common";
 import { ActivatedRoute, Router } from "@angular/router";
+import { AlertService } from "../../shared/services/alert.service";
+import { DriverEditModalComponent } from "./driver-edit-modal.component";
 import { DriverService } from "./drivers.service";
-import { Driver, PerformanceMetrics } from "./drivers.model";
-// Chart imports removed as they're not used in this component
+import {
+  Depot,
+  DocumentStatus,
+  DriverDetails,
+  DriverPayment,
+  apiErrorMessage,
+  documentStatus,
+  documentStatusClass,
+  driverStatusClass,
+} from "./drivers.model";
+
+interface ComplianceRow {
+  readonly label: string;
+  readonly date: string | null;
+  readonly status: DocumentStatus;
+}
+
+const PAYMENTS_SHOWN = 20;
 
 @Component({
   selector: "app-driver-details",
   standalone: true,
-  imports: [CommonModule],
+  imports: [DatePipe, CurrencyPipe, DriverEditModalComponent],
   templateUrl: "./driver-details.component.html",
-  styles: [],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DriverDetailsComponent implements OnInit {
+export class DriverDetailsComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly driverService = inject(DriverService);
+  private readonly alertService = inject(AlertService);
 
-  driver: Driver | null = null;
-  performance: PerformanceMetrics | null = null;
+  private readonly driverId = this.route.snapshot.paramMap.get("id") ?? "";
 
-  ngOnInit() {
-    const driverId = this.route.snapshot.paramMap.get("id");
-    if (driverId) {
-      this.loadDriverDetails(driverId);
-      this.loadMockPerformanceData();
+  readonly driver = signal<DriverDetails | null>(null);
+  readonly loading = signal(true);
+  readonly loadError = signal<string | null>(null);
+
+  readonly payments = signal<DriverPayment[]>([]);
+  readonly paymentsLoading = signal(true);
+  readonly paymentsError = signal<string | null>(null);
+
+  readonly depots = signal<Depot[]>([]);
+  readonly editing = signal(false);
+  readonly deactivating = signal(false);
+
+  readonly compliance = computed<ComplianceRow[]>(() => {
+    const driver = this.driver();
+    if (!driver) {
+      return [];
     }
+    return [
+      { label: "Passport / visa", date: driver.passportExpiry },
+      { label: "Driving licence", date: driver.licenseExpiry },
+      { label: "Right to work", date: driver.rtwExpiry },
+    ].map((row) => ({ ...row, status: documentStatus(row.date) }));
+  });
+
+  readonly recentPayments = computed(() => this.payments().slice(0, PAYMENTS_SHOWN));
+
+  readonly paymentTotals = computed(() => {
+    let paid = 0;
+    let unpaid = 0;
+    for (const payment of this.payments()) {
+      if (payment.isPaid) {
+        paid += payment.totalPaid;
+      } else {
+        unpaid += payment.totalPaid;
+      }
+    }
+    return { paid, unpaid, count: this.payments().length };
+  });
+
+  constructor() {
+    if (!this.driverId) {
+      this.loading.set(false);
+      this.loadError.set("Driver not found.");
+      return;
+    }
+    this.loadDriver();
+    this.loadPayments();
+    this.driverService.getDepots().subscribe({
+      next: (depots) => this.depots.set(depots),
+      error: () => this.depots.set([]),
+    });
   }
 
-  loadDriverDetails(id: string) {
-    this.driverService.getDriverById(id).subscribe({
+  loadDriver(): void {
+    this.loading.set(true);
+    this.loadError.set(null);
+    this.driverService.getDriver(this.driverId).subscribe({
       next: (driver) => {
-        this.driver = driver;
+        this.driver.set(driver);
+        this.loading.set(false);
       },
-      error: (error) => {
-        console.error("Error loading driver details:", error);
+      error: (err: unknown) => {
+        this.loading.set(false);
+        this.loadError.set(apiErrorMessage(err, "Could not load driver."));
       },
     });
   }
 
-  loadMockPerformanceData() {
-    // Mock data for Mario
-    this.performance = {
-      currentWeek: {
-        deliveries: 1135,
-        dcr: 99.91,
-        pod: 99.15,
-        cdf: 90.49,
+  private loadPayments(): void {
+    this.paymentsLoading.set(true);
+    this.paymentsError.set(null);
+    this.driverService.getDriverPayments(this.driverId).subscribe({
+      next: (payments) => {
+        this.payments.set(payments);
+        this.paymentsLoading.set(false);
       },
-      weeklyTrends: {
-        dcr: [97.42, 99.66, 98.09, 99.91],
-        pod: [78.95, 99.7, 99.57, 99.15],
-        cc: [63.16, 100, 100, 100],
-        cdf: [87.61, 94.84, 74.97, 90.49],
+      error: (err: unknown) => {
+        this.paymentsLoading.set(false);
+        this.paymentsError.set(apiErrorMessage(err, "Could not load payments."));
       },
-      weeklyDeliveries: [868, 1160, 1132, 1135],
-      weeklyPerformance: [], // Not used in this view
-      targets: {
-        dcr: 98.5,
-        pod: 95,
-        cc: 95,
-        cdf: 95,
-      },
-      improvementAreas: {
-        critical: [],
-        performance: [],
-        training: [],
-      },
-    };
+    });
   }
 
-  goBack() {
+  goBack(): void {
     this.router.navigate(["/drivers"]);
   }
 
-  editDriver() {
-    if (this.driver) {
-      this.router.navigate(["/drivers", this.driver.id, "edit"]);
+  editDriver(): void {
+    this.editing.set(true);
+  }
+
+  onSaved(): void {
+    this.editing.set(false);
+    this.loadDriver();
+  }
+
+  deactivateDriver(): void {
+    const driver = this.driver();
+    if (!driver || driver.status === "INACTIVE") {
+      return;
     }
+    const confirmed = confirm(
+      `Deactivate ${driver.name}?\n\nThe driver is not deleted: status becomes INACTIVE and payment history is kept.`
+    );
+    if (!confirmed) {
+      return;
+    }
+    this.deactivating.set(true);
+    this.driverService.deactivateDriver(driver.id).subscribe({
+      next: () => {
+        this.deactivating.set(false);
+        this.alertService.showSuccess("Driver deactivated", driver.name);
+        this.loadDriver();
+      },
+      error: (err: unknown) => {
+        this.deactivating.set(false);
+        this.alertService.showError("Could not deactivate driver", apiErrorMessage(err, "Please try again."));
+      },
+    });
   }
 
   getInitials(name: string): string {
-    return name
+    return (name ?? "")
       .split(" ")
-      .map((n) => n[0])
+      .filter(Boolean)
+      .map((part) => part[0])
       .join("")
+      .slice(0, 2)
       .toUpperCase();
   }
 
-  getStatusBadgeClass(status: string): string {
-    switch (status?.toLowerCase()) {
-      case "active":
-        return "bg-green-100 text-green-800";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "suspended":
-        return "bg-red-100 text-red-800";
-      case "expired":
-        return "bg-gray-100 text-gray-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
+  statusBadgeClass(status: string): string {
+    return driverStatusClass(status);
+  }
+
+  docStatusClass(status: DocumentStatus): string {
+    return documentStatusClass(status);
+  }
+
+  formatLabel(value: string): string {
+    return value
+      .toLowerCase()
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
   }
 }

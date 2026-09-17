@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from "@nestjs/common";
+import { TenantContext } from "../tenancy/tenant-context";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma, Part } from "@prisma/client";
 import { CreatePartDto, UpdatePartDto, GetPartsDto } from "./dto";
@@ -46,13 +47,8 @@ export class PartsService {
    */
   async create(createPartDto: CreatePartDto): Promise<Part> {
     try {
-      // Get default organization
-      const organization = await this.prisma.organization.findUnique({
-        where: { slug: "default" },
-      });
-      if (!organization) {
-        throw new BadRequestException("Default organization not found");
-      }
+      // Organization of the domain the request came from
+      const organization = { id: TenantContext.requireOrganizationId() };
 
       const partData: Prisma.PartCreateInput = {
         organization: { connect: { id: organization.id } },
@@ -143,8 +139,9 @@ export class PartsService {
       if (filters?.lowStockOnly) {
         const lowStockParts = await this.prisma.$queryRaw<Part[]>`
           SELECT * FROM parts 
-          WHERE stock_level <= min_stock_level 
-          AND is_active = true
+          WHERE "stockLevel" <= "minStockLevel"
+          AND "isActive" = true
+          AND "organizationId" = ${TenantContext.requireOrganizationId()}
           ${filters.category ? Prisma.sql`AND LOWER(category) LIKE ${"%" + filters.category.toLowerCase() + "%"}` : Prisma.empty}
           ${filters.supplier ? Prisma.sql`AND LOWER(supplier) LIKE ${"%" + filters.supplier.toLowerCase() + "%"}` : Prisma.empty}
           ${filters.search ? Prisma.sql`AND (LOWER(name) LIKE ${"%" + filters.search.toLowerCase() + "%"} OR LOWER(description) LIKE ${"%" + filters.search.toLowerCase() + "%"})` : Prisma.empty}
@@ -319,7 +316,8 @@ export class PartsService {
         this.prisma.part.count({ where: { isActive: true } }),
         this.prisma.$queryRaw<{ count: number }[]>`
           SELECT COUNT(*) as count FROM parts 
-          WHERE stock_level <= min_stock_level AND is_active = true
+          WHERE "stockLevel" <= "minStockLevel" AND "isActive" = true
+          AND "organizationId" = ${TenantContext.requireOrganizationId()}
         `,
         this.prisma.part.findMany({
           select: { category: true },
@@ -329,12 +327,13 @@ export class PartsService {
         this.prisma.$queryRaw<{ total: number }[]>`
           SELECT 
             COALESCE(SUM(
-              COALESCE(ford_price, 0) + 
-              COALESCE(mercedes_price, 0) + 
-              COALESCE(peugeot_price, 0)
-            ) * stock_level, 0) as total
-          FROM parts 
-          WHERE is_active = true
+              (COALESCE("fordPrice", 0) +
+              COALESCE("mercedesPrice", 0) +
+              COALESCE("peugeotPrice", 0)) * "stockLevel"
+            ), 0) as total
+          FROM parts
+          WHERE "isActive" = true
+          AND "organizationId" = ${TenantContext.requireOrganizationId()}
         `,
       ]);
 
@@ -359,8 +358,9 @@ export class PartsService {
     try {
       return await this.prisma.$queryRaw<Part[]>`
         SELECT * FROM parts 
-        WHERE stock_level <= min_stock_level 
-        AND is_active = true
+        WHERE "stockLevel" <= "minStockLevel"
+        AND "isActive" = true
+        AND "organizationId" = ${TenantContext.requireOrganizationId()}
         ORDER BY category ASC, name ASC
       `;
     } catch (error) {
@@ -381,13 +381,13 @@ export class PartsService {
 
       switch (make) {
         case "ford":
-          priceField = "ford_price";
+          priceField = '"fordPrice"';
           break;
         case "mercedes":
-          priceField = "mercedes_price";
+          priceField = '"mercedesPrice"';
           break;
         case "peugeot":
-          priceField = "peugeot_price";
+          priceField = '"peugeotPrice"';
           break;
         default:
           throw new Error(`Invalid vehicle make: ${vehicleMake}`);
@@ -397,12 +397,13 @@ export class PartsService {
         SELECT 
           id as "partId",
           name as "partName",
-          ford_price as "fordPrice",
-          mercedes_price as "mercedesPrice",
-          peugeot_price as "peugeotPrice"
-        FROM parts 
-        WHERE ${Prisma.raw(priceField)} IS NOT NULL 
-        AND is_active = true
+          "fordPrice",
+          "mercedesPrice",
+          "peugeotPrice"
+        FROM parts
+        WHERE ${Prisma.raw(priceField)} IS NOT NULL
+        AND "isActive" = true
+        AND "organizationId" = ${TenantContext.requireOrganizationId()}
         ORDER BY category ASC, name ASC
       `;
     } catch (error) {

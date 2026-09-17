@@ -8,7 +8,6 @@ import {
   Param,
   Query,
   UseGuards,
-  ParseUUIDPipe,
   HttpCode,
   HttpStatus,
   UseInterceptors,
@@ -27,16 +26,19 @@ import {
   ApiQuery,
 } from "@nestjs/swagger";
 import { UsersService } from "./users.service";
+import { AuditService } from "../audit/audit.service";
 import { BetterAuthGuard } from "../auth/guards/better-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { ThrottleModerate } from "../auth/decorators/throttle.decorator";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
+import type { Actor } from "./users.service";
 import {
   CreateUserDto,
   UpdateUserDto,
   UpdatePasswordDto,
   UpdateStatusDto,
+  UpdateOwnProfileDto,
   GetUsersDto,
   UserResponseDto,
   PaginatedUsersResponseDto,
@@ -48,7 +50,83 @@ import {
 @UseGuards(BetterAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly auditService: AuditService
+  ) {}
+
+  // Declared before the ":id" routes so PATCH /users/avatar is not matched as an id
+  /**
+   * Upload user avatar
+   * @param file - Avatar image file
+   * @param user - Current authenticated user
+   * @returns Avatar URL
+   */
+  @ApiOperation({
+    summary: "Upload user avatar",
+    description: "Upload or update the current user's profile picture",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Avatar uploaded successfully",
+    schema: {
+      type: "object",
+      properties: {
+        message: { type: "string", example: "Avatar uploaded successfully" },
+        avatar: {
+          type: "string",
+          example: "/uploads/avatars/avatar-1234567890.jpg",
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: "Invalid file or file too large" })
+  @ApiResponse({ status: 401, description: "Unauthorized" })
+  @ThrottleModerate()
+  @Patch("avatar")
+  @UseInterceptors(
+    FileInterceptor("avatar", {
+      storage: diskStorage({
+        destination: "./uploads/avatars",
+        filename: (_req, file, callback) => {
+          const uniqueSuffix =
+            Date.now() + "-" + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          callback(null, `avatar-${uniqueSuffix}${ext}`);
+        },
+      }),
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
+          return callback(
+            new BadRequestException("Only image files are allowed"),
+            false
+          );
+        }
+        callback(null, true);
+      },
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+    })
+  )
+  async uploadAvatar(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: { id: string }
+  ): Promise<{ message: string; avatar: string }> {
+    if (!file) {
+      throw new BadRequestException("No file uploaded");
+    }
+
+    const avatarPath = `/api/uploads/avatars/${file.filename}`;
+
+    // Update user's avatar in database
+    await this.usersService.updateOwnProfile(user.id, { avatar: avatarPath });
+
+    return {
+      message: "Avatar uploaded successfully",
+      avatar: avatarPath,
+    };
+  }
 
   /**
    * Get all users with filtering and pagination
@@ -141,6 +219,22 @@ export class UsersController {
     return this.usersService.getUserStats();
   }
 
+  // Declared before ":id" so "me" is not matched as a user id
+  @ApiOperation({ summary: "Update the logged-in user's own name and phone" })
+  @Patch("me")
+  async updateMe(@CurrentUser() user: Actor, @Body() dto: UpdateOwnProfileDto) {
+    return this.usersService.updateOwnProfile(user.id, {
+      name: dto.name?.trim(),
+      phoneNumber: dto.phoneNumber?.trim(),
+    });
+  }
+
+  @ApiOperation({ summary: "Sign-in history of the logged-in user on this DSP" })
+  @Get("me/login-history")
+  async myLoginHistory(@CurrentUser() user: Actor) {
+    return this.auditService.loginHistory(user.id);
+  }
+
   /**
    * Get specific user by ID
    * @param id - User UUID
@@ -164,7 +258,7 @@ export class UsersController {
   @ThrottleModerate()
   @Get(":id")
   async findOne(
-    @Param("id", ParseUUIDPipe) id: string
+    @Param("id") id: string
   ): Promise<UserResponseDto> {
     const user = await this.usersService.findById(id);
     return {
@@ -203,8 +297,11 @@ export class UsersController {
   @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR")
   @ThrottleModerate()
   @Post()
-  async create(@Body() createUserDto: CreateUserDto): Promise<UserResponseDto> {
-    return this.usersService.createUserFromDto(createUserDto);
+  async create(
+    @Body() createUserDto: CreateUserDto,
+    @CurrentUser() actor: Actor
+  ): Promise<UserResponseDto> {
+    return this.usersService.createUserFromDto(createUserDto, actor);
   }
 
   /**
@@ -233,10 +330,11 @@ export class UsersController {
   @ThrottleModerate()
   @Patch(":id")
   async update(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Body() updateUserDto: UpdateUserDto
+    @Param("id") id: string,
+    @Body() updateUserDto: UpdateUserDto,
+    @CurrentUser() actor: Actor
   ): Promise<UserResponseDto> {
-    return this.usersService.updateUser(id, updateUserDto);
+    return this.usersService.updateUser(id, updateUserDto, actor);
   }
 
   /**
@@ -264,10 +362,11 @@ export class UsersController {
   @Patch(":id/password")
   @HttpCode(HttpStatus.OK)
   async updatePassword(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Body() updatePasswordDto: UpdatePasswordDto
+    @Param("id") id: string,
+    @Body() updatePasswordDto: UpdatePasswordDto,
+    @CurrentUser() actor: Actor
   ): Promise<{ message: string }> {
-    await this.usersService.updatePassword(id, updatePasswordDto.newPassword);
+    await this.usersService.updatePassword(id, updatePasswordDto.newPassword, actor);
     return { message: "Password updated successfully" };
   }
 
@@ -296,10 +395,11 @@ export class UsersController {
   @ThrottleModerate()
   @Patch(":id/status")
   async updateStatus(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Body() updateStatusDto: UpdateStatusDto
+    @Param("id") id: string,
+    @Body() updateStatusDto: UpdateStatusDto,
+    @CurrentUser() actor: Actor
   ): Promise<UserResponseDto> {
-    return this.usersService.updateStatus(id, updateStatusDto.status);
+    return this.usersService.updateStatus(id, updateStatusDto.status, actor);
   }
 
   /**
@@ -329,83 +429,11 @@ export class UsersController {
   @Delete(":id")
   @HttpCode(HttpStatus.OK)
   async remove(
-    @Param("id", ParseUUIDPipe) id: string
+    @Param("id") id: string,
+    @CurrentUser() actor: Actor
   ): Promise<{ message: string }> {
-    await this.usersService.softDeleteUser(id);
+    await this.usersService.softDeleteUser(id, actor);
     return { message: "User deleted successfully" };
   }
 
-  /**
-   * Upload user avatar
-   * @param file - Avatar image file
-   * @param user - Current authenticated user
-   * @returns Avatar URL
-   */
-  @ApiOperation({
-    summary: "Upload user avatar",
-    description: "Upload or update the current user's profile picture",
-  })
-  @ApiResponse({
-    status: 200,
-    description: "Avatar uploaded successfully",
-    schema: {
-      type: "object",
-      properties: {
-        message: { type: "string", example: "Avatar uploaded successfully" },
-        avatar: {
-          type: "string",
-          example: "/uploads/avatars/avatar-1234567890.jpg",
-        },
-      },
-    },
-  })
-  @ApiResponse({ status: 400, description: "Invalid file or file too large" })
-  @ApiResponse({ status: 401, description: "Unauthorized" })
-  @ThrottleModerate()
-  @Patch("avatar")
-  @UseInterceptors(
-    FileInterceptor("avatar", {
-      storage: diskStorage({
-        destination: "./uploads/avatars",
-        filename: (_req, file, callback) => {
-          const uniqueSuffix =
-            Date.now() + "-" + Math.round(Math.random() * 1e9);
-          const ext = extname(file.originalname);
-          callback(null, `avatar-${uniqueSuffix}${ext}`);
-        },
-      }),
-      fileFilter: (_req, file, callback) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
-          return callback(
-            new BadRequestException("Only image files are allowed"),
-            false
-          );
-        }
-        callback(null, true);
-      },
-      limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB
-      },
-    })
-  )
-  async uploadAvatar(
-    @UploadedFile() file: Express.Multer.File,
-    @CurrentUser() user: { id: string }
-  ): Promise<{ message: string; avatar: string }> {
-    if (!file) {
-      throw new BadRequestException("No file uploaded");
-    }
-
-    const avatarPath = `/uploads/avatars/${file.filename}`;
-
-    // Update user's avatar in database
-    await this.usersService.updateUser(user.id, {
-      avatar: avatarPath,
-    });
-
-    return {
-      message: "Avatar uploaded successfully",
-      avatar: avatarPath,
-    };
-  }
 }

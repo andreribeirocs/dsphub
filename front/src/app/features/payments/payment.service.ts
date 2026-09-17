@@ -6,7 +6,7 @@ import {
   PaymentDashboard,
   RoutePrice,
   PaymentHistoryResponse,
-  PaymentHistoryItem,
+  PaymentHistoryFilters,
   UpdateRoutePriceRequest,
   DriverPaymentRecord,
   CreateDriverPaymentRequest,
@@ -38,13 +38,9 @@ export class PaymentService {
   /**
    * Get payment history with optional filtering
    */
-  getPaymentHistory(filters?: {
-    routeType?: RouteType;
-    startDate?: string;
-    endDate?: string;
-    page?: number;
-    limit?: number;
-  }): Observable<PaymentHistoryResponse> {
+  getPaymentHistory(
+    filters?: PaymentHistoryFilters
+  ): Observable<PaymentHistoryResponse> {
     let params = new HttpParams();
 
     if (filters?.routeType) {

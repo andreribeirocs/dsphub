@@ -136,6 +136,11 @@ export class CreateVanDto {
   @IsString()
   readonly depot?: string;
 
+  @ApiPropertyOptional({ description: "Depot id (preferred over the free-text depot)" })
+  @IsOptional()
+  @IsString()
+  readonly depotId?: string;
+
   @ApiPropertyOptional({
     description: "Assigned driver name",
     example: "Marcos",

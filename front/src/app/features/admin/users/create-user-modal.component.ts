@@ -1,4 +1,4 @@
-import { Component, inject, signal, output } from "@angular/core";
+import { Component, computed, inject, input, signal, output } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import {
   FormBuilder,
@@ -6,7 +6,13 @@ import {
   ReactiveFormsModule,
   Validators,
 } from "@angular/forms";
-import { UsersService, CreateUserRequest, UserRole } from "./users.service";
+import {
+  ALL_ROLES,
+  ROLE_LABELS,
+  UsersService,
+  CreateUserRequest,
+  UserRole,
+} from "./users.service";
 
 @Component({
   selector: "app-create-user-modal",
@@ -217,14 +223,9 @@ import { UsersService, CreateUserRequest, UserRole } from "./users.service";
                 "
               >
                 <option value="">Select a role</option>
-                <option value="SUPER_ADMIN">Super Admin</option>
-                <option value="OWNER">Owner</option>
-                <option value="DIRECTOR">Director</option>
-                <option value="MANAGER_FINANCIAL">Financial Manager</option>
-                <option value="MANAGER_FLEET">Fleet Manager</option>
-                <option value="MANAGER_ONSITE">Onsite Manager</option>
-                <option value="MANAGER_RECRUITMENT">Recruitment Manager</option>
-                <option value="DRIVER">Driver</option>
+                @for (role of roleOptions(); track role) {
+                <option [value]="role">{{ roleLabels[role] }}</option>
+                }
               </select>
               @if (createUserForm.get('role')?.invalid &&
               createUserForm.get('role')?.touched) {
@@ -376,9 +377,17 @@ export class CreateUserModalComponent {
   private readonly formBuilder = inject(FormBuilder);
   private readonly usersService = inject(UsersService);
 
+  /** Only super administrators can grant SUPER_ADMIN */
+  readonly canGrantSuperAdmin = input(false);
+
   // Outputs
   readonly close = output<void>();
   readonly userCreated = output<void>();
+
+  readonly roleLabels = ROLE_LABELS;
+  readonly roleOptions = computed(() =>
+    ALL_ROLES.filter((role) => role !== "SUPER_ADMIN" || this.canGrantSuperAdmin())
+  );
 
   // Signals
   readonly loading = signal(false);
@@ -439,7 +448,7 @@ export class CreateUserModalComponent {
         this.loading.set(false);
         this.userCreated.emit();
       },
-      error: (error) => {
+      error: (error: Error) => {
         this.error.set(error.message || "Failed to create user");
         this.loading.set(false);
       },

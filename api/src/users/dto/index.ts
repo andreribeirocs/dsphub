@@ -8,3 +8,4 @@ export {
   PaginatedUsersResponseDto,
   UserStatsResponseDto,
 } from "./user-response.dto";
+export { UpdateOwnProfileDto } from "./update-own-profile.dto";

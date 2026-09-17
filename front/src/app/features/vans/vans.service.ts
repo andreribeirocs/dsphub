@@ -8,6 +8,7 @@ import {
   CreateVanRequest,
   UpdateVanRequest,
   GetVansQuery,
+  Depot,
 } from "./vans.model";
 
 @Injectable({
@@ -28,6 +29,9 @@ export class VansService {
     }
     if (query?.depot) {
       params = params.set("depot", query.depot);
+    }
+    if (query?.depotId) {
+      params = params.set("depotId", query.depotId);
     }
     if (query?.contract) {
       params = params.set("contract", query.contract);
@@ -70,6 +74,11 @@ export class VansService {
 
   getStats(): Observable<VanStats> {
     return this.http.get<VanStats>(`${this.apiUrl}/stats`);
+  }
+
+  /** Depots of the current DSP (active only), used for the depot select and filter */
+  getDepots(): Observable<Depot[]> {
+    return this.http.get<Depot[]>(`${environment.apiUrl}/depots`);
   }
 
   getExpiringMot(days?: number): Observable<Van[]> {

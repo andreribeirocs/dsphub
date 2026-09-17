@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from "@nestjs/common";
+import { TenantContext } from "../tenancy/tenant-context";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma, Contract, ContractStatus } from "@prisma/client";
 import { CreateContractDto, UpdateContractDto, GetContractsDto } from "./dto";
@@ -36,13 +37,8 @@ export class ContractsService {
    */
   async create(createContractDto: CreateContractDto): Promise<Contract> {
     try {
-      // Get default organization
-      const organization = await this.prisma.organization.findUnique({
-        where: { slug: "default" },
-      });
-      if (!organization) {
-        throw new BadRequestException("Default organization not found");
-      }
+      // Organization of the domain the request came from
+      const organization = { id: TenantContext.requireOrganizationId() };
 
       const contractData: Prisma.ContractCreateInput = {
         organization: {
@@ -183,13 +179,8 @@ export class ContractsService {
    */
   async findByName(name: string): Promise<Contract> {
     try {
-      // Get default organization
-      const organization = await this.prisma.organization.findUnique({
-        where: { slug: "default" },
-      });
-      if (!organization) {
-        throw new NotFoundException("Default organization not found");
-      }
+      // Organization of the domain the request came from
+      const organization = { id: TenantContext.requireOrganizationId() };
 
       const contract = await this.prisma.contract.findUnique({
         where: {

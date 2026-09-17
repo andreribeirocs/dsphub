@@ -10,20 +10,22 @@ export interface Van {
   readonly registration: string;
   readonly make: string;
   readonly model: string;
-  readonly year?: number;
+  readonly year?: number | null;
   readonly status: VanStatus;
   readonly condition: VanCondition;
   readonly motExpiry?: string;
-  readonly monthlyRental?: number;
-  readonly contractId?: string;
-  readonly contract?: Contract;
+  /** Prisma Decimal, serialized as a string by the API */
+  readonly monthlyRental?: number | string | null;
+  readonly contractId?: string | null;
+  readonly contract?: Contract | null;
   readonly vin?: string;
   readonly engineNumber?: string;
   readonly fuelType?: string;
   readonly capacity?: string;
-  readonly depot?: string;
+  readonly depot?: string | null;
+  readonly depotId?: string | null;
   readonly assignedDriver?: string;
-  readonly mileage?: number;
+  readonly mileage?: number | null;
   readonly lastService?: string;
   readonly nextService?: string;
   readonly comments?: string;
@@ -135,18 +137,29 @@ export interface PartsStats {
   readonly totalValue: number;
 }
 
+/** Prices come from a raw query on Decimal columns, so they may arrive as strings */
 export interface PartPrice {
   readonly partId: string;
   readonly partName: string;
-  readonly fordPrice: number | null;
-  readonly mercedesPrice: number | null;
-  readonly peugeotPrice: number | null;
+  readonly fordPrice: number | string | null;
+  readonly mercedesPrice: number | string | null;
+  readonly peugeotPrice: number | string | null;
+}
+
+export type VehicleMake = "ford" | "mercedes" | "peugeot";
+
+export interface Depot {
+  readonly id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly isActive: boolean;
 }
 
 export interface StatCard {
   readonly title: string;
   readonly value: string;
   readonly subtitle: string;
+  /** SVG path "d" attribute */
   readonly icon: string;
   readonly color: string;
   readonly bgColor: string;
@@ -168,10 +181,12 @@ export interface CreateVanRequest {
   readonly registration: string;
   readonly make: string;
   readonly model: string;
-  readonly year?: number;
+  /** null clears the value on update */
+  readonly year?: number | null;
   readonly status?: VanStatus;
   readonly condition?: VanCondition;
   readonly motExpiry?: string;
+  /** "" removes the contract on update */
   readonly contractId?: string;
   readonly monthlyRental?: string;
   readonly vin?: string;
@@ -179,8 +194,11 @@ export interface CreateVanRequest {
   readonly fuelType?: string;
   readonly capacity?: string;
   readonly depot?: string;
+  /** "" removes the depot on update */
+  readonly depotId?: string;
   readonly assignedDriver?: string;
-  readonly mileage?: number;
+  /** null clears the value on update */
+  readonly mileage?: number | null;
   readonly lastService?: string;
   readonly nextService?: string;
   readonly comments?: string;
@@ -193,6 +211,7 @@ export interface GetVansQuery {
   readonly status?: VanStatus;
   readonly condition?: VanCondition;
   readonly depot?: string;
+  readonly depotId?: string;
   readonly contract?: string;
   readonly search?: string;
   readonly expiringMot?: boolean;

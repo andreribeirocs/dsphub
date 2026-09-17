@@ -30,6 +30,11 @@ export class GetVansDto {
   @IsString()
   readonly depot?: string;
 
+  @ApiPropertyOptional({ description: "Filter by depot id" })
+  @IsOptional()
+  @IsString()
+  readonly depotId?: string;
+
   @ApiPropertyOptional({
     description: "Filter by contract name",
     example: "Amazon",

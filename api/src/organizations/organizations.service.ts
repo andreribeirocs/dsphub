@@ -8,6 +8,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CreateOrganizationDto } from "./dto/create-organization.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { BetterAuthService } from "../auth/better-auth.service";
+import { TenantContext } from "../tenancy/tenant-context";
 
 @Injectable()
 export class OrganizationsService {
@@ -15,6 +16,18 @@ export class OrganizationsService {
     private prisma: PrismaService,
     private betterAuthService: BetterAuthService
   ) {}
+
+  /**
+   * Outside SUPER_ADMIN, an organization can only be read or changed from its
+   * own domain (the organization in TenantContext). Membership was already
+   * checked by the auth guard.
+   */
+  private assertAccess(id: string, isSuperAdmin: boolean) {
+    if (isSuperAdmin) return;
+    if (TenantContext.getOrganizationId() !== id) {
+      throw new ForbiddenException("You do not have access to this organization");
+    }
+  }
 
   /**
    * Create a new organization (SUPER_ADMIN only)
@@ -109,18 +122,7 @@ export class OrganizationsService {
       throw new NotFoundException("Organization not found");
     }
 
-    // Check access
-    if (!isSuperAdmin) {
-      const hasAccess = await this.betterAuthService.hasOrganizationAccess(
-        userId,
-        id
-      );
-      if (!hasAccess) {
-        throw new ForbiddenException(
-          "You do not have access to this organization"
-        );
-      }
-    }
+    this.assertAccess(id, isSuperAdmin);
 
     return organization;
   }
@@ -143,18 +145,7 @@ export class OrganizationsService {
       throw new NotFoundException("Organization not found");
     }
 
-    // Check access
-    if (!isSuperAdmin) {
-      const hasAccess = await this.betterAuthService.hasOrganizationAccess(
-        userId,
-        id
-      );
-      if (!hasAccess) {
-        throw new ForbiddenException(
-          "You do not have access to this organization"
-        );
-      }
-    }
+    this.assertAccess(id, isSuperAdmin);
 
     // If slug is being changed, check it's not taken
     if (dto.slug && dto.slug !== organization.slug) {
@@ -211,6 +202,7 @@ export class OrganizationsService {
         }),
         ...(dto.depots !== undefined && { depots: dto.depots }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(dto.operatingModel !== undefined && { operatingModel: dto.operatingModel }),
       },
     });
   }
@@ -238,18 +230,7 @@ export class OrganizationsService {
    * Get organization members
    */
   async getMembers(id: string, userId: string, isSuperAdmin: boolean) {
-    // Check access
-    if (!isSuperAdmin) {
-      const hasAccess = await this.betterAuthService.hasOrganizationAccess(
-        userId,
-        id
-      );
-      if (!hasAccess) {
-        throw new ForbiddenException(
-          "You do not have access to this organization"
-        );
-      }
-    }
+    this.assertAccess(id, isSuperAdmin);
 
     const members = await this.prisma.$queryRaw<any[]>`
       SELECT 

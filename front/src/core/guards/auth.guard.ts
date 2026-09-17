@@ -1,22 +1,27 @@
 // src/app/core/guards/auth.guard.ts
-import { inject } from '@angular/core';
-import { Router, CanActivateFn } from '@angular/router';
-import { AuthService } from '../services/auth.service';
+import { inject } from "@angular/core";
+import { Router, CanActivateFn } from "@angular/router";
+import { map } from "rxjs/operators";
+import { AuthService } from "../services/auth.service";
 
+/**
+ * Waits for the session to load (so a page refresh does not bounce the user
+ * to the login screen), then checks the roles declared in the route data.
+ */
 export const authGuard: CanActivateFn = (route, state) => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
-  if (authService.isLoggedIn) {
-    // Check for role restrictions if specified in route data
-    if (route.data['roles'] && !authService.hasRole(route.data['roles'])) {
-      router.navigate(['/unauthorized']);
-      return false;
-    }
-    return true;
-  }
-
-  // Store attempted URL for redirecting after login
-  router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
-  return false;
+  return authService.ensureSession().pipe(
+    map((user) => {
+      if (!user) {
+        return router.createUrlTree(["/login"], { queryParams: { returnUrl: state.url } });
+      }
+      const roles = route.data["roles"] as string[] | undefined;
+      if (roles && !authService.hasRole(roles)) {
+        return router.createUrlTree(["/unauthorized"]);
+      }
+      return true;
+    })
+  );
 };

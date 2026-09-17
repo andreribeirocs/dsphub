@@ -2,6 +2,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { ConfigService } from "@nestjs/config";
 import { InvoicesService } from "../invoices/invoices.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { TenantContext } from "../tenancy/tenant-context";
 
 @Injectable()
 export class SchedulerService {
@@ -10,7 +12,8 @@ export class SchedulerService {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly invoicesService: InvoicesService
+    private readonly invoicesService: InvoicesService,
+    private readonly prisma: PrismaService
   ) {
     this.isAutoGenerateEnabled =
       this.configService.get<string>("INVOICE_AUTO_GENERATE") === "true";
@@ -54,19 +57,29 @@ export class SchedulerService {
         `Generating invoices for week starting: ${weekStartDate}`
       );
 
-      const result = await this.invoicesService.generateWeeklyInvoices({
-        weekStartDate,
+      // Background job: no request domain, so run once per active DSP
+      const organizations = await this.prisma.organization.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true },
       });
 
-      this.logger.log(
-        `Automatic invoice generation completed: ${result.generated} generated, ${result.skipped} skipped, ${result.errors} errors`
-      );
-
-      if (result.errors > 0 && result.errorDetails) {
-        this.logger.error(
-          `Errors encountered during automatic generation:`,
-          JSON.stringify(result.errorDetails, null, 2)
+      for (const organization of organizations) {
+        const result = await TenantContext.runForOrganization(
+          organization.id,
+          async () =>
+            await this.invoicesService.generateWeeklyInvoices({ weekStartDate })
         );
+
+        this.logger.log(
+          `[${organization.name}] invoices: ${result.generated} generated, ${result.skipped} skipped, ${result.errors} errors`
+        );
+
+        if (result.errors > 0 && result.errorDetails) {
+          this.logger.error(
+            `[${organization.name}] errors during automatic generation:`,
+            JSON.stringify(result.errorDetails, null, 2)
+          );
+        }
       }
     } catch (error) {
       this.logger.error(
@@ -80,7 +93,9 @@ export class SchedulerService {
    * Manual trigger for testing (can be called from a controller if needed)
    */
   async triggerManualGeneration(weekStartDate: string): Promise<any> {
+    // Must be called inside a request (organization from TenantContext)
     this.logger.log(`Manual trigger for invoice generation: ${weekStartDate}`);
+    TenantContext.requireOrganizationId();
     return this.invoicesService.generateWeeklyInvoices({ weekStartDate });
   }
 }

@@ -75,7 +75,10 @@ export class EnvValidationService {
       .max(3600000) // 1 hour maximum
       .default(60000), // 1 minute default
 
-    RATE_LIMIT_MAX_REQUESTS: Joi.number().min(1).max(10000).default(60),
+    // Per IP per window. 60 was too low for normal navigation (one screen can
+    // fire 10+ calls); ConfigModule's validate() writes this default back into
+    // process.env, so it is the value ThrottlerModule actually uses.
+    RATE_LIMIT_MAX_REQUESTS: Joi.number().min(1).max(10000).default(600),
 
     BCRYPT_ROUNDS: Joi.number()
       .min(10)

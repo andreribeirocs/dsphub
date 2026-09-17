@@ -2,7 +2,7 @@
 import { inject, Injectable } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { BehaviorSubject, Observable, throwError, of } from "rxjs";
-import { catchError, tap, map } from "rxjs/operators";
+import { catchError, tap, map, finalize, shareReplay, switchMap } from "rxjs/operators";
 import { environment } from "../../environments/environment";
 import { Router } from "@angular/router";
 
@@ -79,46 +79,67 @@ export class AuthService {
   public currentUser$ = this.currentUserSubject.asObservable();
   public loading$ = this.loadingSubject.asObservable();
 
+  /** In-flight session lookup, shared by the guard and components */
+  private sessionRequest$?: Observable<User | null>;
+
   public constructor() {
-    // Use setTimeout to defer HTTP calls until after constructor completes
-    setTimeout(() => {
-      this.checkSession();
-    }, 0);
+    // Load the session as soon as the app starts (the guard also waits for it)
+    setTimeout(() => this.ensureSession().subscribe(), 0);
   }
 
-  // Check current session with Better Auth
-  private checkSession(): void {
-    this.loadingSubject.next(true);
-    this.http
-      .get<SessionResponse>(`${this.API_URL}/get-session`, {
-        withCredentials: true, // Important for cookies
-      })
-      .subscribe({
-        next: (response) => {
-          // Explicitly map to User interface to preserve all fields
-          const user: User = {
-            id: response.user.id,
-            email: response.user.email,
-            name: response.user.name,
-            role: response.user.role,
-            status: response.user.status,
-            avatar: response.user.avatar,
-            phoneNumber: response.user.phoneNumber,
-            lastLogin: response.user.lastLogin,
-            emailVerified: response.user.emailVerified,
-            image: response.user.image,
-            createdAt: response.user.createdAt,
-            updatedAt: response.user.updatedAt,
-          };
+  private toUser(sessionUser: SessionResponse["user"]): User {
+    return {
+      id: sessionUser.id,
+      email: sessionUser.email,
+      name: sessionUser.name,
+      role: sessionUser.role,
+      status: sessionUser.status,
+      avatar: sessionUser.avatar,
+      phoneNumber: sessionUser.phoneNumber,
+      lastLogin: sessionUser.lastLogin,
+      emailVerified: sessionUser.emailVerified,
+      image: sessionUser.image,
+      createdAt: sessionUser.createdAt,
+      updatedAt: sessionUser.updatedAt,
+    };
+  }
 
-          this.currentUserSubject.next(user);
-          this.loadingSubject.next(false);
-        },
-        error: () => {
-          this.loadingSubject.next(false);
-          this.currentUserSubject.next(null);
-        },
-      });
+  /**
+   * Ask better-auth for the current session. Returns null when signed out
+   * (get-session answers `null`, not an error).
+   */
+  private fetchSession(skipCookieCache = false): Observable<User | null> {
+    this.loadingSubject.next(true);
+    return this.http
+      .get<SessionResponse | null>(`${this.API_URL}/get-session`, {
+        withCredentials: true,
+        params: skipCookieCache ? { disableCookieCache: "true" } : {},
+      })
+      .pipe(
+        map((response) => (response?.user ? this.toUser(response.user) : null)),
+        catchError(() => of(null)),
+        tap((user) => this.currentUserSubject.next(user)),
+        finalize(() => this.loadingSubject.next(false))
+      );
+  }
+
+  /** Current user, loading the session first if needed (used by the route guard) */
+  public ensureSession(): Observable<User | null> {
+    const current = this.currentUserSubject.value;
+    if (current) {
+      return of(current);
+    }
+    if (!this.sessionRequest$) {
+      this.sessionRequest$ = this.fetchSession().pipe(
+        finalize(() => (this.sessionRequest$ = undefined)),
+        shareReplay(1)
+      );
+    }
+    return this.sessionRequest$;
+  }
+
+  private checkSession(): void {
+    this.fetchSession(true).subscribe();
   }
 
   public login(email: string, password: string): Observable<User> {
@@ -129,27 +150,12 @@ export class AuthService {
         { withCredentials: true } // Important for cookies
       )
       .pipe(
-        tap(() => {
-          // Better Auth sign-in doesn't return additional fields (role, status, etc.)
-          // Immediately fetch full session data to get role and other additional fields
-          this.checkSession();
-        }),
-        map((response) => {
-          // Return basic user (role will be updated by checkSession)
-          const user: User = {
-            id: response.user.id,
-            email: response.user.email,
-            name: response.user.name,
-            role: "", // Will be filled by checkSession
-            status: "", // Will be filled by checkSession
-            avatar: response.user.avatar,
-            phoneNumber: response.user.phoneNumber,
-            lastLogin: response.user.lastLogin,
-            emailVerified: response.user.emailVerified,
-            image: response.user.image,
-            createdAt: response.user.createdAt,
-            updatedAt: response.user.updatedAt,
-          };
+        // Sign-in does not return role/status: load the full session before continuing
+        switchMap(() => this.fetchSession(true)),
+        map((user) => {
+          if (!user) {
+            throw new Error("Session could not be loaded");
+          }
           return user;
         }),
         catchError((error) => {
@@ -200,16 +206,16 @@ export class AuthService {
     return user ? roles.includes(user.role) : false;
   }
 
-  // Refresh session data
+  /** Reload the logged-in user (skips the session cookie cache so edits show at once) */
   public refreshUserProfile(): Observable<User> {
-    return this.http
-      .get<SessionResponse>(`${this.API_URL}/session`, {
-        withCredentials: true,
+    return this.fetchSession(true).pipe(
+      map((user) => {
+        if (!user) {
+          throw new Error("Not signed in");
+        }
+        return user;
       })
-      .pipe(
-        tap((response) => this.currentUserSubject.next(response.user)),
-        map((response) => response.user)
-      );
+    );
   }
 
   // For backward compatibility - these methods are no longer used with Better Auth

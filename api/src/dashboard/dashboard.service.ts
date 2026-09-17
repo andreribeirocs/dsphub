@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { TenantContext } from "../tenancy/tenant-context";
 
 export interface RecentActivity {
   id: string;
@@ -27,10 +28,13 @@ export class DashboardService {
 
   async getRecentActivities(): Promise<RecentActivity[]> {
     const activities: RecentActivity[] = [];
+    // login_attempts and security_events are not DSP tables: filter explicitly
+    const organizationId = TenantContext.requireOrganizationId();
 
     // Get recent login attempts (last 24 hours)
     const recentLogins = await this.prisma.loginAttempt.findMany({
       where: {
+        organizationId,
         attemptedAt: {
           gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
         },
@@ -106,8 +110,12 @@ export class DashboardService {
     });
 
     // Get recent security events
+    const memberIds = (
+      await this.prisma.member.findMany({ select: { userId: true } })
+    ).map((member) => member.userId);
     const recentSecurityEvents = await this.prisma.securityEvent.findMany({
       where: {
+        userId: { in: memberIds },
         occurredAt: {
           gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
         },

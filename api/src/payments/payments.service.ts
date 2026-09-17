@@ -5,6 +5,7 @@ import {
   Logger,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { TenantContext } from "../tenancy/tenant-context";
 import { UpdateRoutePriceDto } from "./dto/update-route-price.dto";
 import { GetPaymentHistoryDto } from "./dto/get-payment-history.dto";
 import {
@@ -39,38 +40,8 @@ export class PaymentsService {
    */
   async getAllRoutePrices(userId: string): Promise<RoutePrice[]> {
     try {
-      // Get user with organization info
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          role: true,
-          members: {
-            select: {
-              organizationId: true,
-            },
-          },
-        },
-      });
-
-      if (!user) {
-        throw new BadRequestException("User not found");
-      }
-
-      // Determine which organization's prices to show
-      let organizationId: string | undefined;
-
-      if (user.members.length > 0) {
-        // Use user's organization
-        organizationId = user.members[0].organizationId;
-      } else {
-        // For SUPER_ADMIN or users without organization, use first active organization
-        const firstOrg = await this.prisma.organization.findFirst({
-          where: { isActive: true },
-          orderBy: { createdAt: "asc" },
-        });
-        organizationId = firstOrg?.id;
-      }
+      // Organization of the domain the request came from
+      const organizationId = TenantContext.requireOrganizationId();
 
       if (!organizationId) {
         return []; // No organization found
@@ -113,38 +84,8 @@ export class PaymentsService {
    */
   async getDashboardStats(userId: string): Promise<DashboardStats> {
     try {
-      // Get user with organization info
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          role: true,
-          members: {
-            select: {
-              organizationId: true,
-            },
-          },
-        },
-      });
-
-      if (!user) {
-        throw new BadRequestException("User not found");
-      }
-
-      // Determine which organization's stats to show
-      let organizationId: string | undefined;
-
-      if (user.members.length > 0) {
-        // Use user's organization
-        organizationId = user.members[0].organizationId;
-      } else {
-        // For SUPER_ADMIN or users without organization, use first active organization
-        const firstOrg = await this.prisma.organization.findFirst({
-          where: { isActive: true },
-          orderBy: { createdAt: "asc" },
-        });
-        organizationId = firstOrg?.id;
-      }
+      // Organization of the domain the request came from
+      const organizationId = TenantContext.requireOrganizationId();
 
       if (!organizationId) {
         return {
@@ -197,41 +138,8 @@ export class PaymentsService {
     try {
       const { routeType, dailyRate, changeReason } = updateData;
 
-      // Get user with organization info
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          role: true,
-          members: {
-            select: {
-              organizationId: true,
-            },
-          },
-        },
-      });
-
-      if (!user) {
-        throw new BadRequestException("User not found");
-      }
-
-      // Determine which organization's price to update
-      let organizationId: string;
-
-      if (user.members.length > 0) {
-        // Use user's organization
-        organizationId = user.members[0].organizationId;
-      } else {
-        // For SUPER_ADMIN or users without organization, use first active organization
-        const firstOrg = await this.prisma.organization.findFirst({
-          where: { isActive: true },
-          orderBy: { createdAt: "asc" },
-        });
-        if (!firstOrg) {
-          throw new NotFoundException("No active organization found");
-        }
-        organizationId = firstOrg.id;
-      }
+      // Organization of the domain the request came from
+      const organizationId = TenantContext.requireOrganizationId();
 
       // Get current price for history tracking
       const currentPrice = await this.prisma.routePrice.findUnique({
@@ -256,7 +164,7 @@ export class PaymentsService {
       }
 
       // Update the route price and create history record in a transaction
-      const updatedPrice = await this.prisma.$transaction(async (tx) => {
+      const updatedPrice = await this.prisma.tenantTransaction(async (tx) => {
         // Update the route price
         const updated = await tx.routePrice.update({
           where: {
@@ -791,7 +699,7 @@ export class PaymentsService {
     let created = 0;
     let updated = 0;
 
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.tenantTransaction(async (tx) => {
       // First, get all existing payments for this date
       const existingPayments = await tx.driverPayment.findMany({
         where: { workDate },
@@ -1143,7 +1051,7 @@ export class PaymentsService {
     let created = 0;
     let updated = 0;
 
-    return await this.prisma.$transaction(async (tx) => {
+    return await this.prisma.tenantTransaction(async (tx) => {
       // Group items by driver to handle multiple routes per driver
       const itemsByDriver = new Map<string, DailyPaymentUpsertItemDto[]>();
 

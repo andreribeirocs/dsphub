@@ -20,7 +20,6 @@ export class DocumentViewerModalComponent {
   readonly closed = output<void>();
 
   closeModal(): void {
-    console.log("Closing modal");
     this.closed.emit();
   }
 

@@ -4,7 +4,12 @@ import {
   OnModuleDestroy,
   Logger,
 } from "@nestjs/common";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
+import {
+  prismaTenantExtension,
+  rlsState,
+} from "../tenancy/prisma-tenant.extension";
+import { TenantContext } from "../tenancy/tenant-context";
 
 @Injectable()
 export class PrismaService
@@ -37,6 +42,12 @@ export class PrismaService
         }
       });
     }
+
+    // Every query on DSP data is scoped to the organization of the current
+    // request (see src/tenancy). Returning the extended client keeps the
+    // PrismaService API for all consumers.
+    // eslint-disable-next-line no-constructor-return
+    return this.$extends(prismaTenantExtension) as unknown as PrismaService;
   }
 
   async onModuleInit() {
@@ -47,10 +58,50 @@ export class PrismaService
       // Test database connection
       await this.$queryRaw`SELECT 1`;
       this.logger.log("Database health check passed");
+      await this.detectRowLevelSecurity();
     } catch (error) {
       this.logger.error("Failed to connect to database:", error);
       throw error;
     }
+  }
+
+  /**
+   * RLS policies only apply to roles that are not superusers and do not have
+   * BYPASSRLS. When the app connects with such a role, every query sets the
+   * current organization for the policies (see prisma-tenant.extension.ts).
+   */
+  private async detectRowLevelSecurity() {
+    const [role] = await TenantContext.runAsSystem(
+      async () =>
+        await this.$queryRaw<{ rolsuper: boolean; rolbypassrls: boolean }[]>`
+          SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user
+        `
+    );
+    rlsState.active = !!role && !role.rolsuper && !role.rolbypassrls;
+    this.logger.log(
+      rlsState.active
+        ? "Row-Level Security active: database enforces DSP isolation"
+        : "Row-Level Security not enforced for this database role (superuser/bypass) - use the dsphub_app role in production"
+    );
+  }
+
+  /**
+   * Interactive transaction that keeps DSP isolation (and RLS) working.
+   * Use instead of $transaction(async (tx) => ...).
+   */
+  async tenantTransaction<T>(
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+    options?: { maxWait?: number; timeout?: number }
+  ): Promise<T> {
+    const store = TenantContext.get();
+    return this.$transaction(async (tx) => {
+      return TenantContext.run({ ...store, inTransaction: true }, async () => {
+        if (rlsState.active && store?.organizationId && !store.system) {
+          await tx.$executeRaw`SELECT set_config('app.current_organization_id', ${store.organizationId}, TRUE)`;
+        }
+        return fn(tx);
+      });
+    }, options);
   }
 
   async onModuleDestroy() {
@@ -69,7 +120,7 @@ export class PrismaService
     try {
       const result = await this.$queryRaw`
         SELECT 
-          count(*) as total_connections,
+          count(*)::int as total_connections,
           current_setting('max_connections') as max_connections
         FROM pg_stat_activity
       `;

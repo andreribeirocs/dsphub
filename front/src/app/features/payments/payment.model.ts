@@ -54,6 +54,16 @@ export interface PaymentHistoryItem {
   };
 }
 
+export interface PaymentHistoryFilters {
+  readonly routeType?: RouteType;
+  /** ISO date or datetime */
+  readonly startDate?: string;
+  /** ISO date or datetime */
+  readonly endDate?: string;
+  readonly page?: number;
+  readonly limit?: number;
+}
+
 export interface PaymentHistoryResponse {
   readonly items: PaymentHistoryItem[];
   readonly total: number;

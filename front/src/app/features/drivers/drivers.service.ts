@@ -1,8 +1,16 @@
 import { Injectable, inject } from "@angular/core";
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import { Observable } from "rxjs";
 import { environment } from "../../../environments/environment";
-import { Driver, DriverStats } from "./drivers.model";
+import {
+  Depot,
+  Driver,
+  DriverDetails,
+  DriverListFilters,
+  DriverPayment,
+  DriverStats,
+  UpdateDriverRequest,
+} from "./drivers.model";
 
 @Injectable({
   providedIn: "root",
@@ -11,31 +19,37 @@ export class DriverService {
   private readonly http = inject(HttpClient);
   private readonly apiUrl = `${environment.apiUrl}/drivers`;
 
-  getDrivers(): Observable<Driver[]> {
-    return this.http.get<Driver[]>(this.apiUrl);
+  getDrivers(filters: DriverListFilters = {}): Observable<Driver[]> {
+    let params = new HttpParams();
+    if (filters.depotId) {
+      params = params.set("depotId", filters.depotId);
+    }
+    return this.http.get<Driver[]>(this.apiUrl, { params });
   }
 
-  getDriver(id: string): Observable<Driver> {
-    return this.http.get<Driver>(`${this.apiUrl}/${id}`);
+  getDriver(id: string): Observable<DriverDetails> {
+    return this.http.get<DriverDetails>(`${this.apiUrl}/${id}`);
   }
 
-  createDriver(driver: Omit<Driver, "id">): Observable<Driver> {
-    return this.http.post<Driver>(this.apiUrl, driver);
+  updateDriver(id: string, body: UpdateDriverRequest): Observable<Driver> {
+    return this.http.put<Driver>(`${this.apiUrl}/${id}`, body);
   }
 
-  updateDriver(id: string, driver: Partial<Driver>): Observable<Driver> {
-    return this.http.put<Driver>(`${this.apiUrl}/${id}`, driver);
-  }
-
-  deleteDriver(id: string): Observable<void> {
-    return this.http.delete<void>(`${this.apiUrl}/${id}`);
+  /** The API never hard-deletes: this sets the driver status to INACTIVE */
+  deactivateDriver(id: string): Observable<Driver> {
+    return this.http.delete<Driver>(`${this.apiUrl}/${id}`);
   }
 
   getStats(): Observable<DriverStats> {
     return this.http.get<DriverStats>(`${this.apiUrl}/stats`);
   }
 
-  getDriverById(id: string): Observable<Driver> {
-    return this.http.get<Driver>(`${this.apiUrl}/${id}`);
+  getDepots(): Observable<Depot[]> {
+    return this.http.get<Depot[]>(`${environment.apiUrl}/depots`);
+  }
+
+  getDriverPayments(driverId: string): Observable<DriverPayment[]> {
+    const params = new HttpParams().set("driverId", driverId);
+    return this.http.get<DriverPayment[]>(`${environment.apiUrl}/payments/driver-payments`, { params });
   }
 }

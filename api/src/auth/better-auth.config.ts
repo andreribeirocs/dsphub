@@ -5,6 +5,44 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+const DEV_ORIGINS =
+  process.env.NODE_ENV === "production"
+    ? []
+    : ["http://localhost:4200", "http://localhost:3000"];
+
+const originCache = new Map<string, { allowed: boolean; expiresAt: number }>();
+
+/**
+ * Accept auth requests from any active DSP domain registered in
+ * organization_domain (plus local dev origins outside production).
+ */
+async function trustedOrigins(request?: Request): Promise<string[]> {
+  const origin = request?.headers.get("origin");
+  if (!origin) {
+    return DEV_ORIGINS;
+  }
+
+  const cached = originCache.get(origin);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.allowed ? [...DEV_ORIGINS, origin] : DEV_ORIGINS;
+  }
+
+  let allowed = false;
+  try {
+    const hostname = new URL(origin).hostname.toLowerCase();
+    const domain = await prisma.organizationDomain.findUnique({
+      where: { domain: hostname },
+      select: { organization: { select: { isActive: true } } },
+    });
+    allowed = !!domain?.organization.isActive;
+  } catch {
+    allowed = false;
+  }
+
+  originCache.set(origin, { allowed, expiresAt: Date.now() + 60_000 });
+  return allowed ? [...DEV_ORIGINS, origin] : DEV_ORIGINS;
+}
+
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
@@ -64,7 +102,7 @@ export const auth = betterAuth({
       },
     }),
   ],
-  trustedOrigins: ["http://localhost:4200", "http://localhost:3000"],
+  trustedOrigins,
   advanced: {
     // Generate custom session token
     generateId: undefined,

@@ -1,4 +1,5 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { UpdateDriverDto } from "./dto/update-driver.dto";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma, Driver } from "@prisma/client";
 
@@ -16,6 +17,7 @@ interface DriverStats {
 interface DriverFilters {
   readonly status?: string;
   readonly depot?: string;
+  readonly depotId?: string;
   readonly search?: string;
   readonly expiringOnly?: boolean;
 }
@@ -39,7 +41,9 @@ export class DriversService {
       where.status = filters.status;
     }
 
-    if (filters?.depot) {
+    if (filters?.depotId) {
+      where.homeDepotId = filters.depotId;
+    } else if (filters?.depot) {
       where.depot = filters.depot;
     }
 
@@ -57,15 +61,20 @@ export class DriversService {
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + EXPIRY_WARNING_DAYS);
 
-      where.OR = [
-        { passportExpiry: { lte: expiryDate } },
-        { licenseExpiry: { lte: expiryDate } },
-        { rtwExpiry: { lte: expiryDate } },
+      where.AND = [
+        {
+          OR: [
+            { passportExpiry: { lte: expiryDate } },
+            { licenseExpiry: { lte: expiryDate } },
+            { rtwExpiry: { lte: expiryDate } },
+          ],
+        },
       ];
     }
 
     return this.prisma.driver.findMany({
       where,
+      include: { homeDepot: { select: { id: true, code: true, name: true } } },
       orderBy: [
         { status: "asc" }, // Use indexed field for ordering
         { name: "asc" },
@@ -125,10 +134,11 @@ export class DriversService {
    * @param id - Driver ID
    * @returns Driver object or null if not found
    */
-  async findOne(id: string): Promise<Driver | null> {
-    return this.prisma.driver.findUnique({
+  async findOne(id: string): Promise<Driver> {
+    const driver = await this.prisma.driver.findUnique({
       where: { id },
       include: {
+        homeDepot: { select: { id: true, code: true, name: true } },
         user: {
           select: {
             id: true,
@@ -144,6 +154,10 @@ export class DriversService {
         },
       },
     });
+    if (!driver) {
+      throw new NotFoundException("Driver not found");
+    }
+    return driver;
   }
 
   /**
@@ -179,24 +193,55 @@ export class DriversService {
    * @param data - Update data
    * @returns Updated driver
    */
-  async update(id: string, data: Prisma.DriverUpdateInput): Promise<Driver> {
+  async update(id: string, dto: UpdateDriverDto): Promise<Driver> {
+    const existing = await this.prisma.driver.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) {
+      throw new NotFoundException("Driver not found");
+    }
+
+    const data: Prisma.DriverUncheckedUpdateInput = {
+      ...(dto.name !== undefined && { name: dto.name.trim() }),
+      ...(dto.phone !== undefined && { phone: dto.phone.trim() }),
+      ...(dto.email !== undefined && { email: dto.email.trim().toLowerCase() }),
+      ...(dto.address !== undefined && { address: dto.address }),
+      ...(dto.status !== undefined && { status: dto.status }),
+      ...(dto.transporterId !== undefined && { transporterId: dto.transporterId.trim() }),
+      ...(dto.citizenship !== undefined && { citizenship: dto.citizenship }),
+      ...(dto.contractType !== undefined && { contractType: dto.contractType }),
+      ...(dto.licenseNumber !== undefined && { licenseNumber: dto.licenseNumber }),
+      ...(dto.licenseExpiry !== undefined && { licenseExpiry: new Date(dto.licenseExpiry) }),
+      ...(dto.passportExpiry !== undefined && { passportExpiry: new Date(dto.passportExpiry) }),
+      ...(dto.rtwExpiry !== undefined && { rtwExpiry: new Date(dto.rtwExpiry) }),
+      ...(dto.nextCheck !== undefined && { nextCheck: new Date(dto.nextCheck) }),
+      ...(dto.points !== undefined && { points: dto.points }),
+      ...(dto.hasEndorsements !== undefined && { hasEndorsements: dto.hasEndorsements }),
+    };
+
+    if (dto.homeDepotId !== undefined) {
+      const depot = await this.prisma.depot.findUnique({
+        where: { id: dto.homeDepotId },
+        select: { id: true, name: true, isActive: true },
+      });
+      if (!depot || !depot.isActive) {
+        throw new BadRequestException("Depot not found");
+      }
+      data.homeDepotId = depot.id;
+      data.depot = depot.name;
+    }
+
     try {
       return await this.prisma.driver.update({
         where: { id },
         data,
         include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              role: true,
-              status: true,
-            },
-          },
+          homeDepot: { select: { id: true, code: true, name: true } },
+          user: { select: { id: true, email: true, name: true, role: true, status: true } },
         },
       });
     } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new BadRequestException("Another driver already uses this Transporter ID");
+      }
       this.logger.error(`Failed to update driver ${id}:`, error);
       throw error;
     }
@@ -208,14 +253,13 @@ export class DriversService {
    * @returns Deleted driver
    */
   async delete(id: string): Promise<Driver> {
-    try {
-      return await this.prisma.driver.delete({
-        where: { id },
-      });
-    } catch (error) {
-      this.logger.error(`Failed to delete driver ${id}:`, error);
-      throw error;
+    // Drivers are never hard-deleted: payments and self-billing invoices must be
+    // kept for record keeping. "Delete" deactivates the driver.
+    const existing = await this.prisma.driver.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) {
+      throw new NotFoundException("Driver not found");
     }
+    return this.prisma.driver.update({ where: { id }, data: { status: "INACTIVE" } });
   }
 
   /**

@@ -9,10 +9,13 @@ import { AppService } from "./app.service";
 import { PrismaModule } from "./prisma/prisma.module";
 import { BetterAuthModule } from "./auth/better-auth.module";
 import { OrganizationsModule } from "./organizations/organizations.module";
-import { OrganizationMiddleware } from "./common/middleware/organization.middleware";
+import { TenancyModule } from "./tenancy/tenancy.module";
+import { TenantMiddleware } from "./tenancy/tenant.middleware";
 import { UsersModule } from "./users/users.module";
 import { RecruitmentModule } from "./recruitment/recruitment.module";
 import { DriversModule } from "./drivers/drivers.module";
+import { DepotsModule } from "./depots/depots.module";
+import { AuditModule } from "./audit/audit.module";
 import { MessagingModule } from "./messaging/messaging.module";
 import { WhatsAppModule } from "./whatsapp/whatsapp.module";
 import { PdfModule } from "./pdf/pdf.module";
@@ -36,15 +39,18 @@ import { SchedulerModule } from "./scheduler/scheduler.module";
       {
         name: "default",
         ttl: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000"), // 1 minute
-        limit: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || "60"), // 60 requests per minute default
+        limit: Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 600, // per user IP; generous for dev/burst navigation
       },
     ]),
     PrismaModule,
+    TenancyModule, // resolves the DSP from the request domain
+    AuditModule, // sign-in history and audit logs per DSP
     BetterAuthModule, // New Better Auth module
     OrganizationsModule, // New Organizations module
     UsersModule,
     RecruitmentModule,
     DriversModule,
+    DepotsModule,
     MessagingModule, // WhatsApp/SMS provider (none configured yet)
     WhatsAppModule,
     PdfModule,
@@ -70,8 +76,8 @@ import { SchedulerModule } from "./scheduler/scheduler.module";
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Apply organization middleware to all routes
+    // Every request runs inside the organization that owns its domain.
     // NestJS 11: named wildcard; "{*splat}" also matches the root path
-    consumer.apply(OrganizationMiddleware).forRoutes("{*splat}");
+    consumer.apply(TenantMiddleware).forRoutes("{*splat}");
   }
 }

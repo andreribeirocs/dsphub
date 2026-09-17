@@ -365,6 +365,52 @@
             </span>
           </a>
           }
+
+          <!-- Modules still in development: visible but not clickable -->
+          @if (isSidebarOpen()) {
+          <p class="mt-6 px-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Coming soon
+          </p>
+          }
+          <div
+            class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-400 cursor-not-allowed select-none"
+            title="Dispatch (routes &amp; vans) — coming soon"
+            aria-disabled="true"
+          >
+            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7h13l5 5v5h-2a2 2 0 11-4 0H9a2 2 0 11-4 0H3z" />
+            </svg>
+            @if (isSidebarOpen()) {
+            <span class="ml-3">Dispatch (routes &amp; vans)</span>
+            <span class="ml-auto rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">Soon</span>
+            }
+          </div>
+          <div
+            class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-400 cursor-not-allowed select-none"
+            title="Driver portal — coming soon"
+            aria-disabled="true"
+          >
+            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 12a4 4 0 100-8 4 4 0 000 8zm-7 9a7 7 0 0114 0z" />
+            </svg>
+            @if (isSidebarOpen()) {
+            <span class="ml-3">Driver portal</span>
+            <span class="ml-auto rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">Soon</span>
+            }
+          </div>
+          <div
+            class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-400 cursor-not-allowed select-none"
+            title="Amazon imports — coming soon"
+            aria-disabled="true"
+          >
+            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" />
+            </svg>
+            @if (isSidebarOpen()) {
+            <span class="ml-3">Amazon imports</span>
+            <span class="ml-auto rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">Soon</span>
+            }
+          </div>
         </nav>
       </div>
     </div>

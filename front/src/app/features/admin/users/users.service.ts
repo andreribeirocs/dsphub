@@ -1,8 +1,23 @@
 import { Injectable, inject } from "@angular/core";
-import { HttpClient } from "@angular/common/http";
-import { Observable, throwError } from "rxjs";
+import { HttpClient, HttpParams } from "@angular/common/http";
+import { apiErrorMessage } from "../../../shared/utils/api-error";
+import { Observable, throwError, OperatorFunction } from "rxjs";
 import { catchError } from "rxjs/operators";
 import { environment } from "../../../../environments/environment";
+
+export type UserRole =
+  | "SUPER_ADMIN"
+  | "OWNER"
+  | "DIRECTOR"
+  | "MANAGER_FINANCIAL"
+  | "MANAGER_FLEET"
+  | "MANAGER_ONSITE"
+  | "MANAGER_RECRUITMENT"
+  | "DRIVER";
+
+export type UserStatus = "ACTIVE" | "INACTIVE" | "PENDING";
+
+export type UserSortField = "name" | "email" | "role" | "status" | "createdAt" | "lastLogin";
 
 export interface User {
   id: string;
@@ -10,10 +25,10 @@ export interface User {
   name: string;
   role: UserRole;
   status: UserStatus;
-  phoneNumber?: string;
-  lastLogin?: Date;
-  createdAt: Date;
-  updatedAt: Date;
+  phoneNumber: string | null;
+  lastLogin: string | null;
+  createdAt: string;
+  updatedAt: string;
   twoFactorEnabled: boolean;
 }
 
@@ -25,14 +40,15 @@ export interface CreateUserRequest {
   phoneNumber?: string;
 }
 
+/** Matches api UpdateUserDto (status is changed through PATCH /users/:id/status) */
 export interface UpdateUserRequest {
   name?: string;
+  email?: string;
   role?: UserRole;
   phoneNumber?: string;
 }
 
 export interface UpdatePasswordRequest {
-  currentPassword: string;
   newPassword: string;
 }
 
@@ -63,23 +79,42 @@ export interface GetUsersParams {
   page?: number;
   limit?: number;
   search?: string;
-  role?: UserRole;
-  status?: UserStatus;
-  sortBy?: string;
+  role?: UserRole | "";
+  status?: UserStatus | "";
+  sortBy?: UserSortField;
   sortOrder?: "asc" | "desc";
 }
 
-export type UserRole =
-  | "SUPER_ADMIN"
-  | "OWNER"
-  | "DIRECTOR"
-  | "MANAGER_FINANCIAL"
-  | "MANAGER_FLEET"
-  | "MANAGER_ONSITE"
-  | "MANAGER_RECRUITMENT"
-  | "DRIVER";
+export interface DepotOption {
+  id: string;
+  code: string;
+  name: string;
+  isActive?: boolean;
+}
 
-export type UserStatus = "ACTIVE" | "INACTIVE" | "PENDING";
+/** GET /api/depots/members/:userId */
+export interface MemberDepotsResponse {
+  allDepots: boolean;
+  depots: DepotOption[];
+}
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  SUPER_ADMIN: "Super Admin",
+  OWNER: "Owner",
+  DIRECTOR: "Director",
+  MANAGER_FINANCIAL: "Financial Manager",
+  MANAGER_FLEET: "Fleet Manager",
+  MANAGER_ONSITE: "Onsite Manager",
+  MANAGER_RECRUITMENT: "Recruitment Manager",
+  DRIVER: "Driver",
+};
+
+export const ALL_ROLES = Object.keys(ROLE_LABELS) as UserRole[];
+
+export const isManagerRole = (role: string | null | undefined): boolean =>
+  !!role && role.startsWith("MANAGER_");
+
+export { apiErrorMessage };
 
 @Injectable({
   providedIn: "root",
@@ -87,145 +122,79 @@ export type UserStatus = "ACTIVE" | "INACTIVE" | "PENDING";
 export class UsersService {
   private readonly http = inject(HttpClient);
   private readonly API_URL = `${environment.apiUrl}/users`;
+  private readonly DEPOTS_URL = `${environment.apiUrl}/depots`;
 
-  /**
-   * Get all users with filtering and pagination
-   */
-  getUsers(params?: GetUsersParams): Observable<PaginatedUsersResponse> {
-    const queryParams = new URLSearchParams();
-
-    if (params?.page) queryParams.set("page", params.page.toString());
-    if (params?.limit) queryParams.set("limit", params.limit.toString());
-    if (params?.search) queryParams.set("search", params.search);
-    if (params?.role) queryParams.set("role", params.role);
-    if (params?.status) queryParams.set("status", params.status);
-    if (params?.sortBy) queryParams.set("sortBy", params.sortBy);
-    if (params?.sortOrder) queryParams.set("sortOrder", params.sortOrder);
-
-    const url = queryParams.toString()
-      ? `${this.API_URL}?${queryParams.toString()}`
-      : this.API_URL;
-
-    return this.http.get<PaginatedUsersResponse>(url).pipe(
-      catchError((error) => {
-        console.error("Failed to fetch users:", error);
-        return throwError(
-          () => new Error(error.error?.message || "Failed to fetch users")
-        );
-      })
+  private fail<T>(fallback: string): OperatorFunction<T, T> {
+    return catchError((error: unknown) =>
+      throwError(() => new Error(apiErrorMessage(error, fallback)))
     );
   }
 
-  /**
-   * Get user statistics
-   */
+  getUsers(params: GetUsersParams = {}): Observable<PaginatedUsersResponse> {
+    let httpParams = new HttpParams();
+    if (params.page) httpParams = httpParams.set("page", params.page);
+    if (params.limit) httpParams = httpParams.set("limit", params.limit);
+    if (params.search) httpParams = httpParams.set("search", params.search);
+    if (params.role) httpParams = httpParams.set("role", params.role);
+    if (params.status) httpParams = httpParams.set("status", params.status);
+    if (params.sortBy) httpParams = httpParams.set("sortBy", params.sortBy);
+    if (params.sortOrder) httpParams = httpParams.set("sortOrder", params.sortOrder);
+
+    return this.http
+      .get<PaginatedUsersResponse>(this.API_URL, { params: httpParams })
+      .pipe(this.fail("Failed to load users"));
+  }
+
   getUserStats(): Observable<UserStats> {
-    return this.http.get<UserStats>(`${this.API_URL}/stats`).pipe(
-      catchError((error) => {
-        console.error("Failed to fetch user stats:", error);
-        return throwError(
-          () =>
-            new Error(error.error?.message || "Failed to fetch user statistics")
-        );
-      })
-    );
+    return this.http
+      .get<UserStats>(`${this.API_URL}/stats`)
+      .pipe(this.fail("Failed to load user statistics"));
   }
 
-  /**
-   * Get a specific user by ID
-   */
-  getUser(id: string): Observable<User> {
-    return this.http.get<User>(`${this.API_URL}/${id}`).pipe(
-      catchError((error) => {
-        console.error("Failed to fetch user:", error);
-        return throwError(
-          () => new Error(error.error?.message || "Failed to fetch user")
-        );
-      })
-    );
-  }
-
-  /**
-   * Create a new user
-   */
   createUser(userData: CreateUserRequest): Observable<User> {
-    return this.http.post<User>(this.API_URL, userData).pipe(
-      catchError((error) => {
-        console.error("Failed to create user:", error);
-        return throwError(
-          () => new Error(error.error?.message || "Failed to create user")
-        );
-      })
-    );
+    return this.http.post<User>(this.API_URL, userData).pipe(this.fail("Failed to create user"));
   }
 
-  /**
-   * Update user information
-   */
   updateUser(id: string, userData: UpdateUserRequest): Observable<User> {
-    return this.http.patch<User>(`${this.API_URL}/${id}`, userData).pipe(
-      catchError((error) => {
-        console.error("Failed to update user:", error);
-        return throwError(
-          () => new Error(error.error?.message || "Failed to update user")
-        );
-      })
-    );
-  }
-
-  /**
-   * Update user password
-   */
-  updateUserPassword(
-    id: string,
-    passwordData: UpdatePasswordRequest
-  ): Observable<{ message: string }> {
     return this.http
-      .patch<{ message: string }>(
-        `${this.API_URL}/${id}/password`,
-        passwordData
-      )
-      .pipe(
-        catchError((error) => {
-          console.error("Failed to update password:", error);
-          return throwError(
-            () => new Error(error.error?.message || "Failed to update password")
-          );
-        })
-      );
+      .patch<User>(`${this.API_URL}/${id}`, userData)
+      .pipe(this.fail("Failed to update user"));
   }
 
-  /**
-   * Update user status
-   */
-  updateUserStatus(
-    id: string,
-    statusData: UpdateStatusRequest
-  ): Observable<User> {
+  /** Admin password reset (no current password required) */
+  updateUserPassword(id: string, data: UpdatePasswordRequest): Observable<{ message: string }> {
     return this.http
-      .patch<User>(`${this.API_URL}/${id}/status`, statusData)
-      .pipe(
-        catchError((error) => {
-          console.error("Failed to update user status:", error);
-          return throwError(
-            () =>
-              new Error(error.error?.message || "Failed to update user status")
-          );
-        })
-      );
+      .patch<{ message: string }>(`${this.API_URL}/${id}/password`, data)
+      .pipe(this.fail("Failed to reset password"));
   }
 
-  /**
-   * Delete a user
-   */
+  updateUserStatus(id: string, data: UpdateStatusRequest): Observable<User> {
+    return this.http
+      .patch<User>(`${this.API_URL}/${id}/status`, data)
+      .pipe(this.fail("Failed to update user status"));
+  }
+
+  /** Removes the user from the current DSP */
   deleteUser(id: string): Observable<{ message: string }> {
-    return this.http.delete<{ message: string }>(`${this.API_URL}/${id}`).pipe(
-      catchError((error) => {
-        console.error("Failed to delete user:", error);
-        return throwError(
-          () => new Error(error.error?.message || "Failed to delete user")
-        );
-      })
-    );
+    return this.http
+      .delete<{ message: string }>(`${this.API_URL}/${id}`)
+      .pipe(this.fail("Failed to remove user"));
+  }
+
+  getDepots(): Observable<DepotOption[]> {
+    return this.http.get<DepotOption[]>(this.DEPOTS_URL).pipe(this.fail("Failed to load depots"));
+  }
+
+  getMemberDepots(userId: string): Observable<MemberDepotsResponse> {
+    return this.http
+      .get<MemberDepotsResponse>(`${this.DEPOTS_URL}/members/${userId}`)
+      .pipe(this.fail("Failed to load depot access"));
+  }
+
+  /** Empty array = access to every depot */
+  setMemberDepots(userId: string, depotIds: string[]): Observable<MemberDepotsResponse> {
+    return this.http
+      .put<MemberDepotsResponse>(`${this.DEPOTS_URL}/members/${userId}`, { depotIds })
+      .pipe(this.fail("Failed to update depot access"));
   }
 }

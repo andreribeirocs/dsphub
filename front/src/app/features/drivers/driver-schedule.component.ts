@@ -15,6 +15,7 @@ import { DriverScheduleService } from "./driver-schedule.service";
 import { DriverService } from "./drivers.service";
 import { AlertService } from "../../shared/services/alert.service";
 import { LoadingComponent } from "../../shared/components/loading/loading.component";
+import { downloadCsv, type CsvColumn } from "../../shared/utils/csv";
 import type {
   DriverScheduleInfo,
   WeekSchedule,
@@ -1162,9 +1163,6 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
 
       // Only load if week is different and we're not already loading
       if (weekStart && weekStart !== currentWeek && !this.isLoading()) {
-        console.log(
-          `Week changed from ${currentWeek} to ${weekStart}, loading data...`
-        );
         this.loadWeekData(weekStart);
       }
     });
@@ -1193,7 +1191,6 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
         // The date pattern is: YYYY-MM-DD (10 characters)
         // So we look for the last 10 characters that match this pattern
         const dateMatch = currentDropdown.match(/-(\d{4}-\d{2}-\d{2})$/);
-        console.log("Date match:", dateMatch);
 
         if (dateMatch) {
           const date = dateMatch[1]; // The captured group (YYYY-MM-DD)
@@ -1202,50 +1199,36 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
             currentDropdown.lastIndexOf("-" + date)
           );
 
-          console.log("Parsed - driverId:", driverId, "date:", date);
 
           if (driverId && date) {
-            console.log(
-              "About to prevent default and handle key:",
-              event.key.toLowerCase()
-            );
             event.preventDefault();
 
             switch (event.key.toLowerCase()) {
               case "f":
-                console.log("Calling quickAddSchedule for FULL_ROUTE");
                 this.quickAddSchedule(driverId, date, "FULL_ROUTE");
                 break;
               case "h":
-                console.log("Calling quickAddSchedule for HOLIDAY");
                 this.quickAddSchedule(driverId, date, "HOLIDAY");
                 break;
               case "r":
-                console.log("Calling quickAddSchedule for RIDE_ALONG");
                 this.quickAddSchedule(driverId, date, "RIDE_ALONG");
                 break;
               case "t":
-                console.log("Calling quickAddSchedule for TRAINING_DAY");
                 this.quickAddSchedule(driverId, date, "TRAINING_DAY");
                 break;
               case "s":
-                console.log("Calling quickAddSchedule for SAME_DAY");
                 this.quickAddSchedule(driverId, date, "SAME_DAY");
                 break;
               case "n":
-                console.log("Calling quickAddSchedule for NURSERY_ROUTE");
                 this.quickAddSchedule(driverId, date, "NURSERY_ROUTE");
                 break;
               case "o":
-                console.log("Calling quickAddSchedule for OFF");
                 this.quickAddSchedule(driverId, date, "OFF");
                 break;
               case "c":
-                console.log("Calling addSchedule for custom");
                 this.addSchedule(driverId, date);
                 break;
               case "escape":
-                console.log("Closing dropdown");
                 this.showDropdown.set("");
                 // Clear all cached positions when closing via ESC
                 this.dropdownPositions.set(new Map());
@@ -1258,7 +1241,6 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    console.log("NgOnInit: Initializing driver schedule...");
     // Load initial data once, safely
     const initialWeek = this.getCurrentWeekStart();
     if (initialWeek) {
@@ -1274,11 +1256,9 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
   loadWeekData(weekStart: string): void {
     // Prevent multiple requests for the same week
     if (this.isLoading() || this.loadingRequestId() === weekStart) {
-      console.log(`Already loading data for ${weekStart}, skipping...`);
       return;
     }
 
-    console.log(`Loading data for week: ${weekStart}`);
     this.loadingRequestId.set(weekStart);
     this.isLoading.set(true);
 
@@ -1344,11 +1324,6 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
           .filter((r) => r !== null) as DriverScheduleInfo[][];
         const stats = results[6] as ScheduleStatCard[];
 
-        console.log(`Loaded data for ${weekStart}:`, {
-          weekSchedules: weekSchedules.length,
-          driversData: driversData.length,
-          stats: stats ? "loaded" : "empty",
-        });
 
         // Update signals with loaded data - but don't trigger new requests
         if (weekSchedules?.[0]) {
@@ -1387,12 +1362,12 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
   private generateEmptyWeekDays(weekStart: string): DaySchedule[] {
     const days: DaySchedule[] = [];
     const startDate = new Date(weekStart + "T00:00:00");
-    const today = new Date().toISOString().split("T")[0];
+    const today = this.toDateKey(new Date());
 
     for (let i = 0; i < 7; i++) {
       const currentDate = new Date(startDate);
       currentDate.setDate(startDate.getDate() + i);
-      const dateStr = currentDate.toISOString().split("T")[0];
+      const dateStr = this.toDateKey(currentDate);
 
       days.push({
         date: dateStr,
@@ -1410,218 +1385,7 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
     const startDate = new Date(weekStart + "T00:00:00");
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 6);
-    return endDate.toISOString().split("T")[0];
-  }
-
-  private loadMockData(weekStart: string): void {
-    // Temporarily disabled mock data to fix TypeScript errors
-    console.log("Mock data disabled - using empty data");
-    this.drivers.set([]);
-    this.stats.set([]);
-    return;
-    // Generate multiple weeks of mock data
-    const weekStarts = this.getMultipleWeekStarts(weekStart, 3);
-    const allWeeks: WeekSchedule[] = [];
-
-    weekStarts.forEach((weekStartDate, weekIndex) => {
-      // Parse the date string more explicitly to avoid timezone issues
-      const [year, month, day] = weekStartDate.split("-").map(Number);
-      const startDate = new Date(year, month - 1, day); // month is 0-indexed
-
-      const days = Array.from({ length: 7 }, (_, i) => {
-        const date = new Date(startDate);
-        date.setDate(startDate.getDate() + i);
-        const today = new Date();
-
-        return {
-          date: date.toISOString().split("T")[0],
-          dayName: date.toLocaleDateString("en-US", { weekday: "short" }),
-          dayNumber: date.getDate(),
-          isToday: date.toDateString() === today.toDateString(),
-          schedules: [],
-        };
-      });
-
-      const weekEnd = new Date(startDate);
-      weekEnd.setDate(startDate.getDate() + 6);
-
-      const weekSchedule: WeekSchedule = {
-        weekStart: weekStartDate,
-        weekEnd: weekEnd.toISOString().split("T")[0],
-        days,
-      };
-
-      allWeeks.push(weekSchedule);
-
-      // Set the first week as current week
-      if (weekIndex === 0) {
-        this.currentWeek.set(weekSchedule);
-      }
-    });
-
-    this.allWeeks.set(allWeeks);
-    console.log("Mock data: Generated", allWeeks.length, "weeks");
-
-    // Get the first week's days for mock data
-    const firstWeekDays = allWeeks[0]?.days || [];
-
-    // Mock drivers with schedules
-    const mockDrivers: DriverScheduleInfo[] = [
-      {
-        id: "1",
-        name: "Ashley Brown",
-        status: "ACTIVE",
-        schedules: {
-          [firstWeekDays[0]?.date]: {
-            driverId: "1",
-            date: firstWeekDays[0]?.date,
-            status: "FULL_ROUTE",
-          },
-          [firstWeekDays[2]?.date]: {
-            driverId: "1",
-            date: firstWeekDays[2]?.date,
-            status: "TRAINING_DAY",
-            startTime: "08:00",
-            endTime: "12:00",
-          },
-          [firstWeekDays[4]?.date]: {
-            driverId: "1",
-            date: firstWeekDays[4]?.date,
-            status: "HOLIDAY",
-          },
-        },
-      },
-      {
-        id: "2",
-        name: "Javier Holloway",
-        status: "ACTIVE",
-        schedules: {
-          [firstWeekDays[1]?.date]: {
-            driverId: "2",
-            date: firstWeekDays[1]?.date,
-            status: "FULL_ROUTE",
-          },
-          [firstWeekDays[3]?.date]: {
-            driverId: "2",
-            date: firstWeekDays[3]?.date,
-            status: "RIDE_ALONG",
-            startTime: "14:00",
-            endTime: "18:00",
-          },
-          [firstWeekDays[5]?.date]: {
-            driverId: "2",
-            date: firstWeekDays[5]?.date,
-            status: "SAME_DAY",
-          },
-        },
-      },
-      {
-        id: "3",
-        name: "Stephen Harris",
-        status: "ACTIVE",
-        schedules: {
-          [firstWeekDays[0]?.date]: {
-            driverId: "3",
-            date: firstWeekDays[0]?.date,
-            status: "OFF",
-          },
-          [firstWeekDays[1]?.date]: {
-            driverId: "3",
-            date: firstWeekDays[1]?.date,
-            status: "FULL_ROUTE",
-          },
-          [firstWeekDays[2]?.date]: {
-            driverId: "3",
-            date: firstWeekDays[2]?.date,
-            status: "FULL_ROUTE",
-          },
-        },
-      },
-      {
-        id: "4",
-        name: "Richard Walters",
-        status: "ACTIVE",
-        schedules: {
-          [firstWeekDays[1]?.date]: {
-            driverId: "4",
-            date: firstWeekDays[1]?.date,
-            status: "RIDE_ALONG",
-          },
-          [firstWeekDays[3]?.date]: {
-            driverId: "4",
-            date: firstWeekDays[3]?.date,
-            status: "FULL_ROUTE",
-          },
-          [firstWeekDays[4]?.date]: {
-            driverId: "4",
-            date: firstWeekDays[4]?.date,
-            status: "FULL_ROUTE",
-          },
-        },
-      },
-      {
-        id: "5",
-        name: "Michael Simon",
-        status: "ACTIVE",
-        schedules: {
-          [firstWeekDays[0]?.date]: {
-            driverId: "5",
-            date: firstWeekDays[0]?.date,
-            status: "FULL_ROUTE",
-          },
-          [firstWeekDays[2]?.date]: {
-            driverId: "5",
-            date: firstWeekDays[2]?.date,
-            status: "FULL_ROUTE",
-          },
-          [firstWeekDays[4]?.date]: {
-            driverId: "5",
-            date: firstWeekDays[4]?.date,
-            status: "FULL_ROUTE",
-          },
-        },
-      },
-    ];
-
-    this.drivers.set(mockDrivers);
-
-    // Mock stats
-    const mockStats: ScheduleStatCard[] = [
-      {
-        title: "Total Scheduled",
-        value: "2,446h",
-        change: "+12% from last week",
-        icon: "calendar",
-        color: "text-blue-600",
-        bgColor: "bg-blue-100",
-      },
-      {
-        title: "Active Drivers",
-        value: "96",
-        change: "5 new this week",
-        icon: "users",
-        color: "text-green-600",
-        bgColor: "bg-green-100",
-      },
-      {
-        title: "Working Hours",
-        value: "546h",
-        change: "This week",
-        icon: "clock",
-        color: "text-purple-600",
-        bgColor: "bg-purple-100",
-      },
-      {
-        title: "Utilization",
-        value: "89%",
-        change: "+3% improvement",
-        icon: "trending-up",
-        color: "text-yellow-600",
-        bgColor: "bg-yellow-100",
-      },
-    ];
-
-    this.stats.set(mockStats);
+    return this.toDateKey(endDate);
   }
 
   private mergeDriversData(
@@ -1654,6 +1418,27 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
     return Array.from(driversMap.values());
   }
 
+  /**
+   * Formats a Date as "YYYY-MM-DD" using its LOCAL calendar day.
+   *
+   * Bug fixed here: this file previously did
+   * `date.toISOString().split("T")[0]` to get a date key, but `toISOString()`
+   * converts to UTC first. On a machine whose local time is ahead of UTC
+   * (e.g. the UK in BST, UTC+1) local midnight becomes 23:00 the PREVIOUS
+   * day in UTC, so every date key came out one day early. That made
+   * `getCurrentWeekStart()`/`getMultipleWeekStarts()` disagree with the
+   * server's response for the same week, so the "did the loaded week
+   * change?" effect never converged and kept re-requesting the schedule
+   * forever. Formatting from local Y/M/D keeps this file's own week-start
+   * math and the value it compares against consistent.
+   */
+  private toDateKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
   private getCurrentWeekStart(): string {
     const today = new Date();
     const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
@@ -1668,7 +1453,7 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
     const weekStart = new Date(today);
     weekStart.setDate(today.getDate() - daysToSubtract);
 
-    return weekStart.toISOString().split("T")[0];
+    return this.toDateKey(weekStart);
   }
 
   private getMultipleWeekStarts(startWeek: string, count: number): string[] {
@@ -1679,7 +1464,7 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
     for (let i = 0; i < count; i++) {
       const weekDate = new Date(startDate);
       weekDate.setDate(startDate.getDate() + i * 7);
-      weeks.push(weekDate.toISOString().split("T")[0]);
+      weeks.push(this.toDateKey(weekDate));
     }
 
     return weeks;
@@ -1790,20 +1575,22 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
   getNextWeekDate(dateString: string, daysToAdd: number): string {
     const date = new Date(dateString + "T00:00:00");
     date.setDate(date.getDate() + daysToAdd);
-    return date.toISOString().split("T")[0];
+    return this.toDateKey(date);
   }
 
   // Navigation methods
   previousWeek(): void {
-    const currentStart = new Date(this.filters().week);
+    // Parse as local midnight (not bare "YYYY-MM-DD", which JS treats as UTC)
+    // to stay consistent with toDateKey()/getCurrentWeekStart() above.
+    const currentStart = new Date(this.filters().week + "T00:00:00");
     currentStart.setDate(currentStart.getDate() - 7);
-    this.updateWeekFilter(currentStart.toISOString().split("T")[0]);
+    this.updateWeekFilter(this.toDateKey(currentStart));
   }
 
   nextWeek(): void {
-    const currentStart = new Date(this.filters().week);
+    const currentStart = new Date(this.filters().week + "T00:00:00");
     currentStart.setDate(currentStart.getDate() + 7);
-    this.updateWeekFilter(currentStart.toISOString().split("T")[0]);
+    this.updateWeekFilter(this.toDateKey(currentStart));
   }
 
   goToCurrentWeek(): void {
@@ -1967,8 +1754,6 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
 
   saveAllChanges(): void {
     const changes = this.pendingChanges();
-    console.log("saveAllChanges called with:", changes);
-    console.log("Changes JSON:", JSON.stringify(changes, null, 2));
 
     if (changes.length === 0) return;
 
@@ -1976,7 +1761,6 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
 
     this.scheduleService.bulkUpdateSchedule(changes).subscribe({
       next: (response) => {
-        console.log("Save successful:", response);
         this.pendingChanges.set([]);
 
         // Show success alert
@@ -2004,14 +1788,40 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** CSV of the week currently displayed (drivers after search/filters) */
   exportSchedule(): void {
-    // Implementation for exporting schedule data
-    console.log("Export schedule functionality to be implemented");
+    const week = this.currentWeek();
+    const drivers = this.filteredDrivers();
+    if (week.days.length === 0 || drivers.length === 0) {
+      this.alertService.showWarning("Nothing to export", "No drivers in the displayed week.");
+      return;
+    }
+    const columns: CsvColumn<DriverScheduleInfo>[] = [
+      { header: "Driver", value: (driver) => driver.name },
+      { header: "Driver status", value: (driver) => driver.status },
+      ...week.days.map(
+        (day): CsvColumn<DriverScheduleInfo> => ({
+          header: `${day.dayName} ${day.date}`,
+          value: (driver) => {
+            const schedule = driver.schedules[day.date];
+            if (!schedule) {
+              return "";
+            }
+            const times =
+              schedule.startTime && schedule.endTime ? ` ${schedule.startTime}-${schedule.endTime}` : "";
+            return `${this.getScheduleDisplayText(schedule)}${schedule.status === "RIDE_ALONG" ? "" : times}`;
+          },
+        })
+      ),
+    ];
+    downloadCsv(`driver-availability-${week.weekStart}`, drivers, columns);
+    if (this.hasUnsavedChanges()) {
+      this.alertService.showInfo("Exported with unsaved changes", "The file includes changes not yet saved.");
+    }
   }
 
   toggleDropdown(driverId: string, date: string): void {
     const dropdownId = driverId + "-" + date;
-    console.log("toggleDropdown called with:", { driverId, date, dropdownId });
 
     if (this.showDropdown() === dropdownId) {
       this.showDropdown.set("");
@@ -2080,7 +1890,6 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
     date: string,
     status: ScheduleStatus
   ): void {
-    console.log("quickAddSchedule called with:", { driverId, date, status });
 
     const request: CreateScheduleRequest = {
       driverId,
@@ -2091,7 +1900,6 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
       notes: "",
     };
 
-    console.log("Created request:", request);
 
     // Close dropdown
     this.showDropdown.set("");
@@ -2100,13 +1908,8 @@ export class DriverScheduleComponent implements OnInit, OnDestroy {
 
     // Add to pending changes or save directly
     this.pendingChanges.update((changes) => [...changes, request]);
-    console.log(
-      "Updated pending changes, new count:",
-      this.pendingChanges().length
-    );
 
     this.updateLocalSchedule(request);
-    console.log("Updated local schedule");
 
     // Show success alert for quick add
     this.alertService.showSuccess(

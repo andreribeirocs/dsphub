@@ -43,8 +43,9 @@
                 id="profile-email"
                 type="email"
                 formControlName="email"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
               />
+              <p class="mt-1 text-xs text-gray-500">To change your sign-in email, ask a director (Admin › Users).</p>
             </div>
 
             <div>
@@ -233,49 +234,56 @@
             </span>
           </div>
           <div class="flex justify-between items-center">
-            <span class="text-sm text-gray-600">2FA</span>
-            <span
-              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-              [ngClass]="
-                getTwoFactorStatus()
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-yellow-100 text-yellow-800'
-              "
-            >
-              {{ getTwoFactorStatus() ? "Enabled" : "Disabled" }}
-            </span>
-          </div>
-          <div class="flex justify-between items-center">
             <span class="text-sm text-gray-600">Last Login</span>
             <span class="text-sm text-gray-900">{{ getLastLoginText() }}</span>
           </div>
         </div>
       </div>
 
-      <!-- Security Settings -->
+      <!-- Security -->
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Security</h3>
-        <div class="space-y-3">
-          <button
-            class="w-full text-left text-sm text-blue-600 hover:text-blue-800"
-            (click)="enable2FA()"
-          >
-            {{ getTwoFactorStatus() ? "Manage" : "Enable" }} Two-Factor
-            Authentication
+        <button
+          type="button"
+          class="w-full text-left text-sm text-blue-600 hover:text-blue-800"
+          (click)="toggleLoginHistory()"
+        >
+          {{ showLoginHistory() ? "Hide sign-in history" : "View sign-in history" }}
+        </button>
+        @if (showLoginHistory()) {
+        <div class="mt-4">
+          @if (loginHistoryLoading()) {
+          <p class="text-sm text-gray-500">Loading...</p>
+          } @else if (loginHistoryError()) {
+          <p class="text-sm text-red-600">{{ loginHistoryError() }}</p>
+          <button type="button" class="mt-2 text-sm text-blue-600 hover:text-blue-800" (click)="loadLoginHistory()">
+            Try again
           </button>
-          <button
-            class="w-full text-left text-sm text-blue-600 hover:text-blue-800"
-            (click)="viewLoginHistory()"
-          >
-            View Login History
-          </button>
-          <button
-            class="w-full text-left text-sm text-blue-600 hover:text-blue-800"
-            (click)="manageApiKeys()"
-          >
-            Manage API Keys
-          </button>
+          } @else if (loginHistory().length === 0) {
+          <p class="text-sm text-gray-500">No sign-ins recorded yet on this DSP.</p>
+          } @else {
+          <ul class="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+            @for (item of loginHistory(); track item.id) {
+            <li class="py-2">
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-900">{{ item.attemptedAt | date: "dd/MM/yyyy HH:mm" }}</span>
+                <span
+                  class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                  [ngClass]="item.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                >
+                  {{ item.success ? "Success" : "Failed" }}
+                </span>
+              </div>
+              <p class="text-xs text-gray-500">
+                {{ describeDevice(item.userAgent) }} · {{ item.ipAddress || "unknown IP" }}
+              </p>
+            </li>
+            }
+          </ul>
+          <p class="mt-2 text-xs text-gray-400">Last 20 attempts. A failed attempt you don't recognise? Change your password.</p>
+          }
         </div>
+        }
       </div>
     </div>
   </div>

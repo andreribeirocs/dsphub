@@ -65,6 +65,27 @@ export class ScheduleService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
+   * Parses a "YYYY-MM-DD" week start into its UTC start/end instants.
+   *
+   * Bug fixed here: the previous code built the date with
+   * `new Date(year, month - 1, day)`, which is LOCAL midnight. Schedule rows
+   * are written with `new Date("YYYY-MM-DD")`, which JS parses as UTC
+   * midnight. On a server whose local time is not UTC (e.g. Europe/London in
+   * BST, UTC+1) the two never matched: `getWeekSchedule("2026-09-12")`
+   * returned `weekStart: "2026-09-11"`, so the front-end's "did the loaded
+   * week change?" check never converged and the schedule page re-requested
+   * the same 7 endpoints in an infinite loop (hundreds of calls per second,
+   * tripping the API's rate limiter). Building the range in UTC keeps every
+   * read on the same calendar day the data was written on.
+   */
+  private parseWeekRange(weekStart: string): { startDate: Date; endDate: Date } {
+    const startDate = new Date(`${weekStart}T00:00:00.000Z`);
+    const endDate = new Date(startDate);
+    endDate.setUTCDate(startDate.getUTCDate() + 6);
+    return { startDate, endDate };
+  }
+
+  /**
    * Create a new schedule for a driver
    * @param createScheduleDto - Schedule creation data
    * @returns Created schedule with driver information
@@ -195,25 +216,22 @@ export class ScheduleService {
    * @returns Week schedule structure
    */
   getWeekSchedule(weekStart: string): WeekSchedule {
-    // Parse the date string explicitly to avoid timezone issues
-    const [year, month, day] = weekStart.split("-").map(Number);
-    const startDate = new Date(year, month - 1, day); // month is 0-indexed
-    const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 6);
+    const { startDate, endDate } = this.parseWeekRange(weekStart);
 
-    // Generate all days of the week
+    // Generate all days of the week (UTC arithmetic, see parseWeekRange)
     const days: WeekDay[] = [];
-    const today = new Date();
+    const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: "UTC" });
 
     for (let i = 0; i < DAYS_IN_WEEK; i++) {
       const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
+      date.setUTCDate(startDate.getUTCDate() + i);
+      const dateKey = date.toISOString().split("T")[0];
 
       days.push({
-        date: date.toISOString().split("T")[0],
-        dayName: date.toLocaleDateString("en-US", { weekday: "short" }),
-        dayNumber: date.getDate(),
-        isToday: date.toDateString() === today.toDateString(),
+        date: dateKey,
+        dayName: date.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }),
+        dayNumber: date.getUTCDate(),
+        isToday: dateKey === todayKey,
         schedules: [],
       });
     }
@@ -233,11 +251,7 @@ export class ScheduleService {
   async getDriversWithSchedules(
     weekStart: string
   ): Promise<DriverWithSchedules[]> {
-    // Parse the date string explicitly to avoid timezone issues
-    const [year, month, day] = weekStart.split("-").map(Number);
-    const startDate = new Date(year, month - 1, day); // month is 0-indexed
-    const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 6);
+    const { startDate, endDate } = this.parseWeekRange(weekStart);
 
     const drivers = await this.prisma.driver.findMany({
       where: {
@@ -286,11 +300,7 @@ export class ScheduleService {
    * @returns Array of schedule statistics
    */
   async getScheduleStats(weekStart: string): Promise<ScheduleStats[]> {
-    // Parse the date string explicitly to avoid timezone issues
-    const [year, month, day] = weekStart.split("-").map(Number);
-    const startDate = new Date(year, month - 1, day); // month is 0-indexed
-    const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 6);
+    const { startDate, endDate } = this.parseWeekRange(weekStart);
 
     const [totalScheduled, activeDrivers, workingHours] = await Promise.all([
       this.prisma.driverSchedule.count({
@@ -376,7 +386,7 @@ export class ScheduleService {
     const results: ScheduleWithDriver[] = [];
 
     // Use transaction for bulk operations
-    await this.prisma.$transaction(async (prisma) => {
+    await this.prisma.tenantTransaction(async (prisma) => {
       for (const scheduleDto of schedules) {
         const { driverId, date, ...scheduleData } = scheduleDto;
 

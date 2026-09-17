@@ -10,7 +10,9 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { DriversService } from "./drivers.service";
-import { Prisma } from "@prisma/client";
+import { UpdateDriverDto } from "./dto/update-driver.dto";
+import { Roles } from "src/auth/decorators/roles.decorator";
+import { ForbiddenException } from "@nestjs/common";
 import { BetterAuthGuard } from "src/auth/guards/better-auth.guard";
 import { RolesGuard } from "src/auth/guards/roles.guard";
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from "@nestjs/swagger";
@@ -52,12 +54,14 @@ export class DriversController {
   async findAll(
     @Query("status") status?: string,
     @Query("depot") depot?: string,
+    @Query("depotId") depotId?: string,
     @Query("search") search?: string,
     @Query("expiringOnly") expiringOnly?: string
   ): Promise<any[]> {
     const filters = {
       status,
       depot,
+      depotId,
       search,
       expiringOnly: expiringOnly === "true",
     };
@@ -159,8 +163,11 @@ export class DriversController {
   @ApiOperation({ summary: "Create a new driver" })
   @ApiResponse({ status: 201, description: "Driver created successfully" })
   @ApiResponse({ status: 400, description: "Invalid input data" })
-  async create(@Body() data: Prisma.DriverCreateInput): Promise<any> {
-    return this.driversService.create(data);
+  create(): never {
+    // Decision (16/09/2026): every driver enters through the recruitment pipeline
+    throw new ForbiddenException(
+      "Drivers are created from the recruitment pipeline (candidate → active driver)"
+    );
   }
 
   /**
@@ -175,7 +182,7 @@ export class DriversController {
   @ApiResponse({ status: 404, description: "Driver not found" })
   async update(
     @Param("id") id: string,
-    @Body() data: Prisma.DriverUpdateInput
+    @Body() data: UpdateDriverDto
   ): Promise<any> {
     return this.driversService.update(id, data);
   }
@@ -186,6 +193,7 @@ export class DriversController {
    * @returns Deleted driver object
    */
   @Delete(":id")
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_ONSITE", "MANAGER_RECRUITMENT")
   @ApiOperation({ summary: "Delete driver" })
   @ApiResponse({ status: 200, description: "Driver deleted successfully" })
   @ApiResponse({ status: 404, description: "Driver not found" })

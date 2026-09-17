@@ -1,4 +1,3 @@
-<!-- 🚀 Angular 20 Payment Dashboard -->
 <div class="min-h-screen bg-gray-50 p-6">
   <!-- Header -->
   <div class="mb-8">
@@ -13,9 +12,15 @@
         <span class="text-sm text-gray-500">{{
           currentDate | date : "d/M/yyyy"
         }}</span>
-        @if (currentUser()?.role === 'SUPER_ADMIN' || currentUser()?.role ===
-        'OWNER' || currentUser()?.role === 'DIRECTOR' || currentUser()?.role ===
-        'MANAGER_FINANCIAL') {
+        @if (dashboard()) {
+        <button
+          type="button"
+          (click)="exportDashboardData()"
+          class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        >
+          Export Prices
+        </button>
+        } @if (canUpdatePrices() && dashboard()) {
         <button
           type="button"
           (click)="openUpdatePriceModal()"
@@ -162,8 +167,7 @@
               <p class="text-xl font-bold text-gray-900">
                 £{{ price.dailyRate | number : "1.2-2" }}
               </p>
-              @if (currentUser()?.role === 'DIRECTOR' || currentUser()?.role ===
-              'MANAGER_FINANCIAL') {
+              @if (canUpdatePrices()) {
               <button
                 type="button"
                 (click)="openUpdatePriceModal(price)"
@@ -189,7 +193,7 @@
           </div>
           <button
             type="button"
-            (click)="loadPaymentHistory()"
+            (click)="viewAllPaymentHistory()"
             class="text-sm text-blue-600 hover:text-blue-700 font-medium"
           >
             View All
@@ -337,11 +341,10 @@
           <select
             id="routeType"
             formControlName="routeType"
-            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            [disabled]="selectedPrice() !== null"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
           >
             <option value="">Select route type</option>
-            @for (routeType of routeTypes; track routeType.value) {
+            @for (routeType of routeTypes(); track routeType.value) {
             <option [value]="routeType.value">{{ routeType.label }}</option>
             }
           </select>
@@ -432,4 +435,9 @@
     </form>
   </div>
 </div>
+}
+
+<!-- Full Price History Modal -->
+@if (showHistoryModal()) {
+<app-payment-history-modal (close)="closePaymentHistory()" />
 }

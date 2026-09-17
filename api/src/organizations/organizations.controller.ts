@@ -14,6 +14,7 @@ import { CreateOrganizationDto } from "./dto/create-organization.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { BetterAuthGuard } from "../auth/guards/better-auth.guard";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
+import { CurrentOrganization } from "../auth/decorators/current-organization.decorator";
 import { BetterAuthService } from "../auth/better-auth.service";
 
 @Controller("organizations")
@@ -53,6 +54,12 @@ export class OrganizationsController {
     return this.organizationsService.findAll();
   }
 
+  /** Current organization of the domain (settings screen) */
+  @Get("current")
+  async findCurrent(@CurrentOrganization() organizationId: string, @CurrentUser() user: any) {
+    return this.organizationsService.findOne(organizationId, user.id, false);
+  }
+
   @Get(":id")
   async findOne(@Param("id") id: string, @CurrentUser() user: any) {
     const isSuperAdmin = await this.betterAuthService.isSuperAdmin(user.id);
@@ -66,6 +73,14 @@ export class OrganizationsController {
     @CurrentUser() user: any
   ) {
     const isSuperAdmin = await this.betterAuthService.isSuperAdmin(user.id);
+    if (!isSuperAdmin && !["OWNER", "DIRECTOR"].includes(user.role)) {
+      throw new ForbiddenException(
+        "Only owners and directors can change organization settings"
+      );
+    }
+    if (!isSuperAdmin && updateOrganizationDto.isActive !== undefined) {
+      throw new ForbiddenException("Only super administrators can activate or deactivate an organization");
+    }
     return this.organizationsService.update(
       id,
       updateOrganizationDto,

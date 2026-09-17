@@ -49,6 +49,8 @@ export const routes: Routes = [
     path: "",
     component: MainLayoutComponent,
     canActivate: [authGuard],
+    // Also runs for each child so the "roles" in route data are enforced
+    canActivateChild: [authGuard],
     children: [
       {
         path: "dashboard",

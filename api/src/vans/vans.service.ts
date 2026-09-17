@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from "@nestjs/common";
+import { TenantContext } from "../tenancy/tenant-context";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma, Van, VanStatus, VanCondition } from "@prisma/client";
 import { CreateVanDto, UpdateVanDto, GetVansDto } from "./dto";
@@ -26,6 +27,7 @@ interface VanFilters {
   readonly status?: VanStatus;
   readonly condition?: VanCondition;
   readonly depot?: string;
+  readonly depotId?: string;
   readonly contract?: string;
   readonly search?: string;
   readonly expiringMot?: boolean;
@@ -46,13 +48,16 @@ export class VansService {
    */
   async create(createVanDto: CreateVanDto): Promise<Van> {
     try {
-      // Get default organization
-      const organization = await this.prisma.organization.findUnique({
-        where: { slug: "default" },
-      });
-      if (!organization) {
-        throw new BadRequestException("Default organization not found");
+      if (createVanDto.depotId) {
+        const depot = await this.prisma.depot.findUnique({ where: { id: createVanDto.depotId } });
+        if (!depot) {
+          throw new BadRequestException("Depot not found");
+        }
+        (createVanDto as { depot?: string }).depot = depot.name;
       }
+
+      // Organization of the domain the request came from
+      const organization = { id: TenantContext.requireOrganizationId() };
 
       const vanData: Prisma.VanCreateInput = {
         organization: {
@@ -76,6 +81,7 @@ export class VansService {
         fuelType: createVanDto.fuelType,
         capacity: createVanDto.capacity,
         depot: createVanDto.depot,
+        ...(createVanDto.depotId && { depotRef: { connect: { id: createVanDto.depotId } } }),
         assignedDriver: createVanDto.assignedDriver,
         mileage: createVanDto.mileage,
         lastService: createVanDto.lastService
@@ -127,7 +133,9 @@ export class VansService {
       where.condition = filters.condition;
     }
 
-    if (filters?.depot) {
+    if (filters?.depotId) {
+      where.depotId = filters.depotId;
+    } else if (filters?.depot) {
       where.depot = filters.depot;
     }
 
@@ -235,13 +243,8 @@ export class VansService {
    */
   async findByVanNumber(vanNumber: string): Promise<Van> {
     try {
-      // Get default organization
-      const organization = await this.prisma.organization.findUnique({
-        where: { slug: "default" },
-      });
-      if (!organization) {
-        throw new NotFoundException("Default organization not found");
-      }
+      // Organization of the domain the request came from
+      const organization = { id: TenantContext.requireOrganizationId() };
 
       const van = await this.prisma.van.findUnique({
         where: {
@@ -323,6 +326,20 @@ export class VansService {
           motReminder: updateVanDto.motReminder,
         }),
       };
+
+      if (updateVanDto.depotId !== undefined) {
+        if (updateVanDto.depotId) {
+          const depot = await this.prisma.depot.findUnique({ where: { id: updateVanDto.depotId } });
+          if (!depot) {
+            throw new BadRequestException("Depot not found");
+          }
+          updateData.depotRef = { connect: { id: depot.id } };
+          updateData.depot = depot.name;
+        } else {
+          updateData.depotRef = { disconnect: true };
+          updateData.depot = null;
+        }
+      }
 
       // Handle contract assignment
       if (updateVanDto.contractId !== undefined) {

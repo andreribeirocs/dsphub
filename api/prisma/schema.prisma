@@ -67,22 +67,22 @@ model Session {
 }
 
 model Account {
-  id           String    @id @default(cuid())
-  userId       String
-  accountId    String
-  providerId   String
-  accessToken  String?
-  refreshToken String?
-  idToken      String?
-  expiresAt    DateTime?
+  id                    String    @id @default(cuid())
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  expiresAt             DateTime?
   // Campos exigidos pelo better-auth 1.3.x (faltavam no schema antigo,
   // gerado por uma versao anterior da lib). Sem eles o login quebra.
   accessTokenExpiresAt  DateTime?
   refreshTokenExpiresAt DateTime?
   scope                 String?
-  password     String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -118,7 +118,7 @@ model Organization {
   address            String?
   city               String?
   postcode           String?
-  country            String? @default("United Kingdom")
+  country            String?        @default("United Kingdom")
   phone              String?
   email              String?
   website            String?
@@ -126,22 +126,25 @@ model Organization {
   registrationNumber String?
   vatNumber          String? // VAT Number for invoices
   companyRegNumber   String? // Company Registration Number
-  logoBase64         String? @db.Text
+  logoBase64         String?        @db.Text
   bankName           String?
   bankAccountNumber  String?
   bankSortCode       String?
   iban               String?
   swiftCode          String?
-  termsAndConditions String? @db.Text
+  termsAndConditions String?        @db.Text
   footerText         String?
-  invoicePrefix      String? @default("INV") // Invoice number prefix
-  invoiceFooter      String? @db.Text // Custom footer for invoices
+  invoicePrefix      String?        @default("INV") // Invoice number prefix
+  invoiceFooter      String?        @db.Text // Custom footer for invoices
   depots             Json? // Array of depot locations {name, address}
-  isActive           Boolean @default(true)
+  isActive           Boolean        @default(true)
+  operatingModel     OperatingModel @default(DSP_1_0)
 
   // Relations
   members     Member[]
   invitations Invitation[]
+  domains     OrganizationDomain[]
+  depotList   Depot[]
 
   // Our custom relations
   drivers            Driver[]
@@ -153,10 +156,67 @@ model Organization {
   parts              Part[]
   maintenanceRecords MaintenanceRecord[]
   routePrices        RoutePrice[]
+  loginAttempts      LoginAttempt[]
 
   @@index([slug])
   @@index([isActive])
   @@map("organization")
+}
+
+/// Domains a DSP uses to access DSPHub (e.g. app.mydsp.co.uk).
+/// Requests are routed to an organization by the host they arrive on.
+model OrganizationDomain {
+  id             String   @id @default(cuid())
+  organizationId String
+  /// Lowercase hostname without scheme or port
+  domain         String   @unique
+  isPrimary      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("organization_domain")
+}
+
+/// Amazon delivery station operated by a DSP (e.g. DXW2). A DSP can have many.
+model Depot {
+  id             String   @id @default(uuid())
+  organizationId String
+  /// Station code, unique per DSP (e.g. DXW2)
+  code           String
+  name           String
+  address        String?
+  postcode       String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  homeDrivers  Driver[]        @relation("DriverHomeDepot")
+  vans         Van[]
+  payments     DriverPayment[]
+  managers     MemberDepot[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@map("depot")
+}
+
+/// Depots a member (manager) is limited to. No rows = access to every depot.
+model MemberDepot {
+  id        String   @id @default(uuid())
+  memberId  String
+  depotId   String
+  createdAt DateTime @default(now())
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  depot  Depot  @relation(fields: [depotId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, depotId])
+  @@index([depotId])
+  @@map("member_depot")
 }
 
 model Member {
@@ -167,8 +227,9 @@ model Member {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  depots       MemberDepot[]
 
   @@unique([organizationId, userId])
   @@index([userId])
@@ -253,7 +314,11 @@ model Driver {
   citizenship         String
   completionRate      Float            @default(0)
   dbsStatus           String           @default("PENDING")
+  /// Legacy free-text depot name, kept in sync with homeDepot
   depot               String
+  /// Home depot (required for new drivers; may cover routes at other depots)
+  homeDepotId         String?
+  homeDepot           Depot?           @relation("DriverHomeDepot", fields: [homeDepotId], references: [id])
   email               String
   hasEndorsements     Boolean          @default(false)
   joinDate            DateTime
@@ -280,6 +345,7 @@ model Driver {
 
   @@unique([organizationId, transporterId])
   @@index([organizationId])
+  @@index([homeDepotId])
   @@index([organizationId, userId])
   @@index([status])
   @@index([depot])
@@ -319,7 +385,9 @@ model DriverPayment {
   isHelper            Boolean       @default(false)
   helperFor           String? // ID of the primary driver if this is a helper
   // New fields for 7 Days invoice system
-  depot               String? // Which depot this payment is for
+  depot               String? // Legacy free-text depot of the work day
+  depotId             String? // Depot where the work happened (away when != driver home depot)
+  depotRef            Depot?        @relation(fields: [depotId], references: [id])
   weekNumber          Int? // Week number (e.g., 40)
   deliveryServiceType String? // DS type (DXW3, DRG3, etc.)
   mileage             Decimal?      @db.Decimal(6, 2) // Mileage for the route
@@ -451,23 +519,27 @@ model DriverSchedule {
 // Old session models removed - replaced by Better Auth Session model
 
 model LoginAttempt {
-  id          String   @id @default(uuid())
-  userId      String?
-  email       String
-  success     Boolean
-  ipAddress   String?
-  userAgent   String?
-  location    String?
-  riskScore   Int      @default(0)
-  riskFactors Json?
-  attemptedAt DateTime @default(now())
-  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String        @id @default(uuid())
+  userId         String?
+  email          String
+  success        Boolean
+  ipAddress      String?
+  userAgent      String?
+  location       String?
+  riskScore      Int           @default(0)
+  riskFactors    Json?
+  attemptedAt    DateTime      @default(now())
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // DSP of the domain where the sign-in happened (audit is per DSP)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([email])
   @@index([success])
   @@index([attemptedAt])
   @@index([ipAddress])
   @@index([email, success, attemptedAt])
+  @@index([organizationId, attemptedAt])
   @@map("login_attempts")
 }
 
@@ -537,7 +609,10 @@ model Van {
   engineNumber       String?
   fuelType           String?
   capacity           String?
+  /// Legacy free-text depot name, kept in sync with depotRef
   depot              String?
+  depotId            String?
+  depotRef           Depot?              @relation(fields: [depotId], references: [id])
   assignedDriver     String?
   mileage            Int?                @default(0)
   lastService        DateTime?
@@ -715,6 +790,13 @@ model InvoiceItem {
   @@index([paymentId])
   @@index([date])
   @@map("invoice_items")
+}
+
+/// DSP 1.0: drivers rent a van weekly and keep it 24/7.
+/// DSP 2.0: drivers collect a van from the depot every morning.
+enum OperatingModel {
+  DSP_1_0
+  DSP_2_0
 }
 
 enum UserRole {
