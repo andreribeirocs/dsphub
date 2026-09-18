@@ -475,4 +475,33 @@ export class UpdateCandidateDto {
   @IsEnum(CandidateStatus)
   @IsOptional()
   status?: CandidateStatus;
+
+  @ApiProperty({
+    description: "Recruiter has made first contact with the candidate",
+    required: false,
+    example: true,
+  })
+  @IsBoolean()
+  @IsOptional()
+  initialContactDone?: boolean;
+
+  @ApiProperty({
+    description: "Outcome of the screening call",
+    required: false,
+    example: "Good communication, available from Monday",
+  })
+  @IsString()
+  @IsOptional()
+  @Length(0, 2000)
+  miniInterviewResult?: string;
+
+  @ApiProperty({
+    description: "Outcome of the training-day assessment",
+    required: false,
+    example: "Passed - 38/40 stops, no safety issues",
+  })
+  @IsString()
+  @IsOptional()
+  @Length(0, 2000)
+  trainingTestResult?: string;
 }

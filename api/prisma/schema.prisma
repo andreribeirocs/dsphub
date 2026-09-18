@@ -157,10 +157,39 @@ model Organization {
   maintenanceRecords MaintenanceRecord[]
   routePrices        RoutePrice[]
   loginAttempts      LoginAttempt[]
+  serviceTypes       ServiceType[]
 
   @@index([slug])
   @@index([isActive])
   @@map("organization")
+}
+
+/// Service types offered by a DSP (Standard 9h, Nursery L1, Sameday, ...).
+///
+/// Replaces the fixed `RouteType` enum as the per-DSP registry. The enum is
+/// still what the payment tables store; repointing those columns is a data
+/// migration of its own and has not been done yet, so for now this table is
+/// the editable catalogue and `code` is the bridge back to the enum value.
+model ServiceType {
+  id             String   @id @default(uuid())
+  organizationId String
+  /// Stable key. Matches a RouteType enum value for the rows created by the backfill.
+  code           String
+  /// Editable label shown in the screens
+  name           String
+  /// Nominal paid hours, when the type has them
+  hours          Float?
+  isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([organizationId, isActive])
+  @@map("service_type")
 }
 
 /// Domains a DSP uses to access DSPHub (e.g. app.mydsp.co.uk).
@@ -320,6 +349,8 @@ model Driver {
   homeDepotId         String?
   homeDepot           Depot?           @relation("DriverHomeDepot", fields: [homeDepotId], references: [id])
   email               String
+  /// Company-issued address (e.g. @dsp.com); personal address stays in `email`
+  corporateEmail      String?
   hasEndorsements     Boolean          @default(false)
   joinDate            DateTime
   lastCheck           DateTime
@@ -458,6 +489,14 @@ model Candidate {
   sla           String? // SLA
   account       String? // Account
   formCompleted Boolean? @default(false) // Form
+
+  // Recruitment pipeline tracking
+  /// Recruiter has made first contact with the candidate
+  initialContactDone Boolean   @default(false)
+  /// Free-text outcome of the screening call
+  miniInterviewResult String?
+  /// Free-text outcome of the training-day assessment
+  trainingTestResult  String?
 
   // Document Storage
   documents Json?

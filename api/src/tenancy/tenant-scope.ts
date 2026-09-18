@@ -28,6 +28,7 @@ export const DIRECT_TENANT_MODELS: ReadonlySet<string> = new Set([
   "Member",
   "Part",
   "RoutePrice",
+  "ServiceType",
   "Van",
 ]);
 

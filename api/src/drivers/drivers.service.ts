@@ -203,6 +203,12 @@ export class DriversService {
       ...(dto.name !== undefined && { name: dto.name.trim() }),
       ...(dto.phone !== undefined && { phone: dto.phone.trim() }),
       ...(dto.email !== undefined && { email: dto.email.trim().toLowerCase() }),
+      ...(dto.corporateEmail !== undefined && {
+        // Empty string clears the field rather than storing ""
+        corporateEmail: dto.corporateEmail.trim()
+          ? dto.corporateEmail.trim().toLowerCase()
+          : null,
+      }),
       ...(dto.address !== undefined && { address: dto.address }),
       ...(dto.status !== undefined && { status: dto.status }),
       ...(dto.transporterId !== undefined && { transporterId: dto.transporterId.trim() }),

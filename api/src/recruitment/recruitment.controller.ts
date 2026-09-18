@@ -30,6 +30,7 @@ import {
 } from "@nestjs/swagger";
 import { GetCandidatesDto } from "./dto/get-candidates.dto";
 import { UpdateCandidateDto } from "./dto/update-candidate.dto";
+import { ConvertToDriverDto } from "./dto/convert-to-driver.dto";
 
 @ApiTags("recruitment")
 @Controller("recruitment")
@@ -151,6 +152,37 @@ export class RecruitmentController {
     @Body() updateCandidateDto: UpdateCandidateDto
   ) {
     return this.recruitmentService.updateCandidate(id, updateCandidateDto);
+  }
+
+  @Post("candidates/:id/convert-to-driver")
+  @UseGuards(BetterAuthGuard, RolesGuard)
+  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_RECRUITMENT")
+  @ApiOperation({
+    summary: "Hire a candidate: create the driver record and the DRIVER login",
+  })
+  @ApiResponse({
+    status: 201,
+    description: "Candidate converted to driver successfully",
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      "Candidate already hired, record incomplete, depot inactive, or email/Transporter ID already in use",
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized" })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Insufficient permissions",
+  })
+  @ApiResponse({ status: 404, description: "Candidate not found" })
+  @ApiBearerAuth()
+  @ApiParam({ name: "id", description: "Candidate ID" })
+  @ApiBody({ type: ConvertToDriverDto })
+  async convertToDriver(
+    @Param("id") id: string,
+    @Body() convertToDriverDto: ConvertToDriverDto
+  ) {
+    return this.recruitmentService.convertToDriver(id, convertToDriverDto);
   }
 
   @Delete("candidates/:id")

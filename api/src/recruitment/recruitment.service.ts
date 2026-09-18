@@ -18,13 +18,18 @@ import { CreateCandidateDto } from "./dto/create-candidate.dto";
 import { CompleteRegistrationDto } from "./dto/complete-registration.dto";
 import { GetCandidatesDto } from "./dto/get-candidates.dto";
 import { UpdateCandidateDto } from "./dto/update-candidate.dto";
-import { Prisma } from "@prisma/client";
+import { ConvertToDriverDto } from "./dto/convert-to-driver.dto";
+import { CandidateStatus, Prisma, UserRole, UserStatus } from "@prisma/client";
+import { hashPassword } from "better-auth/crypto";
 import { nanoid } from "nanoid";
 
 // Constants
 const SMS_TOKEN_LENGTH = 7;
 const TOKEN_EXPIRY_HOURS = 48;
 const DEFAULT_PAGE_SIZE = 10;
+/** Months between compliance checks, applied when a driver is first created */
+const DRIVER_CHECK_INTERVAL_MONTHS = 6;
+const GENERATED_PASSWORD_LENGTH = 16;
 
 @Injectable()
 export class RecruitmentService {
@@ -492,6 +497,178 @@ export class RecruitmentService {
 
       throw new BadRequestException("Failed to update candidate information");
     }
+  }
+
+  /**
+   * Hire a candidate: create the DRIVER login and the Driver record, and close
+   * the candidate out of the pipeline.
+   *
+   * Everything happens in one transaction — a driver without a login, or a
+   * login without a driver, would leave the DSP in a state nobody can fix from
+   * the screens.
+   *
+   * The Driver model requires several fields the Candidate holds as optional.
+   * Rather than invent values, an incomplete candidate is rejected with the
+   * list of what is missing, so the recruiter can finish the record first.
+   */
+  async convertToDriver(candidateId: string, dto: ConvertToDriverDto) {
+    if (!candidateId) {
+      throw new BadRequestException("Candidate ID is required");
+    }
+
+    const organizationId = TenantContext.requireOrganizationId();
+
+    // Scoped to this DSP by the Prisma tenant extension: a candidate of
+    // another DSP reads as "not found".
+    const candidate = await this.prisma.candidate.findUnique({
+      where: { id: candidateId },
+    });
+    if (!candidate) {
+      throw new NotFoundException(`Candidate with ID ${candidateId} not found`);
+    }
+
+    if (candidate.userId || candidate.status === CandidateStatus.ACTIVE_DRIVER) {
+      throw new BadRequestException(
+        "This candidate has already been hired as a driver"
+      );
+    }
+
+    const depot = await this.prisma.depot.findUnique({
+      where: { id: dto.homeDepotId },
+      select: { id: true, name: true, isActive: true },
+    });
+    if (!depot || !depot.isActive) {
+      throw new BadRequestException("Home depot not found or inactive");
+    }
+
+    // Fields the Driver record cannot be created without
+    const missing: string[] = [];
+    if (!candidate.email) missing.push("email");
+    if (!candidate.address) missing.push("address");
+    if (candidate.age === null || candidate.age === undefined) missing.push("age");
+    if (!candidate.citizenship) missing.push("citizenship");
+    if (!candidate.licenceExpiry) missing.push("licence expiry");
+    if (!candidate.passportVisaExpiry) missing.push("passport/visa expiry");
+    if (!candidate.rtwExpiry) missing.push("right to work expiry");
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `Candidate record is incomplete. Fill in before hiring: ${missing.join(", ")}`
+      );
+    }
+
+    const email = candidate.email!.trim().toLowerCase();
+
+    // Logins are global identities, so this check spans every DSP on purpose.
+    const existingUser = await TenantContext.runAsSystem(() =>
+      this.prisma.user.findUnique({ where: { email }, select: { id: true } })
+    );
+    if (existingUser) {
+      throw new BadRequestException(
+        "A user account with this email already exists"
+      );
+    }
+
+    const duplicateTransporterId = await this.prisma.driver.findFirst({
+      where: { transporterId: dto.transporterId.trim() },
+      select: { id: true },
+    });
+    if (duplicateTransporterId) {
+      throw new BadRequestException(
+        "Another driver already uses this Transporter ID"
+      );
+    }
+
+    const joinDate = dto.joinDate ? new Date(dto.joinDate) : new Date();
+    // No compliance rule for this yet; six months is the interval the existing
+    // records use. Reviewed on the driver screen like any other date.
+    const nextCheck = new Date(joinDate);
+    nextCheck.setMonth(nextCheck.getMonth() + DRIVER_CHECK_INTERVAL_MONTHS);
+
+    const generatedPassword = dto.password ? null : nanoid(GENERATED_PASSWORD_LENGTH);
+    const password = dto.password ?? generatedPassword!;
+    const passwordHash = await hashPassword(password);
+
+    const result = await this.prisma.tenantTransaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email,
+          name: candidate.name,
+          role: UserRole.DRIVER,
+          phoneNumber: candidate.phoneNumber,
+          status: UserStatus.ACTIVE,
+        },
+      });
+
+      await tx.account.create({
+        data: {
+          userId: user.id,
+          accountId: user.id,
+          providerId: "credential",
+          password: passwordHash,
+        },
+      });
+
+      // "member" is the better-auth organization role for every non-owner,
+      // non-director user (see users.service memberRoleFor).
+      await tx.member.create({
+        data: { userId: user.id, organizationId, role: "member" },
+      });
+
+      const driver = await tx.driver.create({
+        data: {
+          organizationId,
+          userId: user.id,
+          name: candidate.name,
+          email,
+          corporateEmail: dto.corporateEmail?.trim().toLowerCase() ?? null,
+          phone: candidate.phoneNumber,
+          address: candidate.address!,
+          age: candidate.age!,
+          citizenship: candidate.citizenship!,
+          transporterId: dto.transporterId.trim(),
+          contractType: dto.contractType ?? null,
+          homeDepotId: depot.id,
+          // Legacy free-text column, kept in sync with the depot relation
+          depot: depot.name,
+          licenseNumber: candidate.driverLicense ?? null,
+          licenseExpiry: candidate.licenceExpiry!,
+          passportExpiry: candidate.passportVisaExpiry!,
+          rtwExpiry: candidate.rtwExpiry!,
+          insuranceNumber: candidate.insuranceNumber ?? null,
+          points: candidate.points ?? 0,
+          documents: candidate.documents ?? undefined,
+          joinDate,
+          lastCheck: candidate.lastCheck ?? joinDate,
+          nextCheck,
+          status: "ACTIVE",
+          onboardingComplete: true,
+        },
+      });
+
+      await tx.candidate.update({
+        where: { id: candidate.id },
+        data: { userId: user.id, status: CandidateStatus.ACTIVE_DRIVER },
+      });
+
+      return { user, driver };
+    });
+
+    // No per-DSP audit table exists yet (the Audit Log screen is built from
+    // loginAttempt + paymentHistory), so this only reaches the server log.
+    this.logger.log(
+      `Candidate ${candidate.id} hired as driver ${result.driver.id} ` +
+        `(user ${result.user.id}, depot ${depot.name}) in organization ${organizationId}`
+    );
+
+    return {
+      success: true,
+      driverId: result.driver.id,
+      userId: result.user.id,
+      email,
+      // Shown once so the recruiter can hand it over; never stored in clear.
+      generatedPassword,
+      message: `${candidate.name} is now a driver at ${depot.name}`,
+    };
   }
 
   async deleteCandidate(id: string) {

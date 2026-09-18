@@ -1,0 +1,37 @@
+// Scaffold for api/src/drivers/dto/driver.dto.ts
+// Add corporateEmail field to existing DriverDTO
+
+import { IsEmail, IsOptional, IsString } from 'class-validator';
+
+export class CreateDriverDto {
+  // ... existing fields ...
+
+  @IsOptional()
+  @IsEmail()
+  corporateEmail?: string;
+}
+
+export class UpdateDriverDto {
+  // ... existing fields ...
+
+  @IsOptional()
+  @IsEmail()
+  corporateEmail?: string;
+}
+
+export class DriverResponseDto {
+  id: string;
+  organizationId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  homeDepotId: string;
+  status: string;
+
+  // New field
+  corporateEmail?: string;
+
+  createdAt: Date;
+  updatedAt: Date;
+}

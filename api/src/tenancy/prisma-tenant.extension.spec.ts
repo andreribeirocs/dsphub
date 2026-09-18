@@ -99,6 +99,25 @@ describe("prismaTenantExtension", () => {
     expect(calls[0].args).toEqual({ where: { email: "a@b.com" } });
   });
 
+  // Every tenant table has to be listed in DIRECT_TENANT_MODELS by hand.
+  // A new table that nobody adds there is readable across DSPs, and local
+  // development runs as a superuser, where RLS does not catch the mistake.
+  it("scopes ServiceType, the table added for per-DSP service types", async () => {
+    await TenantContext.runForOrganization("org-a", async () => {
+      await db.serviceType.findMany({ where: { isActive: true } });
+    });
+    expect(calls[0].args).toEqual({
+      where: { isActive: true, AND: [{ organizationId: "org-a" }] },
+    });
+  });
+
+  it("fails closed on ServiceType with no organization context", async () => {
+    await expect(db.serviceType.findMany()).rejects.toThrow(
+      TenantContextMissingError
+    );
+    expect(calls).toHaveLength(0);
+  });
+
   it("bypasses scoping only inside runAsSystem", async () => {
     await TenantContext.runAsSystem(async () => await db.driver.findMany());
     expect(calls[0].args).toEqual({});

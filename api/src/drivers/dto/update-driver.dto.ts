@@ -10,6 +10,7 @@ import {
   Length,
   Max,
   Min,
+  ValidateIf,
 } from "class-validator";
 
 export const DRIVER_STATUSES = ["ACTIVE", "PENDING", "SUSPENDED", "EXPIRED", "INACTIVE"] as const;
@@ -24,6 +25,13 @@ export class UpdateDriverDto {
 
   @ApiPropertyOptional() @IsOptional() @IsEmail()
   email?: string;
+
+  @ApiPropertyOptional({
+    description: "Company-issued email address. Send an empty string to clear it.",
+  })
+  @IsOptional() @ValidateIf((o: UpdateDriverDto) => o.corporateEmail !== "")
+  @IsEmail() @Length(0, 160)
+  corporateEmail?: string;
 
   @ApiPropertyOptional() @IsOptional() @IsString() @Length(0, 250)
   address?: string;

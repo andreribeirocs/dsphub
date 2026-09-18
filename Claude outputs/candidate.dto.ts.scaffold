@@ -1,0 +1,54 @@
+// Scaffold for api/src/recruitment/dto/candidate.dto.ts
+// Add these fields to existing CandidateDTO
+
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
+
+export class CreateCandidateDto {
+  // ... existing fields ...
+
+  @IsOptional()
+  @IsBoolean()
+  contato_inicial?: boolean;
+
+  @IsOptional()
+  @IsString()
+  mini_entrevista_resultado?: string;
+
+  @IsOptional()
+  @IsString()
+  teste_treinamento_resultado?: string;
+}
+
+export class UpdateCandidateDto {
+  // ... existing fields ...
+
+  @IsOptional()
+  @IsBoolean()
+  contato_inicial?: boolean;
+
+  @IsOptional()
+  @IsString()
+  mini_entrevista_resultado?: string;
+
+  @IsOptional()
+  @IsString()
+  teste_treinamento_resultado?: string;
+}
+
+export class CandidateResponseDto {
+  id: string;
+  organizationId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  status: string;
+
+  // New fields
+  contato_inicial: boolean;
+  mini_entrevista_resultado?: string;
+  teste_treinamento_resultado?: string;
+
+  createdAt: Date;
+  updatedAt: Date;
+}

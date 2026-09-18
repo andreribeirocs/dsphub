@@ -15,6 +15,7 @@ import { UsersModule } from "./users/users.module";
 import { RecruitmentModule } from "./recruitment/recruitment.module";
 import { DriversModule } from "./drivers/drivers.module";
 import { DepotsModule } from "./depots/depots.module";
+import { ServiceTypesModule } from "./service-types/service-types.module";
 import { AuditModule } from "./audit/audit.module";
 import { MessagingModule } from "./messaging/messaging.module";
 import { WhatsAppModule } from "./whatsapp/whatsapp.module";
@@ -51,6 +52,7 @@ import { SchedulerModule } from "./scheduler/scheduler.module";
     RecruitmentModule,
     DriversModule,
     DepotsModule,
+    ServiceTypesModule,
     MessagingModule, // WhatsApp/SMS provider (none configured yet)
     WhatsAppModule,
     PdfModule,
