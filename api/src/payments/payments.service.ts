@@ -1223,7 +1223,7 @@ export class PaymentsService {
   private async findDriverByTransporterIdOrName(
     transporterId: string,
     name: string
-  ): Promise<{ id: string; name: string; transporterId: string } | null> {
+  ): Promise<{ id: string; name: string; transporterId: string | null } | null> {
     // Priority 1: Try exact match by transporter ID (most reliable)
     if (transporterId) {
       // Clean the transporter ID: remove spaces and extra characters

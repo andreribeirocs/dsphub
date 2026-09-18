@@ -1,0 +1,52 @@
+﻿Date,Station,DSP short code,Delivery Associate,Route,Service Type,Planned Duration,Log in,Log out,Total Distance Planned,Total Distance Allowance,Distance unit,Deliveries performed,Deliveries returned,Excluded?
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Lampros Georgopoulos,CA_A167,Standard Parcel Medium Van,9 hr 15 min,,,26,26,miles,299,4,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Elliott Cotton,CA_A169,Standard Parcel - Low Emission Vehicle (Large),9 hr,,,21,21,miles,318,0,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Luke Davis,CA_A170,Standard Parcel Ride Along (Ironhide) - Medium Van,9 hr,2025-02-23T11:35:24.873Z,2025-02-23T19:29:59.701Z,19,19,miles,263,5,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Nelson CesarJunqueira Joao,CA_A171,Standard Parcel Medium Van,9 hr,,,22,22,miles,290,6,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Oscar Hill Perales,CA_A173,Standard Parcel Medium Van,9 hr,2025-02-23T11:32:49.768Z,2025-02-23T21:25:12.227Z,25,25,miles,286,1,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Kieran moonan,CA_A174,Standard Parcel Medium Van,9 hr,2025-02-23T11:32:40.432Z,,24,24,miles,261,1,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,James Cook,CA_A176,Standard Parcel Medium Van,9 hr,2025-02-23T11:09:50.616Z,2025-02-23T20:35:58.172Z,22,22,miles,284,0,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Farayi Muchemenyi,CA_A177,Standard Parcel Medium Van,9 hr,,,21,21,miles,265,1,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Kieran moonan,CA_A177,Standard Parcel Medium Van,9 hr,2025-02-23T11:32:40.432Z,,,,,26,0,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Mridhul Manoj Kumar,CA_A178,Standard Parcel Medium Van,9 hr,2025-02-23T11:42:50.165Z,2025-02-23T19:57:34.937Z,25,25,miles,247,1,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Sebin Thindiyathil Pothen,CA_A179,Standard Parcel Medium Van,9 hr,2025-02-23T11:15:55.006Z,2025-02-23T20:28:19.250Z,21,21,miles,284,1,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Mohammed ambalathuveettil Naushad,CA_A180,Standard Parcel - Low Emission Vehicle (Large),9 hr,2025-02-23T11:27:04.299Z,,14,14,miles,281,1,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Matheus Pereira,CA_A181,Standard Parcel Medium Van,9 hr,2025-02-23T11:29:34.792Z,,14,14,miles,286,2,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Zavon Blackman,CA_A183,Standard Parcel Medium Van,9 hr,,,15,15,miles,302,1,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Wai So,CA_A184,Standard Parcel - Low Emission Vehicle (Large),9 hr,2025-02-23T11:09:24.431Z,2025-02-23T20:01:49.539Z,17,17,miles,270,3,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Adrian Modrisan,CA_A185,Standard Parcel Medium Van,9 hr,2025-02-23T11:16:22.855Z,2025-02-23T20:17:10.492Z,16,16,miles,307,0,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Gregory Simpson,CA_A186,Standard Parcel Medium Van,9 hr,2025-02-23T11:26:17.735Z,2025-02-23T21:20:55.446Z,30,30,miles,263,4,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Matthew Cottrell,CA_A190,Standard Parcel Medium Van,9 hr,2025-02-23T11:42:44.580Z,,31,31,miles,276,0,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Sajith Thazhatherimbli,CA_A192,Standard Parcel Medium Van,9 hr,2025-02-23T11:43:03.253Z,2025-02-23T20:09:28.696Z,29,29,miles,285,7,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Daniel Stapley,CA_A194,Standard Parcel Medium Van,9 hr,2025-02-23T12:17:45.531Z,2025-02-23T20:27:43.452Z,21,21,miles,224,0,no
+2025-02-23,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Matthew Cottrell,CA_A194,Standard Parcel Medium Van,9 hr,2025-02-23T11:42:44.580Z,,,,,61,0,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Joshua Scott,CA_A209,Standard Parcel Ride Along (Ironhide) - Medium Van,9 hr,2025-02-24T11:46:26.951Z,2025-02-24T18:31:27.501Z,24,24,miles,230,0,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Steven Dewhirst,CA_A211,Standard Parcel Medium Van,9 hr,2025-02-24T11:32:58.174Z,2025-02-24T20:25:48.629Z,24,24,miles,278,2,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Jamie Turner,CA_A212,Standard Parcel Medium Van,9 hr,,,24,24,miles,349,2,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Osman Choudhury,CA_A213,Standard Parcel Medium Van,9 hr,2025-02-24T11:38:17.955Z,2025-02-24T18:41:36.256Z,29,29,miles,321,7,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Matthew Cottrell,CA_A215,Standard Parcel Medium Van,9 hr,2025-02-24T11:56:39.585Z,2025-02-24T18:14:43.656Z,27,27,miles,304,2,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Salvyn Kisitu,CA_A215,Standard Parcel Medium Van,9 hr,2025-02-24T15:10:27.792Z,2025-02-24T18:16:22.588Z,,,,28,0,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Gregory Simpson,CA_A217,Standard Parcel Medium Van,9 hr 15 min,,,40,40,miles,280,2,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Oluwaseun Omisore,CA_A218,Standard Parcel Medium Van,9 hr,2025-02-24T11:15:11.710Z,2025-02-24T19:57:54.225Z,23,23,miles,285,0,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Farayi Muchemenyi,CA_A219,Standard Parcel Medium Van,9 hr,,,24,24,miles,255,0,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Salvyn Kisitu,CA_A219,Standard Parcel Medium Van,9 hr,2025-02-24T15:10:27.792Z,2025-02-24T18:16:22.588Z,,,,29,0,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Sajith Thazhatherimbli,CA_A220,Standard Parcel Medium Van,9 hr,2025-02-24T11:29:40.481Z,2025-02-24T19:53:52.565Z,24,24,miles,293,6,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Muhammed Parambath,CA_A221,Standard Parcel Medium Van,9 hr,2025-02-24T11:30:02.848Z,2025-02-24T20:27:41.565Z,27,27,miles,254,1,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Salvyn Kisitu,CA_A221,Standard Parcel Medium Van,9 hr,2025-02-24T15:10:27.792Z,2025-02-24T18:16:22.588Z,,,,24,0,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Lucas Silva Castro de Albuquerque,CA_A222,Standard Parcel Medium Van,9 hr,2025-02-24T11:57:20.785Z,2025-02-24T19:54:39.359Z,22,22,miles,308,1,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Mohammed ambalathuveettil Naushad,CA_A223,Standard Parcel Medium Van,9 hr,2025-02-24T11:31:23.285Z,,17,17,miles,293,2,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Daniel Stapley,CA_A226,Standard Parcel Medium Van,9 hr,2025-02-24T11:39:37.169Z,2025-02-24T21:01:57.975Z,15,15,miles,233,3,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Joshua Scott,CA_A226,Standard Parcel Medium Van,9 hr,2025-02-24T11:46:26.951Z,2025-02-24T18:31:27.501Z,,,,43,0,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Kieran moonan,CA_A227,Standard Parcel Medium Van,9 hr,2025-02-24T11:31:06.694Z,,17,17,miles,289,1,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Robert Owen,CA_A228,Standard Parcel - Low Emission Vehicle (Large),9 hr,2025-02-24T11:06:37.441Z,2025-02-24T20:16:22.889Z,15,15,miles,261,0,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Joshua Scott,CA_A228,Standard Parcel - Low Emission Vehicle (Large),9 hr,2025-02-24T11:46:26.951Z,2025-02-24T18:31:27.501Z,,,,25,0,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Adrian Modrisan,CA_A229,Standard Parcel Medium Van,9 hr,2025-02-24T11:37:23.639Z,2025-02-24T20:49:39.949Z,21,21,miles,267,1,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,James Scutt,CA_A231,Standard Parcel Medium Van,9 hr,2025-02-24T11:47:46.681Z,,32,32,miles,287,1,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Sydul Islam,CA_A235,Standard Parcel - Low Emission Vehicle (Large),9 hr,2025-02-24T11:52:12.518Z,2025-02-24T21:42:10.475Z,28,28,miles,287,0,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Ashley Spring,CA_A237,Standard Parcel - Low Emission Vehicle (Large),9 hr,2025-02-24T11:14:54.046Z,2025-02-24T20:20:25.013Z,26,26,miles,276,1,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Matthew Scattergood,CA_A238,Standard Parcel Medium Van,9 hr,2025-02-24T11:40:21.090Z,2025-02-24T20:24:53.486Z,26,26,miles,291,1,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Kassim Sserwanja,CA_A240,Standard Parcel Medium Van,9 hr,2025-02-24T11:54:43.359Z,2025-02-24T21:02:15.814Z,18,18,miles,250,0,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Oscar Hill Perales,CA_A241,Standard Parcel Medium Van,9 hr,2025-02-24T11:55:21.712Z,2025-02-24T21:25:31.772Z,32,32,miles,271,2,no
+2025-02-24,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Zavon Blackman,CA_A247,Standard Parcel Medium Van,9 hr,,,28,28,miles,280,7,no
+2025-02-26,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,,1BFU0C1RXK,Training Day,9 hr,,,,,miles,,,no
+2025-02-26,Portsmouth (DPO1) - Amazon Logistics (PO9 2NG),TRIU,Darcy Simon,CA_A263,Nursery Route Level 1,9 hr,2025-02-26T11:28:15.827Z,,16,16,miles,230,0,no

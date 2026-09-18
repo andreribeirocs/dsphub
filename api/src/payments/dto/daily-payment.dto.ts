@@ -46,7 +46,8 @@ export class DailyPaymentPrefillItemDto {
 
   @ApiProperty({ description: "Transporter ID" })
   @IsString()
-  readonly transporterId!: string;
+  /** Null while the driver is still in onboarding */
+  readonly transporterId!: string | null;
 
   @ApiProperty({ description: "Work date (YYYY-MM-DD)" })
   @IsDateString()

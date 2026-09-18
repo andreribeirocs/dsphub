@@ -9,7 +9,11 @@ import {
   Length,
   Min,
   Max,
+  IsIn,
+  ValidateNested,
 } from "class-validator";
+import { Type } from "class-transformer";
+import { ApplicationDetailsDto } from "./application-details.dto";
 import { ApiProperty } from "@nestjs/swagger";
 import {
   TrimWhitespace,
@@ -19,6 +23,15 @@ import {
 } from "../../shared/validation/custom-validators";
 
 export class CompleteRegistrationDto {
+  @IsOptional()
+  @IsIn(["whatsapp", "email"])
+  contactPreference?: "whatsapp" | "email";
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ApplicationDetailsDto)
+  applicationDetails?: ApplicationDetailsDto;
+
   @ApiProperty({
     example: "abc123",
     description: "Registration token from URL",

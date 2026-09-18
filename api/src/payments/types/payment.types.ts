@@ -36,7 +36,8 @@ export interface DriverPaymentRecord {
   readonly driverId: string;
   readonly driver: {
     readonly name: string;
-    readonly transporterId: string;
+    /** Null while the driver is still in onboarding */
+    readonly transporterId: string | null;
     readonly email?: string;
   };
   readonly workDate: Date;

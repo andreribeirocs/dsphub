@@ -144,7 +144,12 @@ export class InvoicesService {
         // Generate invoice number
         const year = weekStartDate.getFullYear();
         const weekNumber = this.getWeekNumber(weekStartDate);
-        const shortDriverId = driver.transporterId.substring(0, 6);
+        // A driver in onboarding has no transporter ID yet (Amazon only
+        // issues it on activation), so the driver id stands in. The number
+        // stays unique either way.
+        const shortDriverId = (driver.transporterId ?? driver.id)
+          .substring(0, 6)
+          .toUpperCase();
         const invoiceNumber = `INV-${year}-W${weekNumber.toString().padStart(2, "0")}-${shortDriverId}`;
 
         // Create invoice with items

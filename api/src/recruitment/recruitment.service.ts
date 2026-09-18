@@ -22,9 +22,11 @@ import { ConvertToDriverDto } from "./dto/convert-to-driver.dto";
 import { CandidateStatus, Prisma, UserRole, UserStatus } from "@prisma/client";
 import { hashPassword } from "better-auth/crypto";
 import { nanoid } from "nanoid";
+import { AuditService } from "../audit/audit.service";
+import { documentFlags, documentObject, recruitmentReview } from "./workflow/recruitment-workflow";
 
 // Constants
-const SMS_TOKEN_LENGTH = 7;
+const SMS_TOKEN_LENGTH = 32;
 const TOKEN_EXPIRY_HOURS = 48;
 const DEFAULT_PAGE_SIZE = 10;
 /** Months between compliance checks, applied when a driver is first created */
@@ -39,7 +41,8 @@ export class RecruitmentService {
     private readonly prisma: PrismaService,
     @Inject(MESSAGING_PROVIDER)
     private readonly messagingProvider: MessagingProvider,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly auditService: AuditService
   ) {}
 
   /**
@@ -198,6 +201,8 @@ export class RecruitmentService {
       passportImage,
       rightToWorkImage,
       comments,
+      contactPreference,
+      applicationDetails,
     } = completeRegistrationDto;
 
     const candidate = await this.prisma.candidate.findFirst({
@@ -214,6 +219,12 @@ export class RecruitmentService {
     }
 
     // Prepare documents object with all uploaded files
+    if (candidate.formCompleted || candidate.userId || !(["LEAD", "SMS_SENT"] as CandidateStatus[]).includes(candidate.status)) {
+      throw new BadRequestException("This application has already been submitted. Contact the recruitment team to update your documents.");
+    }
+    if (contactPreference === "email" && !(email || candidate.email)) {
+      throw new BadRequestException("Enter an email address to choose email as your preferred contact method.");
+    }
     const documents = {
       driverLicenseImage,
       insuranceImage,
@@ -230,6 +241,8 @@ export class RecruitmentService {
 
     // Prepare additional data for the candidate record (stored in documents JSON for emergency contact)
     const additionalData = {
+      applicationDetails: applicationDetails ?? {},
+      contactPreference: contactPreference ?? "whatsapp",
       emergencyContact: {
         name: emergencyContactName,
         phone: emergencyContactPhone,
@@ -238,7 +251,7 @@ export class RecruitmentService {
     };
 
     const updatedCandidate = await this.prisma.candidate.update({
-      where: { id: candidate.id },
+      where: { id: candidate.id, updatedAt: candidate.updatedAt, status: { in: ["LEAD", "SMS_SENT"] } },
       data: {
         email: email || candidate.email,
         dateOfBirth: dob,
@@ -262,6 +275,8 @@ export class RecruitmentService {
         account,
         lastCheck: new Date(), // Set last check to now when registration is completed
         formCompleted: true,
+        smsToken: null,
+        tokenExpiry: null,
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         documents: {
           ...documents,
@@ -293,7 +308,7 @@ export class RecruitmentService {
   async getAllCandidates(query: GetCandidatesDto) {
     const { page = 0, pageSize = DEFAULT_PAGE_SIZE, status, search } = query;
 
-    const where: Prisma.CandidateWhereInput = {};
+    const where: Prisma.CandidateWhereInput = { status: { not: CandidateStatus.ACTIVE_DRIVER } };
 
     if (status) {
       where.status = status;
@@ -320,7 +335,11 @@ export class RecruitmentService {
       });
 
       return {
-        data: candidates,
+        data: candidates.map(({ smsToken, tokenExpiry, ...candidate }) => ({
+          ...candidate,
+          documentFlags: documentFlags(candidate.documents),
+          contactPreference: documentObject(documentObject(candidate.documents).additionalData).contactPreference ?? null,
+        })),
         pagination: {
           page,
           pageSize,
@@ -359,6 +378,8 @@ export class RecruitmentService {
 
       return {
         ...safeCandidate,
+        documentFlags: documentFlags(candidate.documents),
+        contactPreference: documentObject(documentObject(candidate.documents).additionalData).contactPreference ?? null,
         documentsCount,
         lastUpdated: candidate.updatedAt,
         registrationDate: candidate.createdAt,
@@ -403,6 +424,10 @@ export class RecruitmentService {
         throw new NotFoundException(`Candidate with ID ${id} not found`);
       }
 
+      if (updateCandidateDto.status && updateCandidateDto.status !== existingCandidate.status) {
+        throw new BadRequestException("Use the Recruitment Management workflow to change a candidate's stage.");
+      }
+
       // If phone number is being updated, check for duplicates
       if (
         updateCandidateDto.phoneNumber &&
@@ -423,7 +448,7 @@ export class RecruitmentService {
       }
 
       // Prepare documents object
-      const updatedDocuments = {
+      const updatedDocuments: Record<string, unknown> = {
         ...((existingCandidate.documents as Record<string, unknown>) || {}),
         ...(updateCandidateDto.driverLicenseImage && {
           driverLicenseImage: updateCandidateDto.driverLicenseImage,
@@ -436,6 +461,21 @@ export class RecruitmentService {
         }),
       };
 
+      // A replacement must be reviewed again; never keep an approval for an old image.
+      const documentChanges = [
+        ["driverLicenseImage", updateCandidateDto.driverLicenseImage],
+        ["insuranceImage", updateCandidateDto.insuranceNumberImage],
+        ["addressProofImage", updateCandidateDto.addressProofImage],
+      ] as const;
+      const changedKeys = documentChanges.filter(([key, value]) => value && value !== documentObject(existingCandidate.documents)[key]).map(([key]) => key);
+      if (changedKeys.length && !existingCandidate.userId) {
+        const review = recruitmentReview(existingCandidate.documents);
+        for (const key of changedKeys) delete review.documentReviews[key];
+        review.documentsStatus = Object.values(review.documentReviews).some(entry => entry?.status === "rejected") ? "rejected" : "pending";
+        delete review.background;
+        updatedDocuments._recruitment = review;
+      }
+
       // Remove image fields from DTO as they'll be stored in documents
       const {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -444,15 +484,32 @@ export class RecruitmentService {
         insuranceNumberImage,
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         addressProofImage,
+        emergencyContactName,
+        emergencyContactPhone,
+        emergencyContactRelationship,
         ...updateData
       } = updateCandidateDto;
 
+      const additionalData = documentObject(updatedDocuments.additionalData);
+      const emergencyContact = documentObject(additionalData.emergencyContact);
+      if (emergencyContactName !== undefined) emergencyContact.name = emergencyContactName;
+      if (emergencyContactPhone !== undefined) emergencyContact.phone = emergencyContactPhone;
+      if (emergencyContactRelationship !== undefined) emergencyContact.relationship = emergencyContactRelationship;
+      updatedDocuments.additionalData = { ...additionalData, emergencyContact };
+      const dateUpdates = Object.fromEntries(
+        ["dateOfBirth", "passportVisaExpiry", "rtwExpiry", "licenceExpiry", "nextDVLA", "lastCheck", "lastCheckOn"]
+          .filter(key => typeof updateData[key as keyof typeof updateData] === "string")
+          .map(key => [key, new Date(updateData[key as keyof typeof updateData] as string)])
+      );
+
       // Update the candidate
       const updatedCandidate = await this.prisma.candidate.update({
-        where: { id },
+        where: { id, updatedAt: existingCandidate.updatedAt },
         data: {
           ...updateData,
-          documents: updatedDocuments,
+          ...dateUpdates,
+          documents: updatedDocuments as Prisma.InputJsonValue,
+          ...(changedKeys.length && !existingCandidate.userId ? { status: CandidateStatus.DOCUMENTS_UPLOADED, classroomDate: null, rideAlongDate: null } : {}),
         },
       });
 
@@ -470,6 +527,8 @@ export class RecruitmentService {
         ...safeCandidate,
         documentsCount,
         lastUpdated: updatedCandidate.updatedAt,
+        documentFlags: documentFlags(updatedCandidate.documents),
+        contactPreference: documentObject(documentObject(updatedCandidate.documents).additionalData).contactPreference ?? null,
         registrationDate: updatedCandidate.createdAt,
       };
     } catch (error) {
@@ -511,7 +570,11 @@ export class RecruitmentService {
    * Rather than invent values, an incomplete candidate is rejected with the
    * list of what is missing, so the recruiter can finish the record first.
    */
-  async convertToDriver(candidateId: string, dto: ConvertToDriverDto) {
+  async convertToDriver(
+    candidateId: string,
+    dto: ConvertToDriverDto,
+    actorUserId?: string
+  ) {
     if (!candidateId) {
       throw new BadRequestException("Candidate ID is required");
     }
@@ -531,6 +594,18 @@ export class RecruitmentService {
       throw new BadRequestException(
         "This candidate has already been hired as a driver"
       );
+    }
+
+    if (!dto.rideAlongDate) {
+      throw new BadRequestException("Schedule a ride along to activate and archive this candidate.");
+    }
+    {
+      if (!([CandidateStatus.CLASSROOM_COMPLETED, CandidateStatus.RIDE_ALONG_SCHEDULED, CandidateStatus.RIDE_ALONG_COMPLETED] as CandidateStatus[]).includes(candidate.status)) {
+        throw new BadRequestException("Complete classroom training before scheduling a ride along.");
+      }
+      if (Number.isNaN(new Date(dto.rideAlongDate).getTime()) || new Date(dto.rideAlongDate) <= new Date()) {
+        throw new BadRequestException("Choose a future ride along date and time.");
+      }
     }
 
     const depot = await this.prisma.depot.findUnique({
@@ -642,19 +717,37 @@ export class RecruitmentService {
           nextCheck,
           status: "ACTIVE",
           onboardingComplete: true,
+          ...(dto.rideAlongDate ? { rideAlongDate: new Date(dto.rideAlongDate), classroomComplete: true, backgroundCheckDone: true } : {}),
         },
       });
 
       await tx.candidate.update({
-        where: { id: candidate.id },
-        data: { userId: user.id, status: CandidateStatus.ACTIVE_DRIVER },
+        where: { id: candidate.id, updatedAt: candidate.updatedAt, status: candidate.status },
+        data: { userId: user.id, status: CandidateStatus.ACTIVE_DRIVER, ...(dto.rideAlongDate ? { rideAlongDate: new Date(dto.rideAlongDate) } : {}) },
       });
+
+      // Same transaction as the change itself: if anything above rolls back,
+      // the trail does not claim a hire that never happened.
+      await this.auditService.record(
+        {
+          action: "Candidate hired as driver",
+          entityType: "Driver",
+          entityId: driver.id,
+          actorUserId,
+          summary: `${candidate.name} hired as a driver at ${depot.name} (Transporter ID ${dto.transporterId.trim()})`,
+          metadata: {
+            candidateId: candidate.id,
+            driverId: driver.id,
+            userId: user.id,
+            depotId: depot.id,
+          },
+        },
+        tx
+      );
 
       return { user, driver };
     });
 
-    // No per-DSP audit table exists yet (the Audit Log screen is built from
-    // loginAttempt + paymentHistory), so this only reaches the server log.
     this.logger.log(
       `Candidate ${candidate.id} hired as driver ${result.driver.id} ` +
         `(user ${result.user.id}, depot ${depot.name}) in organization ${organizationId}`

@@ -101,6 +101,63 @@ export class AuditService {
     });
   }
 
+  /**
+   * Write one entry to the DSP's audit trail.
+   *
+   * Pass `tx` when the action happens inside a transaction, so the trail is
+   * written or rolled back together with the change it describes — an audit
+   * row for something that did not happen is worse than no row at all.
+   *
+   * Outside a transaction the write is best-effort: a failure is logged and
+   * swallowed, because a broken audit write should not be the reason a real
+   * operation fails.
+   *
+   * Inside a transaction it rethrows. Postgres leaves a transaction unusable
+   * after a failed statement, so swallowing there would only turn one clear
+   * error into a confusing cascade — and would commit the change while
+   * silently dropping its trail, which is the one outcome an audit table
+   * exists to prevent.
+   */
+  async record(
+    entry: {
+      action: string;
+      entityType: string;
+      entityId?: string | null;
+      actorUserId?: string | null;
+      summary: string;
+      metadata?: Prisma.InputJsonValue;
+      ipAddress?: string | null;
+      userAgent?: string | null;
+    },
+    tx?: Prisma.TransactionClient
+  ): Promise<void> {
+    try {
+      const client = tx ?? this.prisma;
+      await client.auditLog.create({
+        data: {
+          organizationId: TenantContext.requireOrganizationId(),
+          action: entry.action,
+          entityType: entry.entityType,
+          entityId: entry.entityId ?? null,
+          actorUserId: entry.actorUserId ?? null,
+          summary: entry.summary,
+          ...(entry.metadata !== undefined && { metadata: entry.metadata }),
+          ipAddress: entry.ipAddress ?? null,
+          userAgent: entry.userAgent ?? null,
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to write audit entry ${entry.action}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      if (tx) {
+        throw error;
+      }
+    }
+  }
+
   async list(query: AuditQuery) {
     const organizationId = TenantContext.requireOrganizationId();
     const limit = Math.min(Math.max(Number(query.limit) || 25, 1), 100);
@@ -142,7 +199,24 @@ export class AuditService {
         : {}),
     };
 
-    const [accessRows, accessTotal, changeRows, changesTotal] = await Promise.all([
+    // Recorded actions (conversions, assignments, ...) count as changes.
+    // Filtered the same way as price changes so the screen's existing
+    // category/status/date/search controls keep working unchanged.
+    const auditWhere: Prisma.AuditLogWhereInput = {
+      ...(from || to ? { occurredAt: { gte: from, lte: to } } : {}),
+      ...(search
+        ? {
+            OR: [
+              { summary: { contains: search, mode: "insensitive" } },
+              { action: { contains: search, mode: "insensitive" } },
+              { actor: { name: { contains: search, mode: "insensitive" } } },
+              { actor: { email: { contains: search, mode: "insensitive" } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [accessRows, accessTotal, changeRows, changesTotal, auditRows, auditTotal] = await Promise.all([
       category === "changes"
         ? Promise.resolve([])
         : this.prisma.loginAttempt.findMany({
@@ -161,6 +235,15 @@ export class AuditService {
           })
         : Promise.resolve([]),
       includeChanges ? this.prisma.paymentHistory.count({ where: changesWhere }) : Promise.resolve(0),
+      includeChanges
+        ? this.prisma.auditLog.findMany({
+            where: auditWhere,
+            orderBy: { occurredAt: "desc" },
+            take: window,
+            include: { actor: { select: { name: true, email: true } } },
+          })
+        : Promise.resolve([]),
+      includeChanges ? this.prisma.auditLog.count({ where: auditWhere }) : Promise.resolve(0),
     ]);
 
     const entries: AuditEntry[] = [
@@ -192,9 +275,23 @@ export class AuditService {
           details: `£${row.oldRate ?? 0} → £${row.newRate}${row.changeReason ? ` — ${row.changeReason}` : ""}`,
         })
       ),
+      ...auditRows.map(
+        (row): AuditEntry => ({
+          id: `audit-${row.id}`,
+          timestamp: row.occurredAt,
+          category: "changes",
+          action: row.action,
+          success: true,
+          actorName: row.actor?.name ?? null,
+          actorEmail: row.actor?.email ?? null,
+          ipAddress: row.ipAddress,
+          userAgent: row.userAgent,
+          details: row.summary,
+        })
+      ),
     ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
-    const total = accessTotal + changesTotal;
+    const total = accessTotal + changesTotal + auditTotal;
     return {
       data: entries.slice((page - 1) * limit, page * limit),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
@@ -205,15 +302,20 @@ export class AuditService {
   private async summary(organizationId: string) {
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const [signIns24h, failedSignIns24h, priceChanges7d] = await Promise.all([
-      this.prisma.loginAttempt.count({
-        where: { organizationId, success: true, attemptedAt: { gte: dayAgo } },
-      }),
-      this.prisma.loginAttempt.count({
-        where: { organizationId, success: false, attemptedAt: { gte: dayAgo } },
-      }),
-      this.prisma.paymentHistory.count({ where: { changeDate: { gte: weekAgo } } }),
-    ]);
-    return { signIns24h, failedSignIns24h, priceChanges7d };
+    const [signIns24h, failedSignIns24h, priceChanges7d, recordedActions7d] =
+      await Promise.all([
+        this.prisma.loginAttempt.count({
+          where: { organizationId, success: true, attemptedAt: { gte: dayAgo } },
+        }),
+        this.prisma.loginAttempt.count({
+          where: { organizationId, success: false, attemptedAt: { gte: dayAgo } },
+        }),
+        this.prisma.paymentHistory.count({ where: { changeDate: { gte: weekAgo } } }),
+        // New field rather than folded into priceChanges7d: the screen shows
+        // that tile as "price changes", and quietly changing what it counts
+        // would make an existing number mean something else.
+        this.prisma.auditLog.count({ where: { occurredAt: { gte: weekAgo } } }),
+      ]);
+    return { signIns24h, failedSignIns24h, priceChanges7d, recordedActions7d };
   }
 }

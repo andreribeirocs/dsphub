@@ -103,6 +103,10 @@
               <p class="text-sm text-gray-500">
                 {{ candidate()?.phoneNumber }} • {{ candidate()?.email }}
               </p>
+              @if (candidate()?.contactPreference) { <p class="text-sm text-gray-600">Preferred contact: {{ candidate()?.contactPreference === 'email' ? 'Email' : 'WhatsApp' }}</p> }
+              @if (candidate()?.documentFlags?.length) {
+                <a routerLink="/recruitment/documents" class="text-sm font-semibold text-red-700 underline">Flag: document rejected — review required</a>
+              }
             </div>
             <span
               class="inline-flex rounded-full px-2 text-xs font-semibold leading-5"
@@ -115,6 +119,28 @@
             </span>
           </div>
           <div class="flex space-x-3">
+            @if (!isEditing() && canHire()) {
+            <button
+              type="button"
+              routerLink="/recruitment/ride-along"
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+            >
+              <svg
+                class="-ml-1 mr-2 h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                />
+              </svg>
+              Schedule Ride Along
+            </button>
+            }
             @if (!isEditing()) {
             <button
               type="button"
@@ -602,6 +628,16 @@
       </div>
 
       <!-- Emergency Contact -->
+      @if (applicationAnswers().length) {
+        <section class="bg-white shadow rounded-lg p-6 mb-6">
+          <h2 class="text-lg font-medium text-gray-900 mb-4">Application details</h2>
+          <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            @for (answer of applicationAnswers(); track answer.label) {
+              <div><dt class="text-sm text-gray-500">{{ answer.label }}</dt><dd class="text-sm text-gray-900 whitespace-pre-wrap">{{ answer.value }}</dd></div>
+            }
+          </dl>
+        </section>
+      }
       <div class="bg-white shadow sm:rounded-lg">
         <div class="px-6 py-4 border-b border-gray-200">
           <h2 class="text-lg font-medium text-gray-900">Emergency Contact</h2>
@@ -689,6 +725,74 @@
               </p>
               }
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recruitment Pipeline -->
+      <div class="bg-white shadow sm:rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900">Recruitment Pipeline</h2>
+          <p class="mt-1 text-sm text-gray-500">
+            Progress of this candidate through screening and training
+          </p>
+        </div>
+        <div class="px-6 py-4 space-y-6">
+          <!-- Initial contact -->
+          <div class="flex items-center">
+            <input
+              type="checkbox"
+              formControlName="initialContactDone"
+              [attr.disabled]="!isEditing() ? true : null"
+              id="initialContactDone"
+              class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label
+              for="initialContactDone"
+              class="ml-2 block text-sm text-gray-900"
+            >
+              Initial contact made
+            </label>
+          </div>
+
+          <!-- Screening call outcome -->
+          <div>
+            <label
+              for="miniInterviewResult"
+              class="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Screening call outcome
+            </label>
+            <textarea
+              id="miniInterviewResult"
+              formControlName="miniInterviewResult"
+              rows="3"
+              maxlength="2000"
+              [readonly]="!isEditing()"
+              placeholder="How the screening call went"
+              class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              [class.bg-gray-50]="!isEditing()"
+            ></textarea>
+          </div>
+
+          <!-- Training day outcome -->
+          <div>
+            <label
+              for="trainingTestResult"
+              class="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Training day outcome
+            </label>
+            <textarea
+              id="trainingTestResult"
+              formControlName="trainingTestResult"
+              rows="3"
+              maxlength="2000"
+              [readonly]="!isEditing()"
+              placeholder="Result of the training-day assessment"
+              class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              [class.bg-gray-50]="!isEditing()"
+            ></textarea>
           </div>
         </div>
       </div>
@@ -1029,18 +1133,14 @@
               >
                 Status <span class="text-red-500">*</span>
               </label>
-              <select
+              <input
                 id="candidate-status"
                 formControlName="status"
-                [disabled]="!isEditing()"
+                readonly
                 class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 [class.bg-gray-50]="!isEditing()"
-              >
-                <option value="">Select status</option>
-                @for (status of statusOptions; track status) {
-                <option [value]="status">{{ status }}</option>
-                }
-              </select>
+              />
+              <a routerLink="/recruitment" class="text-sm text-blue-600 underline">Manage stages in Recruitment Management</a>
               @if (candidateForm.get('status')?.errors &&
               candidateForm.get('status')?.touched) {
               <p class="mt-1 text-sm text-red-600">Status is required</p>
@@ -1061,3 +1161,148 @@
   [documentTitle]="modalDocumentTitle()"
   (close)="closeDocumentModal()"
 ></app-document-viewer-modal>
+
+<!-- Hire candidate as driver -->
+@if (isHireModalOpen()) {
+<div
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+  (click)="$event.target === $event.currentTarget && closeHireModal()"
+>
+  <div class="w-full max-w-lg rounded-lg bg-white shadow-xl">
+    <div class="border-b border-gray-200 px-6 py-4">
+      <h2 class="text-lg font-medium text-gray-900">
+        @if (hireResult()) { Driver created } @else { Hire
+        {{ candidate()?.name }} as a driver }
+      </h2>
+    </div>
+
+    @if (hireResult(); as result) {
+    <!-- Success -->
+    <div class="space-y-4 px-6 py-5">
+      <p class="text-sm text-gray-700">{{ result.message }}</p>
+
+      <div class="rounded-md bg-gray-50 p-4">
+        <p class="text-sm text-gray-700">
+          <span class="font-medium">Login email:</span> {{ result.email }}
+        </p>
+        @if (result.generatedPassword) {
+        <p class="mt-2 text-sm text-gray-700">
+          <span class="font-medium">Temporary password:</span>
+          <code class="rounded bg-white px-2 py-1 font-mono">{{
+            result.generatedPassword
+          }}</code>
+        </p>
+        <p class="mt-2 text-xs text-gray-500">
+          Shown once only. Copy it now and pass it to the driver.
+        </p>
+        }
+      </div>
+    </div>
+    <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
+      <button
+        type="button"
+        (click)="closeHireModal()"
+        class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+      >
+        Close
+      </button>
+      <button
+        type="button"
+        (click)="goToDriver()"
+        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+      >
+        Open driver record
+      </button>
+    </div>
+    } @else {
+    <!-- Form -->
+    <form [formGroup]="hireForm" (ngSubmit)="submitHire()">
+      <div class="space-y-4 px-6 py-5">
+        @if (hireError()) {
+        <div class="rounded-md border border-red-200 bg-red-50 p-3">
+          <p class="text-sm text-red-800">{{ hireError() }}</p>
+        </div>
+        }
+
+        <div>
+          <label
+            for="hire-depot"
+            class="mb-1 block text-sm font-medium text-gray-700"
+          >
+            Home depot <span class="text-red-500">*</span>
+          </label>
+          <select
+            id="hire-depot"
+            formControlName="homeDepotId"
+            class="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+          >
+            <option value="">Select a depot</option>
+            @for (depot of depots(); track depot.id) {
+            <option [value]="depot.id">{{ depot.code }} — {{ depot.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div>
+          <label
+            for="hire-transporter"
+            class="mb-1 block text-sm font-medium text-gray-700"
+          >
+            Transporter ID <span class="text-red-500">*</span>
+          </label>
+          <input
+            id="hire-transporter"
+            type="text"
+            formControlName="transporterId"
+            placeholder="Amazon Transporter ID"
+            class="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+          />
+          <p class="mt-1 text-xs text-gray-500">
+            Must be unique within this DSP.
+          </p>
+        </div>
+
+        <div>
+          <label
+            for="hire-corporate-email"
+            class="mb-1 block text-sm font-medium text-gray-700"
+          >
+            Corporate email
+          </label>
+          <input
+            id="hire-corporate-email"
+            type="email"
+            formControlName="corporateEmail"
+            placeholder="name@yourdsp.com (optional)"
+            class="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+          />
+        </div>
+
+        <p class="text-xs text-gray-500">
+          This creates the driver record and a DRIVER login, and closes the
+          candidate out of the pipeline. It cannot be undone from this screen.
+        </p>
+      </div>
+
+      <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
+        <button
+          type="button"
+          (click)="closeHireModal()"
+          [disabled]="hiring()"
+          class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          [disabled]="hiring() || hireForm.invalid"
+          class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+        >
+          @if (hiring()) { Hiring... } @else { Confirm hire }
+        </button>
+      </div>
+    </form>
+    }
+  </div>
+</div>
+}

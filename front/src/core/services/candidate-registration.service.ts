@@ -14,6 +14,8 @@ export interface TokenValidationResponse {
 
 export interface CompleteRegistrationRequest {
   token: string;
+  contactPreference: "whatsapp" | "email";
+  applicationDetails?: Record<string, string>;
   email?: string;
   dateOfBirth: string;
   address: string;

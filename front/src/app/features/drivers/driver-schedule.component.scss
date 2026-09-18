@@ -1,3 +1,11 @@
+// Both column headers stick below the page toolbar in the main scroll area.
+.schedule-column-header {
+  position: sticky;
+  top: var(--schedule-page-header-height, 0px);
+  z-index: 30;
+  box-shadow: 0 1px 0 #e5e7eb;
+}
+
 // Custom scrollbar styles
 .schedule-grid {
   &::-webkit-scrollbar {

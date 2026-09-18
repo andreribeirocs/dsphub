@@ -89,18 +89,13 @@
             >
               Status
             </label>
-            <select
+            <input
               id="status"
               formControlName="status"
-              [disabled]="!isEditing"
+              readonly
               class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            >
-              @for (status of statusOptions; track status) {
-              <option [value]="status">
-                {{ statusLabels[status].label || status }}
-              </option>
-              }
-            </select>
+            />
+            <p class="mt-1 text-xs text-gray-500">Manage stages in Recruitment Management.</p>
           </div>
         </div>
 

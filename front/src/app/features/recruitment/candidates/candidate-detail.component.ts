@@ -6,7 +6,8 @@ import {
   ReactiveFormsModule,
   Validators,
 } from "@angular/forms";
-import { Router, ActivatedRoute } from "@angular/router";
+import { Router, ActivatedRoute, RouterLink } from "@angular/router";
+import { APPLICATION_SECTIONS } from "../../candidate-registration/application-fields";
 import { toSignal } from "@angular/core/rxjs-interop";
 
 import {
@@ -14,13 +15,14 @@ import {
   type Candidate,
   type UpdateCandidateDto,
   type CandidateDocuments,
+  type DepotOption,
 } from "./candidates.service";
 import { DocumentViewerModalComponent } from "./document-viewer-modal.component";
 
 @Component({
   selector: "app-candidate-detail",
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, DocumentViewerModalComponent],
+  imports: [CommonModule, ReactiveFormsModule, DocumentViewerModalComponent, RouterLink],
   templateUrl: "./candidate-detail.component.html",
 })
 export class CandidateDetailComponent {
@@ -34,32 +36,67 @@ export class CandidateDetailComponent {
   readonly error = signal<string | null>(null);
   readonly isEditing = signal(false);
   readonly candidate = signal<Candidate | null>(null);
+  readonly applicationAnswers = computed(() => {
+    const details = this.candidate()?.documents?.additionalData?.['applicationDetails'];
+    if (!details || typeof details !== 'object') return [];
+    return APPLICATION_SECTIONS.flatMap(section => section.fields).flatMap(field => {
+      const value = (details as Record<string, unknown>)[field.key];
+      return typeof value === 'string' && value ? [{ label: field.label, value: field.options?.find(option => option.value === value)?.label || value }] : [];
+    });
+  });
 
   // Document viewer modal state
   readonly isModalOpen = signal(false);
   readonly modalDocumentUrl = signal<string | null>(null);
   readonly modalDocumentTitle = signal<string>("");
 
+  // Hire (candidate -> driver) modal state
+  readonly isHireModalOpen = signal(false);
+  readonly hiring = signal(false);
+  readonly hireError = signal<string | null>(null);
+  readonly depots = signal<DepotOption[]>([]);
+  /** Set once the hire succeeds, so the recruiter can copy the password */
+  readonly hireResult = signal<{
+    driverId: string;
+    email: string;
+    generatedPassword: string | null;
+    message: string;
+  } | null>(null);
+
+  readonly hireForm: FormGroup = this.fb.group({
+    homeDepotId: ["", [Validators.required]],
+    transporterId: ["", [Validators.required, Validators.maxLength(40)]],
+    corporateEmail: ["", [Validators.email]],
+  });
+
+  /**
+   * A candidate linked to a login has already been hired. The API enforces
+   * this too (400); this only decides whether the button is shown.
+   */
+  readonly canHire = computed(() => {
+    const candidate = this.candidate();
+    return (
+      !!candidate && !candidate.userId && ["CLASSROOM_COMPLETED", "RIDE_ALONG_SCHEDULED", "RIDE_ALONG_COMPLETED"].includes(candidate.status)
+    );
+  });
+
   // Computed image URLs for reliable loading
   readonly insuranceImageUrl = computed(() => {
     const candidate = this.candidate();
-    return candidate?.insuranceNumberImage
-      ? this.formatImageSrc(candidate.insuranceNumberImage)
-      : null;
+    const value = candidate?.insuranceNumberImage || candidate?.documents?.['insuranceImage'] || candidate?.documents?.insuranceNumberImage;
+    return typeof value === 'string' ? this.formatImageSrc(value) : null;
   });
 
   readonly driverLicenseImageUrl = computed(() => {
     const candidate = this.candidate();
-    return candidate?.driverLicenseImage
-      ? this.formatImageSrc(candidate.driverLicenseImage)
-      : null;
+    const value = candidate?.driverLicenseImage || candidate?.documents?.driverLicenseImage;
+    return value ? this.formatImageSrc(value) : null;
   });
 
   readonly addressProofImageUrl = computed(() => {
     const candidate = this.candidate();
-    return candidate?.addressProofImage
-      ? this.formatImageSrc(candidate.addressProofImage)
-      : null;
+    const value = candidate?.addressProofImage || candidate?.documents?.addressProofImage;
+    return value ? this.formatImageSrc(value) : null;
   });
 
   // Form
@@ -80,7 +117,7 @@ export class CandidateDetailComponent {
   // Status configuration
   readonly statusConfig: Record<string, { label: string; color: string }> = {
     LEAD: { label: "New Lead", color: "bg-blue-100 text-blue-800" },
-    SMS_SENT: { label: "SMS Sent", color: "bg-yellow-100 text-yellow-800" },
+    SMS_SENT: { label: "Invitation Sent", color: "bg-yellow-100 text-yellow-800" },
     FORM_COMPLETED: {
       label: "Form Completed",
       color: "bg-green-100 text-green-800",
@@ -156,6 +193,11 @@ export class CandidateDetailComponent {
       // Agreement Information (from registration)
       sla: [""],
       account: [""],
+
+      // Recruitment pipeline tracking
+      initialContactDone: [false],
+      miniInterviewResult: [""],
+      trainingTestResult: [""],
 
       // Emergency Contact (from registration)
       emergencyContactName: ["", [Validators.required]],
@@ -242,7 +284,7 @@ export class CandidateDetailComponent {
       status: candidate.status || "",
 
       // Personal Information
-      dateOfBirth: candidate.dateOfBirth || "",
+      dateOfBirth: candidate.dateOfBirth?.slice(0, 10) || "",
       age: candidate.age || "",
       citizenship: candidate.citizenship || "",
       documentNumber: candidate.documentNumber || "",
@@ -251,19 +293,24 @@ export class CandidateDetailComponent {
       insuranceNumber: candidate.insuranceNumber || "",
       driverLicense: candidate.driverLicense || "",
       // Map licenceExpiry from backend to driverLicenseExpiry in form
-      driverLicenseExpiry: candidate.licenceExpiry || "",
+      driverLicenseExpiry: candidate.licenceExpiry?.slice(0, 10) || "",
 
       // Expiry Dates
-      passportVisaExpiry: candidate.passportVisaExpiry || "",
-      rtwExpiry: candidate.rtwExpiry || "",
+      passportVisaExpiry: candidate.passportVisaExpiry?.slice(0, 10) || "",
+      rtwExpiry: candidate.rtwExpiry?.slice(0, 10) || "",
 
       // DVLA Information
       points: candidate.points || 0,
-      nextDVLA: candidate.nextDVLA || "",
+      nextDVLA: candidate.nextDVLA?.slice(0, 10) || "",
 
       // Agreement Information
       sla: candidate.sla || "",
       account: candidate.account || "",
+
+      // Recruitment pipeline tracking
+      initialContactDone: candidate.initialContactDone || false,
+      miniInterviewResult: candidate.miniInterviewResult || "",
+      trainingTestResult: candidate.trainingTestResult || "",
 
       // Emergency Contact - extract from documents.additionalData if stored there
       emergencyContactName:
@@ -279,13 +326,13 @@ export class CandidateDetailComponent {
           ?.relationship || "",
 
       // System Fields
-      lastCheck: candidate.lastCheck || "",
+      lastCheck: candidate.lastCheck?.slice(0, 10) || "",
       formCompleted: candidate.formCompleted || false,
 
       // Document Images
-      insuranceNumberImage: candidate.insuranceNumberImage || "",
-      driverLicenseImage: candidate.driverLicenseImage || "",
-      addressProofImage: candidate.addressProofImage || "",
+      insuranceNumberImage: candidate.insuranceNumberImage || candidate.documents?.['insuranceImage'] || "",
+      driverLicenseImage: candidate.driverLicenseImage || candidate.documents?.driverLicenseImage || "",
+      addressProofImage: candidate.addressProofImage || candidate.documents?.addressProofImage || "",
     };
 
     this.candidateForm.patchValue(formData);
@@ -334,6 +381,11 @@ export class CandidateDetailComponent {
       // Agreement Information
       sla: formValue.sla,
       account: formValue.account,
+
+      // Recruitment pipeline tracking
+      initialContactDone: formValue.initialContactDone,
+      miniInterviewResult: formValue.miniInterviewResult,
+      trainingTestResult: formValue.trainingTestResult,
 
       // Emergency Contact
       emergencyContactName: formValue.emergencyContactName,
@@ -505,6 +557,95 @@ export class CandidateDetailComponent {
     };
 
     return mappings[formatted] || formatted;
+  }
+
+  // ---- Hire: candidate -> driver -------------------------------------------
+
+  openHireModal(): void {
+    this.hireError.set(null);
+    this.hireResult.set(null);
+    this.hireForm.reset({
+      homeDepotId: "",
+      transporterId: "",
+      corporateEmail: "",
+    });
+    this.isHireModalOpen.set(true);
+
+    this.candidatesService.getDepots().subscribe({
+      next: (depots) => this.depots.set(depots.filter((depot) => depot.isActive)),
+      error: () =>
+        this.hireError.set("Could not load depots. Close this and try again."),
+    });
+  }
+
+  closeHireModal(): void {
+    if (this.hiring()) return;
+    this.isHireModalOpen.set(false);
+    this.hireResult.set(null);
+    this.hireError.set(null);
+  }
+
+  submitHire(): void {
+    const candidate = this.candidate();
+    if (!candidate || this.hireForm.invalid) {
+      this.hireForm.markAllAsTouched();
+      return;
+    }
+
+    const raw = this.hireForm.value as {
+      homeDepotId: string;
+      transporterId: string;
+      corporateEmail?: string;
+    };
+
+    this.hiring.set(true);
+    this.hireError.set(null);
+
+    this.candidatesService
+      .convertToDriver(candidate.id, {
+        homeDepotId: raw.homeDepotId,
+        transporterId: raw.transporterId.trim(),
+        ...(raw.corporateEmail?.trim()
+          ? { corporateEmail: raw.corporateEmail.trim() }
+          : {}),
+      })
+      .subscribe({
+        next: (result) => {
+          this.hiring.set(false);
+          this.hireResult.set({
+            driverId: result.driverId,
+            email: result.email,
+            generatedPassword: result.generatedPassword,
+            message: result.message,
+          });
+          // Reload so the screen reflects the closed-out candidate
+          this.candidatesService
+            .getCandidateById(candidate.id)
+            .subscribe({ next: (updated) => this.candidate.set(updated) });
+        },
+        error: (err: unknown) => {
+          this.hiring.set(false);
+          // The API lists what is missing when the record is incomplete —
+          // show its message rather than a generic failure.
+          this.hireError.set(this.hireErrorMessage(err));
+        },
+      });
+  }
+
+  goToDriver(): void {
+    const result = this.hireResult();
+    this.isHireModalOpen.set(false);
+    void this.router.navigate(
+      result ? ["/drivers", result.driverId] : ["/drivers"]
+    );
+  }
+
+  private hireErrorMessage(err: unknown): string {
+    const message = (err as { error?: { message?: string | string[] } })?.error
+      ?.message;
+    if (Array.isArray(message)) return message.join(". ");
+    if (typeof message === "string" && message.trim()) return message;
+    return "Could not hire this candidate. Please try again.";
   }
 
   // Helper method to safely open document modal with formatted URL

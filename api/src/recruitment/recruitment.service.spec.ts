@@ -17,7 +17,8 @@ const completeCandidate = {
   name: "John Doe",
   email: "John.Doe@example.com",
   phoneNumber: "+447123456789",
-  status: CandidateStatus.APPROVED as CandidateStatus,
+  status: CandidateStatus.CLASSROOM_COMPLETED as CandidateStatus,
+  updatedAt: new Date("2026-01-01"),
   userId: null as string | null,
   address: "1 High Street",
   age: 34,
@@ -73,21 +74,35 @@ function buildService(overrides: {
     tenantTransaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
   };
 
+  const audit = { record: jest.fn().mockResolvedValue(undefined) };
+
   const service = new RecruitmentService(
     prisma as never,
     { sendMessage: jest.fn() } as never,
-    { get: jest.fn() } as never
+    { get: jest.fn() } as never,
+    audit as never
   );
 
-  return { service, prisma, tx };
+  return { service, prisma, tx, audit };
 }
 
-const validDto = { homeDepotId: DEPOT.id, transporterId: "A1B2C3" };
+const validDto = { homeDepotId: DEPOT.id, transporterId: "A1B2C3", rideAlongDate: new Date(Date.now() + 86400000).toISOString() };
 
 const run = <T>(fn: () => Promise<T>) =>
   TenantContext.runForOrganization(ORG, fn);
 
 describe("RecruitmentService.convertToDriver", () => {
+  it.each([CandidateStatus.LEAD, CandidateStatus.APPROVED, CandidateStatus.CLASSROOM_SCHEDULED, CandidateStatus.REJECTED])("rejects activation before classroom completion (%s)", async status => {
+    const { service, tx } = buildService({ candidate: { status } });
+    await expect(run(() => service.convertToDriver("cand-1", validDto))).rejects.toThrow(/Complete classroom/);
+    expect(tx.user.create).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "invalid", "2020-01-01"])("requires a future ride along date (%s)", async rideAlongDate => {
+    const { service, tx } = buildService({});
+    await expect(run(() => service.convertToDriver("cand-1", { ...validDto, rideAlongDate }))).rejects.toThrow(BadRequestException);
+    expect(tx.user.create).not.toHaveBeenCalled();
+  });
   it("creates the login, the driver and closes the candidate out", async () => {
     const { service, tx } = buildService({});
 
@@ -122,6 +137,10 @@ describe("RecruitmentService.convertToDriver", () => {
     expect(driverData.depot).toBe(DEPOT.name);
     expect(driverData.organizationId).toBe(ORG);
     expect(driverData.transporterId).toBe("A1B2C3");
+    expect(driverData.status).toBe("ACTIVE");
+    expect(driverData.classroomComplete).toBe(true);
+    expect(driverData.backgroundCheckDone).toBe(true);
+    expect(driverData.rideAlongDate).toEqual(new Date(validDto.rideAlongDate));
 
     // nextCheck is six months after joinDate
     const months =
@@ -132,9 +151,36 @@ describe("RecruitmentService.convertToDriver", () => {
 
     // Candidate leaves the pipeline, linked to the new login
     expect(tx.candidate.update).toHaveBeenCalledWith({
-      where: { id: "cand-1" },
-      data: { userId: "user-1", status: CandidateStatus.ACTIVE_DRIVER },
+      where: { id: "cand-1", updatedAt: completeCandidate.updatedAt, status: CandidateStatus.CLASSROOM_COMPLETED },
+      data: { userId: "user-1", status: CandidateStatus.ACTIVE_DRIVER, rideAlongDate: new Date(validDto.rideAlongDate) },
     });
+  });
+
+  it("writes the audit trail inside the same transaction as the hire", async () => {
+    const { service, audit, tx } = buildService({});
+
+    await run(() => service.convertToDriver("cand-1", validDto, "actor-7"));
+
+    expect(audit.record).toHaveBeenCalledTimes(1);
+    const [entry, passedTx] = audit.record.mock.calls[0];
+    expect(entry).toMatchObject({
+      entityType: "Driver",
+      entityId: "driver-1",
+      actorUserId: "actor-7",
+    });
+    expect(entry.summary).toContain("John Doe");
+    expect(entry.summary).toContain("Bracknell");
+    // Second argument is the transaction client, not the plain prisma service:
+    // the trail must roll back with the hire it describes.
+    expect(passedTx).toBe(tx);
+  });
+
+  it("does not write an audit entry when the hire is rejected", async () => {
+    const { service, audit } = buildService({ candidate: { userId: "user-9" } });
+    await expect(
+      run(() => service.convertToDriver("cand-1", validDto))
+    ).rejects.toThrow(/already been hired/);
+    expect(audit.record).not.toHaveBeenCalled();
   });
 
   it("generates a password when none is supplied, and returns it once", async () => {

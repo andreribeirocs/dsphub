@@ -37,6 +37,8 @@ export interface CandidateDocuments {
 
 export interface Candidate {
   id: string;
+  documentFlags?: string[];
+  contactPreference?: "whatsapp" | "email" | null;
   name: string;
   phoneNumber: string;
   status: string;
@@ -78,6 +80,14 @@ export interface Candidate {
   sla?: string;
   account?: string;
   formCompleted?: boolean;
+
+  // Recruitment pipeline tracking
+  initialContactDone?: boolean;
+  miniInterviewResult?: string;
+  trainingTestResult?: string;
+
+  /** Set once the candidate has been hired and given a login */
+  userId?: string | null;
 
   // Document Storage
   documents?: CandidateDocuments; // Updated to use proper interface
@@ -162,6 +172,33 @@ export interface SendSmsDto {
   candidateId: string;
 }
 
+/** Depot as returned by GET /api/depots */
+export interface DepotOption {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+}
+
+/** Body of POST /api/recruitment/candidates/:id/convert-to-driver */
+export interface ConvertToDriverRequest {
+  homeDepotId: string;
+  transporterId: string;
+  corporateEmail?: string;
+  joinDate?: string;
+  contractType?: string;
+}
+
+export interface ConvertToDriverResponse {
+  success: boolean;
+  driverId: string;
+  userId: string;
+  email: string;
+  /** Present only when the API generated the password; shown once */
+  generatedPassword: string | null;
+  message: string;
+}
+
 export interface UpdateCandidateDto {
   name?: string;
   phoneNumber?: string;
@@ -227,6 +264,9 @@ export interface UpdateCandidateDto {
   drugTestDate?: string;
   trainingCertificate?: string;
   trainingCompletionDate?: string;
+  initialContactDone?: boolean;
+  miniInterviewResult?: string;
+  trainingTestResult?: string;
 }
 
 @Injectable({
@@ -252,9 +292,28 @@ export class CandidatesService {
     id: string,
     candidate: UpdateCandidateDto
   ): Observable<Candidate> {
+    // Optional typed fields must be omitted when blank, rather than sent as invalid dates/emails.
+    const typedFields = new Set(["email", "dateOfBirth", "age", "citizenship", "passportVisaExpiry", "rtwExpiry", "licenceExpiry", "nextDVLA", "lastCheck", "lastCheckOn", "sla", "account", "emergencyContactPhone"]);
+    const body = Object.fromEntries(Object.entries(candidate).filter(([key, value]) => !(typedFields.has(key) && value === "")));
     return this.http.patch<Candidate>(
       `${this.API_URL}/candidates/${id}`,
-      candidate
+      body
+    );
+  }
+
+  /** Active depots of the current DSP, for the hire form */
+  getDepots(): Observable<DepotOption[]> {
+    return this.http.get<DepotOption[]>(`${environment.apiUrl}/depots`);
+  }
+
+  /** Hire a candidate: creates the Driver record and the DRIVER login */
+  convertToDriver(
+    id: string,
+    body: ConvertToDriverRequest
+  ): Observable<ConvertToDriverResponse> {
+    return this.http.post<ConvertToDriverResponse>(
+      `${this.API_URL}/candidates/${id}/convert-to-driver`,
+      body
     );
   }
 

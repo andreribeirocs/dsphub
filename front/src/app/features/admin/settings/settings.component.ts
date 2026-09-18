@@ -15,6 +15,10 @@ import type {
   UpdateOrganizationDto,
 } from "../../organizations/organizations.model";
 import { AlertService } from "../../../shared/services/alert.service";
+import {
+  ServiceTypesService,
+  type ServiceTypeRecord,
+} from "./service-types.service";
 
 const errorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof HttpErrorResponse) {
@@ -331,6 +335,154 @@ const INPUT =
         </div>
       }
 
+      <!-- Service types -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 mt-6 overflow-hidden">
+        <div class="flex flex-wrap gap-4 justify-between items-center p-6">
+          <div>
+            <h2 class="text-xl font-semibold text-gray-900">Service types</h2>
+            <p class="text-sm text-gray-500">
+              The kinds of work this DSP offers. Changes here are saved immediately.
+            </p>
+          </div>
+          <button
+            type="button"
+            (click)="openServiceTypeForm(null)"
+            class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
+          >
+            Add service type
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              @if (serviceTypesError()) {
+                <tr>
+                  <td colspan="5" class="px-6 py-8 text-center">
+                    <p class="text-sm text-red-600 mb-3">{{ serviceTypesError() }}</p>
+                    <button type="button" class="text-sm text-blue-600 hover:underline" (click)="loadServiceTypes()">
+                      Try again
+                    </button>
+                  </td>
+                </tr>
+              } @else {
+                @for (serviceType of serviceTypes(); track serviceType.id) {
+                  <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">{{ serviceType.code }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ serviceType.name }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {{ serviceType.hours != null ? serviceType.hours : "—" }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <span
+                        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                        [class]="serviceType.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
+                      >
+                        {{ serviceType.isActive ? "Active" : "Inactive" }}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                      <div class="flex gap-3 justify-end">
+                        <button type="button" class="text-blue-600 hover:text-blue-900" (click)="openServiceTypeForm(serviceType)">
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          [disabled]="busyServiceTypeId() === serviceType.id"
+                          class="text-gray-600 hover:text-gray-900 disabled:opacity-50"
+                          (click)="toggleServiceType(serviceType)"
+                        >
+                          {{ serviceType.isActive ? "Deactivate" : "Activate" }}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500">
+                      @if (serviceTypesLoading()) {
+                        Loading service types...
+                      } @else {
+                        No service types yet.
+                      }
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Service type modal -->
+      @if (serviceTypeFormOpen()) {
+        <div class="fixed inset-0 bg-gray-600/50 overflow-y-auto h-full w-full z-50" (click)="closeServiceTypeForm()">
+          <div
+            class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white"
+            (click)="$event.stopPropagation()"
+          >
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+              {{ editingServiceType() ? "Edit service type" : "Add service type" }}
+            </h3>
+            <form [formGroup]="serviceTypeForm" (ngSubmit)="saveServiceType()" class="space-y-4">
+              @if (serviceTypeFormError()) {
+                <p class="text-sm text-red-600">{{ serviceTypeFormError() }}</p>
+              }
+              <div>
+                <label for="st-code" class="block text-sm font-medium text-gray-700 mb-1">Code</label>
+                <input id="st-code" type="text" formControlName="code" placeholder="STANDARD_PARCEL_9H" [class]="inputClass" />
+                @if (editingServiceType()) {
+                  <p class="mt-1 text-xs text-gray-500">
+                    The code cannot be changed: payment records refer to it.
+                  </p>
+                } @else {
+                  <p class="mt-1 text-xs text-gray-500">Upper case, letters, digits and underscores.</p>
+                }
+              </div>
+              <div>
+                <label for="st-name" class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input id="st-name" type="text" formControlName="name" placeholder="Standard Parcel 9h" [class]="inputClass" />
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label for="st-hours" class="block text-sm font-medium text-gray-700 mb-1">Hours</label>
+                  <input id="st-hours" type="text" formControlName="hours" placeholder="9" [class]="inputClass" />
+                </div>
+                <div>
+                  <label for="st-order" class="block text-sm font-medium text-gray-700 mb-1">Order</label>
+                  <input id="st-order" type="text" formControlName="sortOrder" placeholder="10" [class]="inputClass" />
+                </div>
+              </div>
+              <div class="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  (click)="closeServiceTypeForm()"
+                  [disabled]="serviceTypeSaving()"
+                  class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  [disabled]="serviceTypeSaving()"
+                  class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {{ serviceTypeSaving() ? "Saving..." : "Save" }}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      }
+
       <!-- Depot modal -->
       @if (depotFormOpen()) {
         <div class="fixed inset-0 bg-gray-600/50 overflow-y-auto h-full w-full z-50" (click)="closeDepotForm()">
@@ -396,6 +548,7 @@ const INPUT =
 export class SettingsComponent implements OnInit {
   private readonly organizationsService = inject(OrganizationsService);
   private readonly alertService = inject(AlertService);
+  private readonly serviceTypesService = inject(ServiceTypesService);
   private readonly fb = inject(FormBuilder);
 
   readonly inputClass = INPUT;
@@ -426,6 +579,15 @@ export class SettingsComponent implements OnInit {
   readonly editingDepot = signal<DepotRecord | null>(null);
   readonly depotSaving = signal(false);
   readonly depotFormError = signal("");
+
+  readonly serviceTypes = signal<ServiceTypeRecord[]>([]);
+  readonly serviceTypesLoading = signal(false);
+  readonly serviceTypesError = signal("");
+  readonly busyServiceTypeId = signal<string | null>(null);
+  readonly serviceTypeFormOpen = signal(false);
+  readonly editingServiceType = signal<ServiceTypeRecord | null>(null);
+  readonly serviceTypeSaving = signal(false);
+  readonly serviceTypeFormError = signal("");
 
   readonly form = this.fb.nonNullable.group({
     name: ["", [Validators.required]],
@@ -465,8 +627,24 @@ export class SettingsComponent implements OnInit {
     postcode: ["", [Validators.maxLength(12)]],
   });
 
+  readonly serviceTypeForm = this.fb.nonNullable.group({
+    code: [
+      "",
+      [
+        Validators.required,
+        Validators.minLength(2),
+        Validators.maxLength(60),
+        Validators.pattern(/^[A-Z][A-Z0-9_]*$/),
+      ],
+    ],
+    name: ["", [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
+    hours: ["", [Validators.pattern(/^\d{1,2}(\.\d)?$/)]],
+    sortOrder: ["", [Validators.pattern(/^\d{1,4}$/)]],
+  });
+
   ngOnInit(): void {
     this.loadOrganization();
+    this.loadServiceTypes();
   }
 
   loadOrganization(): void {
@@ -664,6 +842,121 @@ export class SettingsComponent implements OnInit {
 
   depotAddress(depot: DepotRecord): string {
     return [depot.address, depot.postcode].filter((part) => !!part).join(", ") || "—";
+  }
+
+  // ---- Service types -------------------------------------------------------
+
+  loadServiceTypes(): void {
+    this.serviceTypesLoading.set(true);
+    this.serviceTypesError.set("");
+    this.serviceTypesService.list(true).subscribe({
+      next: (types) => {
+        this.serviceTypes.set(types);
+        this.serviceTypesLoading.set(false);
+      },
+      error: (error: unknown) => {
+        this.serviceTypesError.set(errorMessage(error, "Failed to load service types"));
+        this.serviceTypesLoading.set(false);
+      },
+    });
+  }
+
+  openServiceTypeForm(serviceType: ServiceTypeRecord | null): void {
+    this.editingServiceType.set(serviceType);
+    this.serviceTypeFormError.set("");
+    this.serviceTypeForm.reset({
+      code: serviceType?.code ?? "",
+      name: serviceType?.name ?? "",
+      hours: serviceType?.hours != null ? String(serviceType.hours) : "",
+      sortOrder: serviceType ? String(serviceType.sortOrder) : "",
+    });
+    // The code is the bridge back to the payment tables, so it is fixed
+    // once the row exists.
+    if (serviceType) {
+      this.serviceTypeForm.controls.code.disable();
+    } else {
+      this.serviceTypeForm.controls.code.enable();
+    }
+    this.serviceTypeFormOpen.set(true);
+  }
+
+  closeServiceTypeForm(): void {
+    if (!this.serviceTypeSaving()) {
+      this.serviceTypeFormOpen.set(false);
+    }
+  }
+
+  saveServiceType(): void {
+    if (this.serviceTypeForm.invalid) {
+      this.serviceTypeForm.markAllAsTouched();
+      return;
+    }
+    const value = this.serviceTypeForm.getRawValue();
+    const hours = value.hours.trim() ? Number(value.hours) : undefined;
+    const sortOrder = value.sortOrder.trim() ? Number(value.sortOrder) : undefined;
+    const editing = this.editingServiceType();
+
+    const request = editing
+      ? this.serviceTypesService.update(editing.id, {
+          name: value.name.trim(),
+          ...(hours !== undefined && { hours }),
+          ...(sortOrder !== undefined && { sortOrder }),
+        })
+      : this.serviceTypesService.create({
+          code: value.code.trim().toUpperCase(),
+          name: value.name.trim(),
+          ...(hours !== undefined && { hours }),
+          ...(sortOrder !== undefined && { sortOrder }),
+        });
+
+    this.serviceTypeSaving.set(true);
+    this.serviceTypeFormError.set("");
+    request.subscribe({
+      next: () => {
+        this.serviceTypeSaving.set(false);
+        this.serviceTypeFormOpen.set(false);
+        this.loadServiceTypes();
+        this.alertService.showSuccess(
+          editing ? "Service type updated" : "Service type added"
+        );
+      },
+      error: (error: unknown) => {
+        this.serviceTypeSaving.set(false);
+        this.serviceTypeFormError.set(
+          errorMessage(error, "Failed to save service type")
+        );
+      },
+    });
+  }
+
+  toggleServiceType(serviceType: ServiceTypeRecord): void {
+    const activate = !serviceType.isActive;
+    const message = activate
+      ? `Activate ${serviceType.name}?`
+      : `Deactivate ${serviceType.name}? It will be hidden from pickers; payment history that used it is kept.`;
+    if (!confirm(message)) return;
+
+    this.busyServiceTypeId.set(serviceType.id);
+    const request = activate
+      ? this.serviceTypesService.update(serviceType.id, { isActive: true })
+      : this.serviceTypesService.deactivate(serviceType.id);
+
+    request.subscribe({
+      next: () => {
+        this.busyServiceTypeId.set(null);
+        this.loadServiceTypes();
+        this.alertService.showSuccess(
+          activate ? "Service type activated" : "Service type deactivated"
+        );
+      },
+      error: (error: unknown) => {
+        this.busyServiceTypeId.set(null);
+        this.alertService.showError(
+          "Failed to update service type",
+          errorMessage(error, "Please try again")
+        );
+      },
+    });
   }
 
   private logoDataUrl(base64: string): string {

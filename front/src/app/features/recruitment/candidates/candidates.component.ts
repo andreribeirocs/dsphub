@@ -12,9 +12,12 @@ import { Router } from "@angular/router";
 import { environment } from "../../../../environments/environment";
 import { CandidateModalComponent } from "./candidate-modal.component";
 import { FormsModule } from "@angular/forms";
+import { apiErrorMessage } from "../../../shared/utils/api-error";
 
 interface Candidate {
   id: string;
+  documentFlags?: string[];
+  contactPreference?: "whatsapp" | "email" | null;
   name: string;
   phoneNumber: string;
   status: string;
@@ -83,12 +86,22 @@ export class CandidatesComponent {
     "DOCUMENTS_UPLOADED",
     "BACKGROUND_CHECK",
     "APPROVED",
+    "CLASSROOM_SCHEDULED",
+    "CLASSROOM_COMPLETED",
+    "RIDE_ALONG_SCHEDULED",
+    "RIDE_ALONG_COMPLETED",
+    "ACTIVE_DRIVER",
     "REJECTED",
   ];
 
   statusLabels: Record<string, { label: string; color: string }> = {
     LEAD: { label: "New Lead", color: "bg-blue-100 text-blue-800" },
-    SMS_SENT: { label: "SMS Sent", color: "bg-yellow-100 text-yellow-800" },
+    SMS_SENT: { label: "Invitation Sent", color: "bg-yellow-100 text-yellow-800" },
+    CLASSROOM_SCHEDULED: { label: "Classroom Scheduled", color: "bg-blue-100 text-blue-800" },
+    CLASSROOM_COMPLETED: { label: "Classroom Completed", color: "bg-green-100 text-green-800" },
+    RIDE_ALONG_SCHEDULED: { label: "Ride Along Scheduled", color: "bg-blue-100 text-blue-800" },
+    RIDE_ALONG_COMPLETED: { label: "Ride Along Completed", color: "bg-green-100 text-green-800" },
+    ACTIVE_DRIVER: { label: "Active / Archived", color: "bg-green-100 text-green-800" },
     FORM_COMPLETED: {
       label: "Form Completed",
       color: "bg-green-100 text-green-800",
@@ -231,14 +244,13 @@ export class CandidatesComponent {
         },
         error: (err) => {
           console.error("Failed to add candidate", err);
-          this.error.set(err.error?.message || "Failed to add candidate");
+          this.error.set(apiErrorMessage(err, "Failed to add candidate"));
         },
       });
   }
 
   openSendSmsModal(candidate: Candidate): void {
-    this.selectedCandidate.set(candidate);
-    this.showSendSmsModal.set(true);
+    this.router.navigate(["/recruitment/contact"], { queryParams: { search: candidate.phoneNumber } });
   }
 
   closeSendSmsModal(): void {
@@ -266,9 +278,7 @@ export class CandidatesComponent {
         error: (err) => {
           this.sendingSms.set(false);
           console.error("Failed to send WhatsApp message", err);
-          this.error.set(
-            err.error?.message || "Failed to send WhatsApp message"
-          );
+          this.error.set(apiErrorMessage(err, "Failed to send WhatsApp message"));
         },
       });
   }

@@ -75,6 +75,11 @@ export const routes: Routes = [
         },
       },
       {
+        path: "recruitment/:stage",
+        loadComponent: () => import("./features/recruitment/workflow/recruitment-workspace.component").then(m => m.RecruitmentWorkspaceComponent),
+        data: { roles: ["SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_RECRUITMENT"] },
+      },
+      {
         path: "candidates",
         children: [
           {

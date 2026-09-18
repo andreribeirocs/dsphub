@@ -17,12 +17,15 @@
 
 /** Models with their own `organizationId` column */
 export const DIRECT_TENANT_MODELS: ReadonlySet<string> = new Set([
+  "AuditLog",
   "Candidate",
   "Contract",
   "Driver",
   "DriverInvoice",
   "Depot",
+  "DriverDocument",
   "DriverPayment",
+  "DriverStint",
   "Invitation",
   "MaintenanceRecord",
   "Member",

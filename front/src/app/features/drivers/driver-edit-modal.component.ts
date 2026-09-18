@@ -16,6 +16,7 @@ type TextField =
   | "name"
   | "phone"
   | "email"
+  | "corporateEmail"
   | "address"
   | "homeDepotId"
   | "transporterId"
@@ -28,6 +29,7 @@ const TEXT_FIELDS: readonly TextField[] = [
   "name",
   "phone",
   "email",
+  "corporateEmail",
   "address",
   "homeDepotId",
   "transporterId",
@@ -90,6 +92,22 @@ const toDateInput = (value: string | null | undefined): string => (value ? value
                 <label for="d-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input id="d-email" type="email" formControlName="email" [class]="inputClass('email')" />
                 @if (invalid('email')) {
+                  <p class="mt-1 text-sm text-red-600">Enter a valid email address</p>
+                }
+              </div>
+
+              <div>
+                <label for="d-corporate-email" class="block text-sm font-medium text-gray-700 mb-1">
+                  Corporate email
+                </label>
+                <input
+                  id="d-corporate-email"
+                  type="email"
+                  formControlName="corporateEmail"
+                  placeholder="name@yourdsp.com"
+                  [class]="inputClass('corporateEmail')"
+                />
+                @if (invalid('corporateEmail')) {
                   <p class="mt-1 text-sm text-red-600">Enter a valid email address</p>
                 }
               </div>
@@ -278,6 +296,7 @@ export class DriverEditModalComponent implements OnInit {
     name: ["", [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
     phone: ["", [Validators.minLength(6), Validators.maxLength(20)]],
     email: ["", [Validators.email]],
+    corporateEmail: ["", [Validators.email, Validators.maxLength(160)]],
     address: ["", [Validators.maxLength(250)]],
     status: ["ACTIVE" as DriverStatus],
     homeDepotId: [""],
@@ -311,6 +330,7 @@ export class DriverEditModalComponent implements OnInit {
       name: driver.name ?? "",
       phone: driver.phone ?? "",
       email: driver.email ?? "",
+      corporateEmail: driver.corporateEmail ?? "",
       address: driver.address ?? "",
       status: driver.status,
       homeDepotId: driver.homeDepotId ?? "",

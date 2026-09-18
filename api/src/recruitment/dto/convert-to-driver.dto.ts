@@ -14,6 +14,10 @@ import {
  * and the Candidate record cannot provide.
  */
 export class ConvertToDriverDto {
+  @IsOptional()
+  @IsDateString()
+  rideAlongDate?: string;
+
   @ApiProperty({
     description: "Home depot the driver is based at (must be active)",
   })

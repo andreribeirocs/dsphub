@@ -1,0 +1,3140 @@
+From 94170be6929f4e8b73f54b9b3f54e42118d7ad9e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 18 Sep 2026 18:57:37 +0100
+Subject: [PATCH] =?UTF-8?q?Auditoria=20por=20DSP=20+=20front-end=20do=20B.?=
+ =?UTF-8?q?1/B.2=20(pipeline,=20contrata=C3=A7=C3=A3o,=20tipos=20de=20serv?=
+ =?UTF-8?q?i=C3=A7o)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+## Backend Changes
+- Tabela audit_log genérica com organizationId e RLS
+- AuditService.record() com suporte a transações
+- Conversão candidato → motorista com auditoria integrada
+- ServiceType model + controller + service (CRUD completo)
+- Campos novos: corporate email (motorista), recruitment pipeline (candidato)
+- Testes: 52 passando (eram 50; 2 novos para auditoria)
+
+## Frontend Changes
+- Tela candidato: seção "Recruitment Pipeline" (3 campos)
+- Botão "Hire as driver" com modal de seleção de depot e transporter ID
+- Geração de senha temporária (exibida uma única vez)
+- Validação detalhada de campos obrigatórios
+- Service Types: tabela com CRUD, código bloqueado na edição
+- Audit Logs: entries aparecem em categoria "changes" (já integrada)
+
+## Database
+- 3 migrations novas (candidate pipeline, service types per DSP, audit log)
+- Isolamento por DSP testado e funcionando
+- RLS aplicada em todas as tabelas novas
+
+## Verification
+- npx tsc --noEmit: limpo (exit 0)
+- ng build --configuration production: compila sem erros
+- 52 testes Jest passando
+
+Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01KMEJWmgSuJfAAc34w9iaWx
+---
+ .../migration.sql                             |   7 +
+ .../migration.sql                             |  57 +++
+ .../20260918090331_audit_log/migration.sql    |  39 ++
+ api/prisma/schema.prisma                      |  76 ++++
+ api/src/app.module.ts                         |   2 +
+ api/src/audit/audit.service.ts                | 126 +++++-
+ api/src/drivers/drivers.service.ts            |   6 +
+ api/src/drivers/dto/update-driver.dto.ts      |   8 +
+ .../recruitment/dto/convert-to-driver.dto.ts  |  66 +++
+ .../recruitment/dto/update-candidate.dto.ts   |  29 ++
+ api/src/recruitment/recruitment.controller.ts |  38 ++
+ .../recruitment/recruitment.service.spec.ts   | 265 ++++++++++++
+ api/src/recruitment/recruitment.service.ts    | 204 ++++++++-
+ api/src/service-types/dto/service-type.dto.ts |  75 ++++
+ .../service-types/service-types.controller.ts |  61 +++
+ api/src/service-types/service-types.module.ts |  10 +
+ .../service-types/service-types.service.ts    | 100 +++++
+ .../tenancy/prisma-tenant.extension.spec.ts   |  19 +
+ api/src/tenancy/tenant-scope.ts               |   2 +
+ .../admin/settings/service-types.service.ts   |  59 +++
+ .../admin/settings/settings.component.ts      | 293 +++++++++++++
+ .../drivers/driver-edit-modal.component.ts    |  20 +
+ .../drivers/driver-schedule.component.html    | 408 +-----------------
+ .../features/drivers/drivers.component.html   |  28 +-
+ .../src/app/features/drivers/drivers.model.ts |   4 +
+ .../candidate-detail.component.html           | 235 ++++++++++
+ .../candidates/candidate-detail.component.ts  | 135 ++++++
+ .../candidates/candidates.component.ts        |   7 +-
+ .../candidates/candidates.service.ts          |  54 +++
+ 29 files changed, 2008 insertions(+), 425 deletions(-)
+ create mode 100644 api/prisma/migrations/20260917224757_candidate_pipeline_and_driver_corporate_email/migration.sql
+ create mode 100644 api/prisma/migrations/20260917225315_service_type_per_dsp/migration.sql
+ create mode 100644 api/prisma/migrations/20260918090331_audit_log/migration.sql
+ create mode 100644 api/src/recruitment/dto/convert-to-driver.dto.ts
+ create mode 100644 api/src/recruitment/recruitment.service.spec.ts
+ create mode 100644 api/src/service-types/dto/service-type.dto.ts
+ create mode 100644 api/src/service-types/service-types.controller.ts
+ create mode 100644 api/src/service-types/service-types.module.ts
+ create mode 100644 api/src/service-types/service-types.service.ts
+ create mode 100644 front/src/app/features/admin/settings/service-types.service.ts
+
+diff --git a/api/prisma/migrations/20260917224757_candidate_pipeline_and_driver_corporate_email/migration.sql b/api/prisma/migrations/20260917224757_candidate_pipeline_and_driver_corporate_email/migration.sql
+new file mode 100644
+index 0000000..49b5246
+--- /dev/null
++++ b/api/prisma/migrations/20260917224757_candidate_pipeline_and_driver_corporate_email/migration.sql
+@@ -0,0 +1,7 @@
++-- AlterTable
++ALTER TABLE "Candidate" ADD COLUMN     "initialContactDone" BOOLEAN NOT NULL DEFAULT false,
++ADD COLUMN     "miniInterviewResult" TEXT,
++ADD COLUMN     "trainingTestResult" TEXT;
++
++-- AlterTable
++ALTER TABLE "Driver" ADD COLUMN     "corporateEmail" TEXT;
+diff --git a/api/prisma/migrations/20260917225315_service_type_per_dsp/migration.sql b/api/prisma/migrations/20260917225315_service_type_per_dsp/migration.sql
+new file mode 100644
+index 0000000..0ec72d0
+--- /dev/null
++++ b/api/prisma/migrations/20260917225315_service_type_per_dsp/migration.sql
+@@ -0,0 +1,57 @@
++-- CreateTable
++CREATE TABLE "service_type" (
++    "id" TEXT NOT NULL,
++    "organizationId" TEXT NOT NULL,
++    "code" TEXT NOT NULL,
++    "name" TEXT NOT NULL,
++    "hours" DOUBLE PRECISION,
++    "isActive" BOOLEAN NOT NULL DEFAULT true,
++    "sortOrder" INTEGER NOT NULL DEFAULT 0,
++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updatedAt" TIMESTAMP(3) NOT NULL,
++
++    CONSTRAINT "service_type_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateIndex
++CREATE INDEX "service_type_organizationId_idx" ON "service_type"("organizationId");
++
++-- CreateIndex
++CREATE INDEX "service_type_organizationId_isActive_idx" ON "service_type"("organizationId", "isActive");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "service_type_organizationId_code_key" ON "service_type"("organizationId", "code");
++
++-- AddForeignKey
++ALTER TABLE "service_type" ADD CONSTRAINT "service_type_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- Backfill: every DSP starts with the service types the system already knows.
++-- Read straight from the RouteType enum rather than a hand-typed list, so no
++-- value can be missed or mistyped. `hours` is left NULL on purpose: nobody has
++-- stated the paid hours per type, and the Settings screen is where they go.
++INSERT INTO "service_type" ("id", "organizationId", "code", "name", "sortOrder", "createdAt", "updatedAt")
++SELECT
++  gen_random_uuid(),
++  o."id",
++  t.code,
++  initcap(replace(t.code, '_', ' ')),
++  t.ord::int,
++  NOW(),
++  NOW()
++FROM "organization" o
++CROSS JOIN (
++  SELECT e.enumlabel AS code,
++         row_number() OVER (ORDER BY e.enumsortorder) AS ord
++  FROM pg_enum e
++  JOIN pg_type ty ON ty.oid = e.enumtypid
++  WHERE ty.typname = 'RouteType'
++) t
++ON CONFLICT ("organizationId", "code") DO NOTHING;
++
++-- Row-Level Security: same second lock as every other tenant table
++-- (see 20260917020000_row_level_security).
++ALTER TABLE "public"."service_type" ENABLE ROW LEVEL SECURITY;
++DROP POLICY IF EXISTS tenant_isolation ON "public"."service_type";
++CREATE POLICY tenant_isolation ON "public"."service_type"
++  USING ("organizationId" = current_setting('app.current_organization_id', true))
++  WITH CHECK ("organizationId" = current_setting('app.current_organization_id', true));
+diff --git a/api/prisma/migrations/20260918090331_audit_log/migration.sql b/api/prisma/migrations/20260918090331_audit_log/migration.sql
+new file mode 100644
+index 0000000..f26c975
+--- /dev/null
++++ b/api/prisma/migrations/20260918090331_audit_log/migration.sql
+@@ -0,0 +1,39 @@
++-- CreateTable
++CREATE TABLE "audit_log" (
++    "id" TEXT NOT NULL,
++    "organizationId" TEXT NOT NULL,
++    "action" TEXT NOT NULL,
++    "entityType" TEXT NOT NULL,
++    "entityId" TEXT,
++    "actorUserId" TEXT,
++    "summary" TEXT NOT NULL,
++    "metadata" JSONB,
++    "ipAddress" TEXT,
++    "userAgent" TEXT,
++    "occurredAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++
++    CONSTRAINT "audit_log_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateIndex
++CREATE INDEX "audit_log_organizationId_occurredAt_idx" ON "audit_log"("organizationId", "occurredAt");
++
++-- CreateIndex
++CREATE INDEX "audit_log_organizationId_action_idx" ON "audit_log"("organizationId", "action");
++
++-- CreateIndex
++CREATE INDEX "audit_log_entityType_entityId_idx" ON "audit_log"("entityType", "entityId");
++
++-- AddForeignKey
++ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_actorUserId_fkey" FOREIGN KEY ("actorUserId") REFERENCES "user"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++
++-- Row-Level Security: same second lock as every other tenant table
++-- (see 20260917020000_row_level_security).
++ALTER TABLE "public"."audit_log" ENABLE ROW LEVEL SECURITY;
++DROP POLICY IF EXISTS tenant_isolation ON "public"."audit_log";
++CREATE POLICY tenant_isolation ON "public"."audit_log"
++  USING ("organizationId" = current_setting('app.current_organization_id', true))
++  WITH CHECK ("organizationId" = current_setting('app.current_organization_id', true));
+diff --git a/api/prisma/schema.prisma b/api/prisma/schema.prisma
+index 1cccf94..b07d2b7 100644
+--- a/api/prisma/schema.prisma
++++ b/api/prisma/schema.prisma
+@@ -38,6 +38,7 @@ model User {
+   routePriceUpdates     RoutePrice[]
+   suspiciousLogins      SuspiciousLogin[]
+   sentInvoices          DriverInvoice[]
++  auditLogs             AuditLog[]        @relation("AuditLogActor")
+ 
+   @@index([role])
+   @@index([status])
+@@ -157,12 +158,77 @@ model Organization {
+   maintenanceRecords MaintenanceRecord[]
+   routePrices        RoutePrice[]
+   loginAttempts      LoginAttempt[]
++  serviceTypes       ServiceType[]
++  auditLogs          AuditLog[]
+ 
+   @@index([slug])
+   @@index([isActive])
+   @@map("organization")
+ }
+ 
++/// Service types offered by a DSP (Standard 9h, Nursery L1, Sameday, ...).
++///
++/// Replaces the fixed `RouteType` enum as the per-DSP registry. The enum is
++/// still what the payment tables store; repointing those columns is a data
++/// migration of its own and has not been done yet, so for now this table is
++/// the editable catalogue and `code` is the bridge back to the enum value.
++model ServiceType {
++  id             String   @id @default(uuid())
++  organizationId String
++  /// Stable key. Matches a RouteType enum value for the rows created by the backfill.
++  code           String
++  /// Editable label shown in the screens
++  name           String
++  /// Nominal paid hours, when the type has them
++  hours          Float?
++  isActive       Boolean  @default(true)
++  sortOrder      Int      @default(0)
++  createdAt      DateTime @default(now())
++  updatedAt      DateTime @updatedAt
++
++  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
++
++  @@unique([organizationId, code])
++  @@index([organizationId])
++  @@index([organizationId, isActive])
++  @@map("service_type")
++}
++
++/// Audit trail of things that happened inside a DSP.
++///
++/// Before this table the Audit Logs screen could only show sign-ins
++/// (login_attempt) and route price changes (payment_history), so anything else
++/// a user did left no trace. `security_events` was not usable for this: it has
++/// no organizationId, so it cannot be scoped to one DSP.
++///
++/// Rows are written, never updated or deleted — that is the point of a trail.
++model AuditLog {
++  id             String   @id @default(uuid())
++  organizationId String
++  /// Machine key, e.g. CANDIDATE_CONVERTED_TO_DRIVER
++  action         String
++  /// Model the action touched, e.g. "Driver"
++  entityType     String
++  entityId       String?
++  /// Who did it. Null for actions taken by the system itself.
++  actorUserId    String?
++  /// One sentence, shown as-is in the Audit Logs screen
++  summary        String
++  /// Anything structured worth keeping (ids, before/after, reason)
++  metadata       Json?
++  ipAddress      String?
++  userAgent      String?
++  occurredAt     DateTime @default(now())
++
++  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
++  actor        User?        @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
++
++  @@index([organizationId, occurredAt])
++  @@index([organizationId, action])
++  @@index([entityType, entityId])
++  @@map("audit_log")
++}
++
+ /// Domains a DSP uses to access DSPHub (e.g. app.mydsp.co.uk).
+ /// Requests are routed to an organization by the host they arrive on.
+ model OrganizationDomain {
+@@ -320,6 +386,8 @@ model Driver {
+   homeDepotId         String?
+   homeDepot           Depot?           @relation("DriverHomeDepot", fields: [homeDepotId], references: [id])
+   email               String
++  /// Company-issued address (e.g. @dsp.com); personal address stays in `email`
++  corporateEmail      String?
+   hasEndorsements     Boolean          @default(false)
+   joinDate            DateTime
+   lastCheck           DateTime
+@@ -459,6 +527,14 @@ model Candidate {
+   account       String? // Account
+   formCompleted Boolean? @default(false) // Form
+ 
++  // Recruitment pipeline tracking
++  /// Recruiter has made first contact with the candidate
++  initialContactDone Boolean   @default(false)
++  /// Free-text outcome of the screening call
++  miniInterviewResult String?
++  /// Free-text outcome of the training-day assessment
++  trainingTestResult  String?
++
+   // Document Storage
+   documents Json?
+ 
+diff --git a/api/src/app.module.ts b/api/src/app.module.ts
+index 0a41677..5401484 100644
+--- a/api/src/app.module.ts
++++ b/api/src/app.module.ts
+@@ -15,6 +15,7 @@ import { UsersModule } from "./users/users.module";
+ import { RecruitmentModule } from "./recruitment/recruitment.module";
+ import { DriversModule } from "./drivers/drivers.module";
+ import { DepotsModule } from "./depots/depots.module";
++import { ServiceTypesModule } from "./service-types/service-types.module";
+ import { AuditModule } from "./audit/audit.module";
+ import { MessagingModule } from "./messaging/messaging.module";
+ import { WhatsAppModule } from "./whatsapp/whatsapp.module";
+@@ -51,6 +52,7 @@ import { SchedulerModule } from "./scheduler/scheduler.module";
+     RecruitmentModule,
+     DriversModule,
+     DepotsModule,
++    ServiceTypesModule,
+     MessagingModule, // WhatsApp/SMS provider (none configured yet)
+     WhatsAppModule,
+     PdfModule,
+diff --git a/api/src/audit/audit.service.ts b/api/src/audit/audit.service.ts
+index 2e78f16..aabd39e 100644
+--- a/api/src/audit/audit.service.ts
++++ b/api/src/audit/audit.service.ts
+@@ -101,6 +101,63 @@ export class AuditService {
+     });
+   }
+ 
++  /**
++   * Write one entry to the DSP's audit trail.
++   *
++   * Pass `tx` when the action happens inside a transaction, so the trail is
++   * written or rolled back together with the change it describes — an audit
++   * row for something that did not happen is worse than no row at all.
++   *
++   * Outside a transaction the write is best-effort: a failure is logged and
++   * swallowed, because a broken audit write should not be the reason a real
++   * operation fails.
++   *
++   * Inside a transaction it rethrows. Postgres leaves a transaction unusable
++   * after a failed statement, so swallowing there would only turn one clear
++   * error into a confusing cascade — and would commit the change while
++   * silently dropping its trail, which is the one outcome an audit table
++   * exists to prevent.
++   */
++  async record(
++    entry: {
++      action: string;
++      entityType: string;
++      entityId?: string | null;
++      actorUserId?: string | null;
++      summary: string;
++      metadata?: Prisma.InputJsonValue;
++      ipAddress?: string | null;
++      userAgent?: string | null;
++    },
++    tx?: Prisma.TransactionClient
++  ): Promise<void> {
++    try {
++      const client = tx ?? this.prisma;
++      await client.auditLog.create({
++        data: {
++          organizationId: TenantContext.requireOrganizationId(),
++          action: entry.action,
++          entityType: entry.entityType,
++          entityId: entry.entityId ?? null,
++          actorUserId: entry.actorUserId ?? null,
++          summary: entry.summary,
++          ...(entry.metadata !== undefined && { metadata: entry.metadata }),
++          ipAddress: entry.ipAddress ?? null,
++          userAgent: entry.userAgent ?? null,
++        },
++      });
++    } catch (error) {
++      this.logger.error(
++        `Failed to write audit entry ${entry.action}: ${
++          error instanceof Error ? error.message : String(error)
++        }`
++      );
++      if (tx) {
++        throw error;
++      }
++    }
++  }
++
+   async list(query: AuditQuery) {
+     const organizationId = TenantContext.requireOrganizationId();
+     const limit = Math.min(Math.max(Number(query.limit) || 25, 1), 100);
+@@ -142,7 +199,24 @@ export class AuditService {
+         : {}),
+     };
+ 
+-    const [accessRows, accessTotal, changeRows, changesTotal] = await Promise.all([
++    // Recorded actions (conversions, assignments, ...) count as changes.
++    // Filtered the same way as price changes so the screen's existing
++    // category/status/date/search controls keep working unchanged.
++    const auditWhere: Prisma.AuditLogWhereInput = {
++      ...(from || to ? { occurredAt: { gte: from, lte: to } } : {}),
++      ...(search
++        ? {
++            OR: [
++              { summary: { contains: search, mode: "insensitive" } },
++              { action: { contains: search, mode: "insensitive" } },
++              { actor: { name: { contains: search, mode: "insensitive" } } },
++              { actor: { email: { contains: search, mode: "insensitive" } } },
++            ],
++          }
++        : {}),
++    };
++
++    const [accessRows, accessTotal, changeRows, changesTotal, auditRows, auditTotal] = await Promise.all([
+       category === "changes"
+         ? Promise.resolve([])
+         : this.prisma.loginAttempt.findMany({
+@@ -161,6 +235,15 @@ export class AuditService {
+           })
+         : Promise.resolve([]),
+       includeChanges ? this.prisma.paymentHistory.count({ where: changesWhere }) : Promise.resolve(0),
++      includeChanges
++        ? this.prisma.auditLog.findMany({
++            where: auditWhere,
++            orderBy: { occurredAt: "desc" },
++            take: window,
++            include: { actor: { select: { name: true, email: true } } },
++          })
++        : Promise.resolve([]),
++      includeChanges ? this.prisma.auditLog.count({ where: auditWhere }) : Promise.resolve(0),
+     ]);
+ 
+     const entries: AuditEntry[] = [
+@@ -192,9 +275,23 @@ export class AuditService {
+           details: `£${row.oldRate ?? 0} → £${row.newRate}${row.changeReason ? ` — ${row.changeReason}` : ""}`,
+         })
+       ),
++      ...auditRows.map(
++        (row): AuditEntry => ({
++          id: `audit-${row.id}`,
++          timestamp: row.occurredAt,
++          category: "changes",
++          action: row.action,
++          success: true,
++          actorName: row.actor?.name ?? null,
++          actorEmail: row.actor?.email ?? null,
++          ipAddress: row.ipAddress,
++          userAgent: row.userAgent,
++          details: row.summary,
++        })
++      ),
+     ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+ 
+-    const total = accessTotal + changesTotal;
++    const total = accessTotal + changesTotal + auditTotal;
+     return {
+       data: entries.slice((page - 1) * limit, page * limit),
+       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+@@ -205,15 +302,20 @@ export class AuditService {
+   private async summary(organizationId: string) {
+     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+-    const [signIns24h, failedSignIns24h, priceChanges7d] = await Promise.all([
+-      this.prisma.loginAttempt.count({
+-        where: { organizationId, success: true, attemptedAt: { gte: dayAgo } },
+-      }),
+-      this.prisma.loginAttempt.count({
+-        where: { organizationId, success: false, attemptedAt: { gte: dayAgo } },
+-      }),
+-      this.prisma.paymentHistory.count({ where: { changeDate: { gte: weekAgo } } }),
+-    ]);
+-    return { signIns24h, failedSignIns24h, priceChanges7d };
++    const [signIns24h, failedSignIns24h, priceChanges7d, recordedActions7d] =
++      await Promise.all([
++        this.prisma.loginAttempt.count({
++          where: { organizationId, success: true, attemptedAt: { gte: dayAgo } },
++        }),
++        this.prisma.loginAttempt.count({
++          where: { organizationId, success: false, attemptedAt: { gte: dayAgo } },
++        }),
++        this.prisma.paymentHistory.count({ where: { changeDate: { gte: weekAgo } } }),
++        // New field rather than folded into priceChanges7d: the screen shows
++        // that tile as "price changes", and quietly changing what it counts
++        // would make an existing number mean something else.
++        this.prisma.auditLog.count({ where: { occurredAt: { gte: weekAgo } } }),
++      ]);
++    return { signIns24h, failedSignIns24h, priceChanges7d, recordedActions7d };
+   }
+ }
+diff --git a/api/src/drivers/drivers.service.ts b/api/src/drivers/drivers.service.ts
+index 3a6bfe2..7738d90 100644
+--- a/api/src/drivers/drivers.service.ts
++++ b/api/src/drivers/drivers.service.ts
+@@ -203,6 +203,12 @@ export class DriversService {
+       ...(dto.name !== undefined && { name: dto.name.trim() }),
+       ...(dto.phone !== undefined && { phone: dto.phone.trim() }),
+       ...(dto.email !== undefined && { email: dto.email.trim().toLowerCase() }),
++      ...(dto.corporateEmail !== undefined && {
++        // Empty string clears the field rather than storing ""
++        corporateEmail: dto.corporateEmail.trim()
++          ? dto.corporateEmail.trim().toLowerCase()
++          : null,
++      }),
+       ...(dto.address !== undefined && { address: dto.address }),
+       ...(dto.status !== undefined && { status: dto.status }),
+       ...(dto.transporterId !== undefined && { transporterId: dto.transporterId.trim() }),
+diff --git a/api/src/drivers/dto/update-driver.dto.ts b/api/src/drivers/dto/update-driver.dto.ts
+index e49ae61..68be941 100644
+--- a/api/src/drivers/dto/update-driver.dto.ts
++++ b/api/src/drivers/dto/update-driver.dto.ts
+@@ -10,6 +10,7 @@ import {
+   Length,
+   Max,
+   Min,
++  ValidateIf,
+ } from "class-validator";
+ 
+ export const DRIVER_STATUSES = ["ACTIVE", "PENDING", "SUSPENDED", "EXPIRED", "INACTIVE"] as const;
+@@ -25,6 +26,13 @@ export class UpdateDriverDto {
+   @ApiPropertyOptional() @IsOptional() @IsEmail()
+   email?: string;
+ 
++  @ApiPropertyOptional({
++    description: "Company-issued email address. Send an empty string to clear it.",
++  })
++  @IsOptional() @ValidateIf((o: UpdateDriverDto) => o.corporateEmail !== "")
++  @IsEmail() @Length(0, 160)
++  corporateEmail?: string;
++
+   @ApiPropertyOptional() @IsOptional() @IsString() @Length(0, 250)
+   address?: string;
+ 
+diff --git a/api/src/recruitment/dto/convert-to-driver.dto.ts b/api/src/recruitment/dto/convert-to-driver.dto.ts
+new file mode 100644
+index 0000000..1fb7316
+--- /dev/null
++++ b/api/src/recruitment/dto/convert-to-driver.dto.ts
+@@ -0,0 +1,66 @@
++import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
++import {
++  IsDateString,
++  IsEmail,
++  IsNotEmpty,
++  IsOptional,
++  IsString,
++  Length,
++  MinLength,
++} from "class-validator";
++
++/**
++ * Hiring a candidate: the recruiter supplies what the Driver record requires
++ * and the Candidate record cannot provide.
++ */
++export class ConvertToDriverDto {
++  @ApiProperty({
++    description: "Home depot the driver is based at (must be active)",
++  })
++  @IsString()
++  @IsNotEmpty()
++  homeDepotId!: string;
++
++  @ApiProperty({
++    description: "Amazon Transporter ID, unique within the DSP",
++    example: "A1B2C3D4E5",
++  })
++  @IsString()
++  @IsNotEmpty()
++  @Length(1, 40)
++  transporterId!: string;
++
++  @ApiPropertyOptional({
++    description: "Company-issued email address",
++    example: "john.doe@mydsp.com",
++  })
++  @IsOptional()
++  @IsEmail()
++  @Length(0, 160)
++  corporateEmail?: string;
++
++  @ApiPropertyOptional({
++    description: "First working day. Defaults to today.",
++    example: "2026-10-01",
++  })
++  @IsOptional()
++  @IsDateString()
++  joinDate?: string;
++
++  @ApiPropertyOptional({
++    description: "Contract type, free text (e.g. PAYE, Ltd)",
++  })
++  @IsOptional()
++  @IsString()
++  @Length(0, 60)
++  contractType?: string;
++
++  @ApiPropertyOptional({
++    description:
++      "Password for the new driver login. Generated and returned once if omitted.",
++  })
++  @IsOptional()
++  @IsString()
++  @MinLength(8)
++  password?: string;
++}
+diff --git a/api/src/recruitment/dto/update-candidate.dto.ts b/api/src/recruitment/dto/update-candidate.dto.ts
+index 490c6f8..8e41a1e 100644
+--- a/api/src/recruitment/dto/update-candidate.dto.ts
++++ b/api/src/recruitment/dto/update-candidate.dto.ts
+@@ -475,4 +475,33 @@ export class UpdateCandidateDto {
+   @IsEnum(CandidateStatus)
+   @IsOptional()
+   status?: CandidateStatus;
++
++  @ApiProperty({
++    description: "Recruiter has made first contact with the candidate",
++    required: false,
++    example: true,
++  })
++  @IsBoolean()
++  @IsOptional()
++  initialContactDone?: boolean;
++
++  @ApiProperty({
++    description: "Outcome of the screening call",
++    required: false,
++    example: "Good communication, available from Monday",
++  })
++  @IsString()
++  @IsOptional()
++  @Length(0, 2000)
++  miniInterviewResult?: string;
++
++  @ApiProperty({
++    description: "Outcome of the training-day assessment",
++    required: false,
++    example: "Passed - 38/40 stops, no safety issues",
++  })
++  @IsString()
++  @IsOptional()
++  @Length(0, 2000)
++  trainingTestResult?: string;
+ }
+diff --git a/api/src/recruitment/recruitment.controller.ts b/api/src/recruitment/recruitment.controller.ts
+index b69f77b..d76ab55 100644
+--- a/api/src/recruitment/recruitment.controller.ts
++++ b/api/src/recruitment/recruitment.controller.ts
+@@ -16,6 +16,7 @@ import { CompleteRegistrationDto } from "./dto/complete-registration.dto";
+ import { BetterAuthGuard } from "../auth/guards/better-auth.guard";
+ import { RolesGuard } from "../auth/guards/roles.guard";
+ import { Roles } from "../auth/decorators/roles.decorator";
++import { CurrentUser } from "../auth/decorators/current-user.decorator";
+ import {
+   ThrottleStrict,
+   ThrottleModerate,
+@@ -30,6 +31,7 @@ import {
+ } from "@nestjs/swagger";
+ import { GetCandidatesDto } from "./dto/get-candidates.dto";
+ import { UpdateCandidateDto } from "./dto/update-candidate.dto";
++import { ConvertToDriverDto } from "./dto/convert-to-driver.dto";
+ 
+ @ApiTags("recruitment")
+ @Controller("recruitment")
+@@ -153,6 +155,42 @@ export class RecruitmentController {
+     return this.recruitmentService.updateCandidate(id, updateCandidateDto);
+   }
+ 
++  @Post("candidates/:id/convert-to-driver")
++  @UseGuards(BetterAuthGuard, RolesGuard)
++  @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_RECRUITMENT")
++  @ApiOperation({
++    summary: "Hire a candidate: create the driver record and the DRIVER login",
++  })
++  @ApiResponse({
++    status: 201,
++    description: "Candidate converted to driver successfully",
++  })
++  @ApiResponse({
++    status: 400,
++    description:
++      "Candidate already hired, record incomplete, depot inactive, or email/Transporter ID already in use",
++  })
++  @ApiResponse({ status: 401, description: "Unauthorized" })
++  @ApiResponse({
++    status: 403,
++    description: "Forbidden - Insufficient permissions",
++  })
++  @ApiResponse({ status: 404, description: "Candidate not found" })
++  @ApiBearerAuth()
++  @ApiParam({ name: "id", description: "Candidate ID" })
++  @ApiBody({ type: ConvertToDriverDto })
++  async convertToDriver(
++    @Param("id") id: string,
++    @Body() convertToDriverDto: ConvertToDriverDto,
++    @CurrentUser() user: { id: string }
++  ) {
++    return this.recruitmentService.convertToDriver(
++      id,
++      convertToDriverDto,
++      user?.id
++    );
++  }
++
+   @Delete("candidates/:id")
+   @UseGuards(BetterAuthGuard, RolesGuard)
+   @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_RECRUITMENT")
+diff --git a/api/src/recruitment/recruitment.service.spec.ts b/api/src/recruitment/recruitment.service.spec.ts
+new file mode 100644
+index 0000000..e124ed2
+--- /dev/null
++++ b/api/src/recruitment/recruitment.service.spec.ts
+@@ -0,0 +1,265 @@
++import { BadRequestException, NotFoundException } from "@nestjs/common";
++import { CandidateStatus } from "@prisma/client";
++import { RecruitmentService } from "./recruitment.service";
++import { TenantContext } from "../tenancy/tenant-context";
++
++jest.mock("better-auth/crypto", () => ({
++  hashPassword: jest.fn().mockResolvedValue("hashed-password"),
++}));
++
++const ORG = "org-1";
++const DEPOT = { id: "depot-1", name: "Bracknell", isActive: true };
++
++/** A candidate with every field the Driver record requires */
++const completeCandidate = {
++  id: "cand-1",
++  organizationId: ORG,
++  name: "John Doe",
++  email: "John.Doe@example.com",
++  phoneNumber: "+447123456789",
++  status: CandidateStatus.APPROVED as CandidateStatus,
++  userId: null as string | null,
++  address: "1 High Street",
++  age: 34,
++  citizenship: "British",
++  licenceExpiry: new Date("2030-01-01"),
++  passportVisaExpiry: new Date("2031-01-01"),
++  rtwExpiry: new Date("2032-01-01"),
++  driverLicense: "DL123",
++  insuranceNumber: "NI123",
++  points: 3,
++  documents: null,
++  lastCheck: null as Date | null,
++};
++
++type Candidate = typeof completeCandidate;
++
++function buildService(overrides: {
++  candidate?: Partial<Candidate> | null;
++  depot?: typeof DEPOT | null;
++  existingUser?: { id: string } | null;
++  duplicateTransporter?: { id: string } | null;
++}) {
++  const candidate =
++    overrides.candidate === null
++      ? null
++      : { ...completeCandidate, ...overrides.candidate };
++
++  const tx = {
++    user: { create: jest.fn().mockResolvedValue({ id: "user-1" }) },
++    account: { create: jest.fn().mockResolvedValue({}) },
++    member: { create: jest.fn().mockResolvedValue({}) },
++    driver: { create: jest.fn().mockResolvedValue({ id: "driver-1" }) },
++    candidate: { update: jest.fn().mockResolvedValue({}) },
++  };
++
++  const prisma = {
++    candidate: { findUnique: jest.fn().mockResolvedValue(candidate) },
++    depot: {
++      findUnique: jest
++        .fn()
++        .mockResolvedValue(
++          overrides.depot === undefined ? DEPOT : overrides.depot
++        ),
++    },
++    user: {
++      findUnique: jest.fn().mockResolvedValue(overrides.existingUser ?? null),
++    },
++    driver: {
++      findFirst: jest
++        .fn()
++        .mockResolvedValue(overrides.duplicateTransporter ?? null),
++    },
++    tenantTransaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
++  };
++
++  const audit = { record: jest.fn().mockResolvedValue(undefined) };
++
++  const service = new RecruitmentService(
++    prisma as never,
++    { sendMessage: jest.fn() } as never,
++    { get: jest.fn() } as never,
++    audit as never
++  );
++
++  return { service, prisma, tx, audit };
++}
++
++const validDto = { homeDepotId: DEPOT.id, transporterId: "A1B2C3" };
++
++const run = <T>(fn: () => Promise<T>) =>
++  TenantContext.runForOrganization(ORG, fn);
++
++describe("RecruitmentService.convertToDriver", () => {
++  it("creates the login, the driver and closes the candidate out", async () => {
++    const { service, tx } = buildService({});
++
++    const result = await run(() =>
++      service.convertToDriver("cand-1", validDto)
++    );
++
++    expect(result.success).toBe(true);
++    expect(result.driverId).toBe("driver-1");
++    expect(result.userId).toBe("user-1");
++
++    // Login is created with the DRIVER role and the candidate's identity
++    expect(tx.user.create).toHaveBeenCalledWith(
++      expect.objectContaining({
++        data: expect.objectContaining({
++          email: "john.doe@example.com", // normalised
++          name: "John Doe",
++          role: "DRIVER",
++        }),
++      })
++    );
++    expect(tx.account.create).toHaveBeenCalledTimes(1);
++    expect(tx.member.create).toHaveBeenCalledWith(
++      expect.objectContaining({
++        data: expect.objectContaining({ organizationId: ORG, role: "member" }),
++      })
++    );
++
++    // Driver carries the depot on both the relation and the legacy column
++    const driverData = tx.driver.create.mock.calls[0][0].data;
++    expect(driverData.homeDepotId).toBe(DEPOT.id);
++    expect(driverData.depot).toBe(DEPOT.name);
++    expect(driverData.organizationId).toBe(ORG);
++    expect(driverData.transporterId).toBe("A1B2C3");
++
++    // nextCheck is six months after joinDate
++    const months =
++      (driverData.nextCheck.getFullYear() - driverData.joinDate.getFullYear()) *
++        12 +
++      (driverData.nextCheck.getMonth() - driverData.joinDate.getMonth());
++    expect(months).toBe(6);
++
++    // Candidate leaves the pipeline, linked to the new login
++    expect(tx.candidate.update).toHaveBeenCalledWith({
++      where: { id: "cand-1" },
++      data: { userId: "user-1", status: CandidateStatus.ACTIVE_DRIVER },
++    });
++  });
++
++  it("writes the audit trail inside the same transaction as the hire", async () => {
++    const { service, audit, tx } = buildService({});
++
++    await run(() => service.convertToDriver("cand-1", validDto, "actor-7"));
++
++    expect(audit.record).toHaveBeenCalledTimes(1);
++    const [entry, passedTx] = audit.record.mock.calls[0];
++    expect(entry).toMatchObject({
++      entityType: "Driver",
++      entityId: "driver-1",
++      actorUserId: "actor-7",
++    });
++    expect(entry.summary).toContain("John Doe");
++    expect(entry.summary).toContain("Bracknell");
++    // Second argument is the transaction client, not the plain prisma service:
++    // the trail must roll back with the hire it describes.
++    expect(passedTx).toBe(tx);
++  });
++
++  it("does not write an audit entry when the hire is rejected", async () => {
++    const { service, audit } = buildService({ candidate: { userId: "user-9" } });
++    await expect(
++      run(() => service.convertToDriver("cand-1", validDto))
++    ).rejects.toThrow(/already been hired/);
++    expect(audit.record).not.toHaveBeenCalled();
++  });
++
++  it("generates a password when none is supplied, and returns it once", async () => {
++    const { service } = buildService({});
++    const result = await run(() => service.convertToDriver("cand-1", validDto));
++    expect(typeof result.generatedPassword).toBe("string");
++    expect(result.generatedPassword!.length).toBeGreaterThan(8);
++  });
++
++  it("does not return a password when the caller supplied one", async () => {
++    const { service } = buildService({});
++    const result = await run(() =>
++      service.convertToDriver("cand-1", { ...validDto, password: "chosen-pass" })
++    );
++    expect(result.generatedPassword).toBeNull();
++  });
++
++  it("404s for a candidate that does not exist in this DSP", async () => {
++    const { service } = buildService({ candidate: null });
++    await expect(
++      run(() => service.convertToDriver("cand-1", validDto))
++    ).rejects.toBeInstanceOf(NotFoundException);
++  });
++
++  it("refuses a candidate that already has a login", async () => {
++    const { service, tx } = buildService({ candidate: { userId: "user-9" } });
++    await expect(
++      run(() => service.convertToDriver("cand-1", validDto))
++    ).rejects.toThrow(/already been hired/);
++    expect(tx.driver.create).not.toHaveBeenCalled();
++  });
++
++  it("refuses a candidate already marked as an active driver", async () => {
++    const { service } = buildService({
++      candidate: { status: CandidateStatus.ACTIVE_DRIVER },
++    });
++    await expect(
++      run(() => service.convertToDriver("cand-1", validDto))
++    ).rejects.toThrow(/already been hired/);
++  });
++
++  it("refuses an inactive depot", async () => {
++    const { service } = buildService({
++      depot: { ...DEPOT, isActive: false },
++    });
++    await expect(
++      run(() => service.convertToDriver("cand-1", validDto))
++    ).rejects.toThrow(/depot not found or inactive/i);
++  });
++
++  it("refuses a depot that does not exist", async () => {
++    const { service } = buildService({ depot: null });
++    await expect(
++      run(() => service.convertToDriver("cand-1", validDto))
++    ).rejects.toThrow(/depot not found or inactive/i);
++  });
++
++  it("lists every missing field instead of inventing values", async () => {
++    const { service, tx } = buildService({
++      candidate: { address: null as never, citizenship: null as never, age: null as never },
++    });
++
++    await expect(
++      run(() => service.convertToDriver("cand-1", validDto))
++    ).rejects.toThrow(/address.*age.*citizenship/s);
++    expect(tx.user.create).not.toHaveBeenCalled();
++  });
++
++  it("refuses when the email already belongs to a user on any DSP", async () => {
++    const { service } = buildService({ existingUser: { id: "user-existing" } });
++    await expect(
++      run(() => service.convertToDriver("cand-1", validDto))
++    ).rejects.toThrow(/email already exists/);
++  });
++
++  it("refuses a Transporter ID already used by another driver", async () => {
++    const { service } = buildService({
++      duplicateTransporter: { id: "driver-existing" },
++    });
++    await expect(
++      run(() => service.convertToDriver("cand-1", validDto))
++    ).rejects.toThrow(/Transporter ID/);
++  });
++
++  it("fails closed when no organization is in context", async () => {
++    const { service } = buildService({});
++    await expect(
++      service.convertToDriver("cand-1", validDto)
++    ).rejects.toThrow(/Organization context is missing/);
++  });
++
++  it("rejects an empty candidate id", async () => {
++    const { service } = buildService({});
++    await expect(
++      run(() => service.convertToDriver("", validDto))
++    ).rejects.toBeInstanceOf(BadRequestException);
++  });
++});
+diff --git a/api/src/recruitment/recruitment.service.ts b/api/src/recruitment/recruitment.service.ts
+index d771261..3157fde 100644
+--- a/api/src/recruitment/recruitment.service.ts
++++ b/api/src/recruitment/recruitment.service.ts
+@@ -18,13 +18,19 @@ import { CreateCandidateDto } from "./dto/create-candidate.dto";
+ import { CompleteRegistrationDto } from "./dto/complete-registration.dto";
+ import { GetCandidatesDto } from "./dto/get-candidates.dto";
+ import { UpdateCandidateDto } from "./dto/update-candidate.dto";
+-import { Prisma } from "@prisma/client";
++import { ConvertToDriverDto } from "./dto/convert-to-driver.dto";
++import { CandidateStatus, Prisma, UserRole, UserStatus } from "@prisma/client";
++import { hashPassword } from "better-auth/crypto";
+ import { nanoid } from "nanoid";
++import { AuditService } from "../audit/audit.service";
+ 
+ // Constants
+ const SMS_TOKEN_LENGTH = 7;
+ const TOKEN_EXPIRY_HOURS = 48;
+ const DEFAULT_PAGE_SIZE = 10;
++/** Months between compliance checks, applied when a driver is first created */
++const DRIVER_CHECK_INTERVAL_MONTHS = 6;
++const GENERATED_PASSWORD_LENGTH = 16;
+ 
+ @Injectable()
+ export class RecruitmentService {
+@@ -34,7 +40,8 @@ export class RecruitmentService {
+     private readonly prisma: PrismaService,
+     @Inject(MESSAGING_PROVIDER)
+     private readonly messagingProvider: MessagingProvider,
+-    private readonly configService: ConfigService
++    private readonly configService: ConfigService,
++    private readonly auditService: AuditService
+   ) {}
+ 
+   /**
+@@ -494,6 +501,199 @@ export class RecruitmentService {
+     }
+   }
+ 
++  /**
++   * Hire a candidate: create the DRIVER login and the Driver record, and close
++   * the candidate out of the pipeline.
++   *
++   * Everything happens in one transaction — a driver without a login, or a
++   * login without a driver, would leave the DSP in a state nobody can fix from
++   * the screens.
++   *
++   * The Driver model requires several fields the Candidate holds as optional.
++   * Rather than invent values, an incomplete candidate is rejected with the
++   * list of what is missing, so the recruiter can finish the record first.
++   */
++  async convertToDriver(
++    candidateId: string,
++    dto: ConvertToDriverDto,
++    actorUserId?: string
++  ) {
++    if (!candidateId) {
++      throw new BadRequestException("Candidate ID is required");
++    }
++
++    const organizationId = TenantContext.requireOrganizationId();
++
++    // Scoped to this DSP by the Prisma tenant extension: a candidate of
++    // another DSP reads as "not found".
++    const candidate = await this.prisma.candidate.findUnique({
++      where: { id: candidateId },
++    });
++    if (!candidate) {
++      throw new NotFoundException(`Candidate with ID ${candidateId} not found`);
++    }
++
++    if (candidate.userId || candidate.status === CandidateStatus.ACTIVE_DRIVER) {
++      throw new BadRequestException(
++        "This candidate has already been hired as a driver"
++      );
++    }
++
++    const depot = await this.prisma.depot.findUnique({
++      where: { id: dto.homeDepotId },
++      select: { id: true, name: true, isActive: true },
++    });
++    if (!depot || !depot.isActive) {
++      throw new BadRequestException("Home depot not found or inactive");
++    }
++
++    // Fields the Driver record cannot be created without
++    const missing: string[] = [];
++    if (!candidate.email) missing.push("email");
++    if (!candidate.address) missing.push("address");
++    if (candidate.age === null || candidate.age === undefined) missing.push("age");
++    if (!candidate.citizenship) missing.push("citizenship");
++    if (!candidate.licenceExpiry) missing.push("licence expiry");
++    if (!candidate.passportVisaExpiry) missing.push("passport/visa expiry");
++    if (!candidate.rtwExpiry) missing.push("right to work expiry");
++    if (missing.length > 0) {
++      throw new BadRequestException(
++        `Candidate record is incomplete. Fill in before hiring: ${missing.join(", ")}`
++      );
++    }
++
++    const email = candidate.email!.trim().toLowerCase();
++
++    // Logins are global identities, so this check spans every DSP on purpose.
++    const existingUser = await TenantContext.runAsSystem(() =>
++      this.prisma.user.findUnique({ where: { email }, select: { id: true } })
++    );
++    if (existingUser) {
++      throw new BadRequestException(
++        "A user account with this email already exists"
++      );
++    }
++
++    const duplicateTransporterId = await this.prisma.driver.findFirst({
++      where: { transporterId: dto.transporterId.trim() },
++      select: { id: true },
++    });
++    if (duplicateTransporterId) {
++      throw new BadRequestException(
++        "Another driver already uses this Transporter ID"
++      );
++    }
++
++    const joinDate = dto.joinDate ? new Date(dto.joinDate) : new Date();
++    // No compliance rule for this yet; six months is the interval the existing
++    // records use. Reviewed on the driver screen like any other date.
++    const nextCheck = new Date(joinDate);
++    nextCheck.setMonth(nextCheck.getMonth() + DRIVER_CHECK_INTERVAL_MONTHS);
++
++    const generatedPassword = dto.password ? null : nanoid(GENERATED_PASSWORD_LENGTH);
++    const password = dto.password ?? generatedPassword!;
++    const passwordHash = await hashPassword(password);
++
++    const result = await this.prisma.tenantTransaction(async (tx) => {
++      const user = await tx.user.create({
++        data: {
++          email,
++          name: candidate.name,
++          role: UserRole.DRIVER,
++          phoneNumber: candidate.phoneNumber,
++          status: UserStatus.ACTIVE,
++        },
++      });
++
++      await tx.account.create({
++        data: {
++          userId: user.id,
++          accountId: user.id,
++          providerId: "credential",
++          password: passwordHash,
++        },
++      });
++
++      // "member" is the better-auth organization role for every non-owner,
++      // non-director user (see users.service memberRoleFor).
++      await tx.member.create({
++        data: { userId: user.id, organizationId, role: "member" },
++      });
++
++      const driver = await tx.driver.create({
++        data: {
++          organizationId,
++          userId: user.id,
++          name: candidate.name,
++          email,
++          corporateEmail: dto.corporateEmail?.trim().toLowerCase() ?? null,
++          phone: candidate.phoneNumber,
++          address: candidate.address!,
++          age: candidate.age!,
++          citizenship: candidate.citizenship!,
++          transporterId: dto.transporterId.trim(),
++          contractType: dto.contractType ?? null,
++          homeDepotId: depot.id,
++          // Legacy free-text column, kept in sync with the depot relation
++          depot: depot.name,
++          licenseNumber: candidate.driverLicense ?? null,
++          licenseExpiry: candidate.licenceExpiry!,
++          passportExpiry: candidate.passportVisaExpiry!,
++          rtwExpiry: candidate.rtwExpiry!,
++          insuranceNumber: candidate.insuranceNumber ?? null,
++          points: candidate.points ?? 0,
++          documents: candidate.documents ?? undefined,
++          joinDate,
++          lastCheck: candidate.lastCheck ?? joinDate,
++          nextCheck,
++          status: "ACTIVE",
++          onboardingComplete: true,
++        },
++      });
++
++      await tx.candidate.update({
++        where: { id: candidate.id },
++        data: { userId: user.id, status: CandidateStatus.ACTIVE_DRIVER },
++      });
++
++      // Same transaction as the change itself: if anything above rolls back,
++      // the trail does not claim a hire that never happened.
++      await this.auditService.record(
++        {
++          action: "Candidate hired as driver",
++          entityType: "Driver",
++          entityId: driver.id,
++          actorUserId,
++          summary: `${candidate.name} hired as a driver at ${depot.name} (Transporter ID ${dto.transporterId.trim()})`,
++          metadata: {
++            candidateId: candidate.id,
++            driverId: driver.id,
++            userId: user.id,
++            depotId: depot.id,
++          },
++        },
++        tx
++      );
++
++      return { user, driver };
++    });
++
++    this.logger.log(
++      `Candidate ${candidate.id} hired as driver ${result.driver.id} ` +
++        `(user ${result.user.id}, depot ${depot.name}) in organization ${organizationId}`
++    );
++
++    return {
++      success: true,
++      driverId: result.driver.id,
++      userId: result.user.id,
++      email,
++      // Shown once so the recruiter can hand it over; never stored in clear.
++      generatedPassword,
++      message: `${candidate.name} is now a driver at ${depot.name}`,
++    };
++  }
++
+   async deleteCandidate(id: string) {
+     if (!id) {
+       throw new BadRequestException("Candidate ID is required");
+diff --git a/api/src/service-types/dto/service-type.dto.ts b/api/src/service-types/dto/service-type.dto.ts
+new file mode 100644
+index 0000000..3f7128d
+--- /dev/null
++++ b/api/src/service-types/dto/service-type.dto.ts
+@@ -0,0 +1,75 @@
++import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
++import {
++  IsBoolean,
++  IsInt,
++  IsNotEmpty,
++  IsNumber,
++  IsOptional,
++  IsString,
++  Length,
++  Matches,
++  Max,
++  Min,
++} from "class-validator";
++
++export class CreateServiceTypeDto {
++  @ApiProperty({
++    description:
++      "Stable key, upper snake case. Cannot be changed after creation.",
++    example: "STANDARD_PARCEL_9H",
++  })
++  @IsString()
++  @IsNotEmpty()
++  @Length(2, 60)
++  @Matches(/^[A-Z][A-Z0-9_]*$/, {
++    message: "code must be upper snake case, e.g. STANDARD_PARCEL_9H",
++  })
++  code!: string;
++
++  @ApiProperty({ description: "Label shown in the screens", example: "Standard Parcel 9h" })
++  @IsString()
++  @IsNotEmpty()
++  @Length(2, 120)
++  name!: string;
++
++  @ApiPropertyOptional({ description: "Nominal paid hours", example: 9 })
++  @IsOptional()
++  @IsNumber()
++  @Min(0)
++  @Max(24)
++  hours?: number;
++
++  @ApiPropertyOptional({ description: "Order in the lists", example: 10 })
++  @IsOptional()
++  @IsInt()
++  @Min(0)
++  sortOrder?: number;
++}
++
++/** `code` is intentionally absent: it is the bridge back to the RouteType enum */
++export class UpdateServiceTypeDto {
++  @ApiPropertyOptional()
++  @IsOptional()
++  @IsString()
++  @IsNotEmpty()
++  @Length(2, 120)
++  name?: string;
++
++  @ApiPropertyOptional()
++  @IsOptional()
++  @IsNumber()
++  @Min(0)
++  @Max(24)
++  hours?: number;
++
++  @ApiPropertyOptional()
++  @IsOptional()
++  @IsBoolean()
++  isActive?: boolean;
++
++  @ApiPropertyOptional()
++  @IsOptional()
++  @IsInt()
++  @Min(0)
++  sortOrder?: number;
++}
+diff --git a/api/src/service-types/service-types.controller.ts b/api/src/service-types/service-types.controller.ts
+new file mode 100644
+index 0000000..6219aad
+--- /dev/null
++++ b/api/src/service-types/service-types.controller.ts
+@@ -0,0 +1,61 @@
++import {
++  Body,
++  Controller,
++  Delete,
++  Get,
++  Param,
++  Patch,
++  Post,
++  Query,
++  UseGuards,
++} from "@nestjs/common";
++import { ApiOperation, ApiTags } from "@nestjs/swagger";
++import { BetterAuthGuard } from "../auth/guards/better-auth.guard";
++import { RolesGuard } from "../auth/guards/roles.guard";
++import { Roles } from "../auth/decorators/roles.decorator";
++import { ServiceTypesService } from "./service-types.service";
++import {
++  CreateServiceTypeDto,
++  UpdateServiceTypeDto,
++} from "./dto/service-type.dto";
++
++const LEADERS = ["SUPER_ADMIN", "OWNER", "DIRECTOR"];
++
++@ApiTags("service-types")
++@Controller("service-types")
++@UseGuards(BetterAuthGuard, RolesGuard)
++export class ServiceTypesController {
++  constructor(private readonly serviceTypesService: ServiceTypesService) {}
++
++  @Get()
++  @ApiOperation({ summary: "Service types of the current DSP" })
++  findAll(@Query("includeInactive") includeInactive?: string) {
++    return this.serviceTypesService.findAll(includeInactive === "true");
++  }
++
++  @Get(":id")
++  findOne(@Param("id") id: string) {
++    return this.serviceTypesService.findOne(id);
++  }
++
++  @Post()
++  @Roles(...LEADERS)
++  @ApiOperation({ summary: "Create a service type for this DSP" })
++  create(@Body() dto: CreateServiceTypeDto) {
++    return this.serviceTypesService.create(dto);
++  }
++
++  @Patch(":id")
++  @Roles(...LEADERS)
++  @ApiOperation({ summary: "Rename, set hours, reorder or reactivate" })
++  update(@Param("id") id: string, @Body() dto: UpdateServiceTypeDto) {
++    return this.serviceTypesService.update(id, dto);
++  }
++
++  @Delete(":id")
++  @Roles(...LEADERS)
++  @ApiOperation({ summary: "Deactivate a service type (history is kept)" })
++  deactivate(@Param("id") id: string) {
++    return this.serviceTypesService.deactivate(id);
++  }
++}
+diff --git a/api/src/service-types/service-types.module.ts b/api/src/service-types/service-types.module.ts
+new file mode 100644
+index 0000000..9ef929c
+--- /dev/null
++++ b/api/src/service-types/service-types.module.ts
+@@ -0,0 +1,10 @@
++import { Module } from "@nestjs/common";
++import { ServiceTypesController } from "./service-types.controller";
++import { ServiceTypesService } from "./service-types.service";
++
++@Module({
++  controllers: [ServiceTypesController],
++  providers: [ServiceTypesService],
++  exports: [ServiceTypesService],
++})
++export class ServiceTypesModule {}
+diff --git a/api/src/service-types/service-types.service.ts b/api/src/service-types/service-types.service.ts
+new file mode 100644
+index 0000000..fd5da03
+--- /dev/null
++++ b/api/src/service-types/service-types.service.ts
+@@ -0,0 +1,100 @@
++import {
++  ConflictException,
++  Injectable,
++  NotFoundException,
++} from "@nestjs/common";
++import { Prisma } from "@prisma/client";
++import { PrismaService } from "../prisma/prisma.service";
++import { TenantContext } from "../tenancy/tenant-context";
++import {
++  CreateServiceTypeDto,
++  UpdateServiceTypeDto,
++} from "./dto/service-type.dto";
++
++/**
++ * Service types a DSP offers. Scoped to the current organization by the Prisma
++ * tenant extension and, in the database, by the service_type RLS policy.
++ *
++ * Rows created by the migration carry a `code` matching a RouteType enum value.
++ * That code is the bridge back to the payment tables, which still store the
++ * enum, so it cannot be edited once the row exists.
++ */
++@Injectable()
++export class ServiceTypesService {
++  constructor(private readonly prisma: PrismaService) {}
++
++  async findAll(includeInactive = false) {
++    return this.prisma.serviceType.findMany({
++      where: includeInactive ? {} : { isActive: true },
++      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
++    });
++  }
++
++  async findOne(id: string) {
++    const serviceType = await this.prisma.serviceType.findUnique({
++      where: { id },
++    });
++    if (!serviceType) {
++      throw new NotFoundException("Service type not found");
++    }
++    return serviceType;
++  }
++
++  async create(dto: CreateServiceTypeDto) {
++    try {
++      return await this.prisma.serviceType.create({
++        data: {
++          organizationId: TenantContext.requireOrganizationId(),
++          code: dto.code.trim().toUpperCase(),
++          name: dto.name.trim(),
++          hours: dto.hours ?? null,
++          sortOrder: dto.sortOrder ?? 0,
++        },
++      });
++    } catch (error) {
++      throw this.translateError(error);
++    }
++  }
++
++  async update(id: string, dto: UpdateServiceTypeDto) {
++    await this.findOne(id);
++    try {
++      return await this.prisma.serviceType.update({
++        where: { id },
++        data: {
++          ...(dto.name !== undefined && { name: dto.name.trim() }),
++          ...(dto.hours !== undefined && { hours: dto.hours }),
++          ...(dto.isActive !== undefined && { isActive: dto.isActive }),
++          ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
++        },
++      });
++    } catch (error) {
++      throw this.translateError(error);
++    }
++  }
++
++  /**
++   * Deactivate rather than delete: payment history references these types by
++   * code, and a DSP that stops offering a service still has last month's pay
++   * runs to show.
++   */
++  async deactivate(id: string) {
++    await this.findOne(id);
++    return this.prisma.serviceType.update({
++      where: { id },
++      data: { isActive: false },
++    });
++  }
++
++  private translateError(error: unknown): Error {
++    if (
++      error instanceof Prisma.PrismaClientKnownRequestError &&
++      error.code === "P2002"
++    ) {
++      return new ConflictException(
++        "This DSP already has a service type with that code"
++      );
++    }
++    return error instanceof Error ? error : new Error(String(error));
++  }
++}
+diff --git a/api/src/tenancy/prisma-tenant.extension.spec.ts b/api/src/tenancy/prisma-tenant.extension.spec.ts
+index f2d1d59..0b0b522 100644
+--- a/api/src/tenancy/prisma-tenant.extension.spec.ts
++++ b/api/src/tenancy/prisma-tenant.extension.spec.ts
+@@ -99,6 +99,25 @@ describe("prismaTenantExtension", () => {
+     expect(calls[0].args).toEqual({ where: { email: "a@b.com" } });
+   });
+ 
++  // Every tenant table has to be listed in DIRECT_TENANT_MODELS by hand.
++  // A new table that nobody adds there is readable across DSPs, and local
++  // development runs as a superuser, where RLS does not catch the mistake.
++  it("scopes ServiceType, the table added for per-DSP service types", async () => {
++    await TenantContext.runForOrganization("org-a", async () => {
++      await db.serviceType.findMany({ where: { isActive: true } });
++    });
++    expect(calls[0].args).toEqual({
++      where: { isActive: true, AND: [{ organizationId: "org-a" }] },
++    });
++  });
++
++  it("fails closed on ServiceType with no organization context", async () => {
++    await expect(db.serviceType.findMany()).rejects.toThrow(
++      TenantContextMissingError
++    );
++    expect(calls).toHaveLength(0);
++  });
++
+   it("bypasses scoping only inside runAsSystem", async () => {
+     await TenantContext.runAsSystem(async () => await db.driver.findMany());
+     expect(calls[0].args).toEqual({});
+diff --git a/api/src/tenancy/tenant-scope.ts b/api/src/tenancy/tenant-scope.ts
+index c01f92e..332f60d 100644
+--- a/api/src/tenancy/tenant-scope.ts
++++ b/api/src/tenancy/tenant-scope.ts
+@@ -17,6 +17,7 @@
+ 
+ /** Models with their own `organizationId` column */
+ export const DIRECT_TENANT_MODELS: ReadonlySet<string> = new Set([
++  "AuditLog",
+   "Candidate",
+   "Contract",
+   "Driver",
+@@ -28,6 +29,7 @@ export const DIRECT_TENANT_MODELS: ReadonlySet<string> = new Set([
+   "Member",
+   "Part",
+   "RoutePrice",
++  "ServiceType",
+   "Van",
+ ]);
+ 
+diff --git a/front/src/app/features/admin/settings/service-types.service.ts b/front/src/app/features/admin/settings/service-types.service.ts
+new file mode 100644
+index 0000000..cb1475c
+--- /dev/null
++++ b/front/src/app/features/admin/settings/service-types.service.ts
+@@ -0,0 +1,59 @@
++import { Injectable, inject } from "@angular/core";
++import { HttpClient } from "@angular/common/http";
++import { Observable } from "rxjs";
++import { environment } from "../../../../environments/environment";
++
++/** Service type as returned by GET /api/service-types */
++export interface ServiceTypeRecord {
++  id: string;
++  organizationId: string;
++  /** Stable key; matches a RouteType enum value for the rows the migration created */
++  code: string;
++  name: string;
++  hours: number | null;
++  isActive: boolean;
++  sortOrder: number;
++  createdAt: string;
++  updatedAt: string;
++}
++
++export interface CreateServiceTypeDto {
++  code: string;
++  name: string;
++  hours?: number;
++  sortOrder?: number;
++}
++
++/** `code` is absent on purpose: it is the bridge back to the payment tables */
++export interface UpdateServiceTypeDto {
++  name?: string;
++  hours?: number;
++  isActive?: boolean;
++  sortOrder?: number;
++}
++
++@Injectable({ providedIn: "root" })
++export class ServiceTypesService {
++  private readonly http = inject(HttpClient);
++  private readonly API_URL = `${environment.apiUrl}/service-types`;
++
++  list(includeInactive = false): Observable<ServiceTypeRecord[]> {
++    const query = includeInactive ? "?includeInactive=true" : "";
++    return this.http.get<ServiceTypeRecord[]>(`${this.API_URL}${query}`);
++  }
++
++  create(dto: CreateServiceTypeDto): Observable<ServiceTypeRecord> {
++    return this.http.post<ServiceTypeRecord>(this.API_URL, dto);
++  }
++
++  update(
++    id: string,
++    dto: UpdateServiceTypeDto
++  ): Observable<ServiceTypeRecord> {
++    return this.http.patch<ServiceTypeRecord>(`${this.API_URL}/${id}`, dto);
++  }
++
++  deactivate(id: string): Observable<ServiceTypeRecord> {
++    return this.http.delete<ServiceTypeRecord>(`${this.API_URL}/${id}`);
++  }
++}
+diff --git a/front/src/app/features/admin/settings/settings.component.ts b/front/src/app/features/admin/settings/settings.component.ts
+index dd7f777..d6a86ff 100644
+--- a/front/src/app/features/admin/settings/settings.component.ts
++++ b/front/src/app/features/admin/settings/settings.component.ts
+@@ -15,6 +15,10 @@ import type {
+   UpdateOrganizationDto,
+ } from "../../organizations/organizations.model";
+ import { AlertService } from "../../../shared/services/alert.service";
++import {
++  ServiceTypesService,
++  type ServiceTypeRecord,
++} from "./service-types.service";
+ 
+ const errorMessage = (error: unknown, fallback: string): string => {
+   if (error instanceof HttpErrorResponse) {
+@@ -331,6 +335,154 @@ const INPUT =
+         </div>
+       }
+ 
++      <!-- Service types -->
++      <div class="bg-white rounded-lg shadow-sm border border-gray-200 mt-6 overflow-hidden">
++        <div class="flex flex-wrap gap-4 justify-between items-center p-6">
++          <div>
++            <h2 class="text-xl font-semibold text-gray-900">Service types</h2>
++            <p class="text-sm text-gray-500">
++              The kinds of work this DSP offers. Changes here are saved immediately.
++            </p>
++          </div>
++          <button
++            type="button"
++            (click)="openServiceTypeForm(null)"
++            class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
++          >
++            Add service type
++          </button>
++        </div>
++        <div class="overflow-x-auto">
++          <table class="min-w-full divide-y divide-gray-200">
++            <thead class="bg-gray-50">
++              <tr>
++                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
++                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
++                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
++                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
++                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
++              </tr>
++            </thead>
++            <tbody class="bg-white divide-y divide-gray-200">
++              @if (serviceTypesError()) {
++                <tr>
++                  <td colspan="5" class="px-6 py-8 text-center">
++                    <p class="text-sm text-red-600 mb-3">{{ serviceTypesError() }}</p>
++                    <button type="button" class="text-sm text-blue-600 hover:underline" (click)="loadServiceTypes()">
++                      Try again
++                    </button>
++                  </td>
++                </tr>
++              } @else {
++                @for (serviceType of serviceTypes(); track serviceType.id) {
++                  <tr>
++                    <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">{{ serviceType.code }}</td>
++                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ serviceType.name }}</td>
++                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
++                      {{ serviceType.hours != null ? serviceType.hours : "—" }}
++                    </td>
++                    <td class="px-6 py-4 whitespace-nowrap">
++                      <span
++                        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
++                        [class]="serviceType.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
++                      >
++                        {{ serviceType.isActive ? "Active" : "Inactive" }}
++                      </span>
++                    </td>
++                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
++                      <div class="flex gap-3 justify-end">
++                        <button type="button" class="text-blue-600 hover:text-blue-900" (click)="openServiceTypeForm(serviceType)">
++                          Edit
++                        </button>
++                        <button
++                          type="button"
++                          [disabled]="busyServiceTypeId() === serviceType.id"
++                          class="text-gray-600 hover:text-gray-900 disabled:opacity-50"
++                          (click)="toggleServiceType(serviceType)"
++                        >
++                          {{ serviceType.isActive ? "Deactivate" : "Activate" }}
++                        </button>
++                      </div>
++                    </td>
++                  </tr>
++                } @empty {
++                  <tr>
++                    <td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500">
++                      @if (serviceTypesLoading()) {
++                        Loading service types...
++                      } @else {
++                        No service types yet.
++                      }
++                    </td>
++                  </tr>
++                }
++              }
++            </tbody>
++          </table>
++        </div>
++      </div>
++
++      <!-- Service type modal -->
++      @if (serviceTypeFormOpen()) {
++        <div class="fixed inset-0 bg-gray-600/50 overflow-y-auto h-full w-full z-50" (click)="closeServiceTypeForm()">
++          <div
++            class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white"
++            (click)="$event.stopPropagation()"
++          >
++            <h3 class="text-lg font-semibold text-gray-900 mb-4">
++              {{ editingServiceType() ? "Edit service type" : "Add service type" }}
++            </h3>
++            <form [formGroup]="serviceTypeForm" (ngSubmit)="saveServiceType()" class="space-y-4">
++              @if (serviceTypeFormError()) {
++                <p class="text-sm text-red-600">{{ serviceTypeFormError() }}</p>
++              }
++              <div>
++                <label for="st-code" class="block text-sm font-medium text-gray-700 mb-1">Code</label>
++                <input id="st-code" type="text" formControlName="code" placeholder="STANDARD_PARCEL_9H" [class]="inputClass" />
++                @if (editingServiceType()) {
++                  <p class="mt-1 text-xs text-gray-500">
++                    The code cannot be changed: payment records refer to it.
++                  </p>
++                } @else {
++                  <p class="mt-1 text-xs text-gray-500">Upper case, letters, digits and underscores.</p>
++                }
++              </div>
++              <div>
++                <label for="st-name" class="block text-sm font-medium text-gray-700 mb-1">Name</label>
++                <input id="st-name" type="text" formControlName="name" placeholder="Standard Parcel 9h" [class]="inputClass" />
++              </div>
++              <div class="grid grid-cols-2 gap-4">
++                <div>
++                  <label for="st-hours" class="block text-sm font-medium text-gray-700 mb-1">Hours</label>
++                  <input id="st-hours" type="text" formControlName="hours" placeholder="9" [class]="inputClass" />
++                </div>
++                <div>
++                  <label for="st-order" class="block text-sm font-medium text-gray-700 mb-1">Order</label>
++                  <input id="st-order" type="text" formControlName="sortOrder" placeholder="10" [class]="inputClass" />
++                </div>
++              </div>
++              <div class="flex justify-end gap-3 pt-2">
++                <button
++                  type="button"
++                  (click)="closeServiceTypeForm()"
++                  [disabled]="serviceTypeSaving()"
++                  class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
++                >
++                  Cancel
++                </button>
++                <button
++                  type="submit"
++                  [disabled]="serviceTypeSaving()"
++                  class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
++                >
++                  {{ serviceTypeSaving() ? "Saving..." : "Save" }}
++                </button>
++              </div>
++            </form>
++          </div>
++        </div>
++      }
++
+       <!-- Depot modal -->
+       @if (depotFormOpen()) {
+         <div class="fixed inset-0 bg-gray-600/50 overflow-y-auto h-full w-full z-50" (click)="closeDepotForm()">
+@@ -396,6 +548,7 @@ const INPUT =
+ export class SettingsComponent implements OnInit {
+   private readonly organizationsService = inject(OrganizationsService);
+   private readonly alertService = inject(AlertService);
++  private readonly serviceTypesService = inject(ServiceTypesService);
+   private readonly fb = inject(FormBuilder);
+ 
+   readonly inputClass = INPUT;
+@@ -427,6 +580,15 @@ export class SettingsComponent implements OnInit {
+   readonly depotSaving = signal(false);
+   readonly depotFormError = signal("");
+ 
++  readonly serviceTypes = signal<ServiceTypeRecord[]>([]);
++  readonly serviceTypesLoading = signal(false);
++  readonly serviceTypesError = signal("");
++  readonly busyServiceTypeId = signal<string | null>(null);
++  readonly serviceTypeFormOpen = signal(false);
++  readonly editingServiceType = signal<ServiceTypeRecord | null>(null);
++  readonly serviceTypeSaving = signal(false);
++  readonly serviceTypeFormError = signal("");
++
+   readonly form = this.fb.nonNullable.group({
+     name: ["", [Validators.required]],
+     email: ["", [Validators.email]],
+@@ -465,8 +627,24 @@ export class SettingsComponent implements OnInit {
+     postcode: ["", [Validators.maxLength(12)]],
+   });
+ 
++  readonly serviceTypeForm = this.fb.nonNullable.group({
++    code: [
++      "",
++      [
++        Validators.required,
++        Validators.minLength(2),
++        Validators.maxLength(60),
++        Validators.pattern(/^[A-Z][A-Z0-9_]*$/),
++      ],
++    ],
++    name: ["", [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
++    hours: ["", [Validators.pattern(/^\d{1,2}(\.\d)?$/)]],
++    sortOrder: ["", [Validators.pattern(/^\d{1,4}$/)]],
++  });
++
+   ngOnInit(): void {
+     this.loadOrganization();
++    this.loadServiceTypes();
+   }
+ 
+   loadOrganization(): void {
+@@ -666,6 +844,121 @@ export class SettingsComponent implements OnInit {
+     return [depot.address, depot.postcode].filter((part) => !!part).join(", ") || "—";
+   }
+ 
++  // ---- Service types -------------------------------------------------------
++
++  loadServiceTypes(): void {
++    this.serviceTypesLoading.set(true);
++    this.serviceTypesError.set("");
++    this.serviceTypesService.list(true).subscribe({
++      next: (types) => {
++        this.serviceTypes.set(types);
++        this.serviceTypesLoading.set(false);
++      },
++      error: (error: unknown) => {
++        this.serviceTypesError.set(errorMessage(error, "Failed to load service types"));
++        this.serviceTypesLoading.set(false);
++      },
++    });
++  }
++
++  openServiceTypeForm(serviceType: ServiceTypeRecord | null): void {
++    this.editingServiceType.set(serviceType);
++    this.serviceTypeFormError.set("");
++    this.serviceTypeForm.reset({
++      code: serviceType?.code ?? "",
++      name: serviceType?.name ?? "",
++      hours: serviceType?.hours != null ? String(serviceType.hours) : "",
++      sortOrder: serviceType ? String(serviceType.sortOrder) : "",
++    });
++    // The code is the bridge back to the payment tables, so it is fixed
++    // once the row exists.
++    if (serviceType) {
++      this.serviceTypeForm.controls.code.disable();
++    } else {
++      this.serviceTypeForm.controls.code.enable();
++    }
++    this.serviceTypeFormOpen.set(true);
++  }
++
++  closeServiceTypeForm(): void {
++    if (!this.serviceTypeSaving()) {
++      this.serviceTypeFormOpen.set(false);
++    }
++  }
++
++  saveServiceType(): void {
++    if (this.serviceTypeForm.invalid) {
++      this.serviceTypeForm.markAllAsTouched();
++      return;
++    }
++    const value = this.serviceTypeForm.getRawValue();
++    const hours = value.hours.trim() ? Number(value.hours) : undefined;
++    const sortOrder = value.sortOrder.trim() ? Number(value.sortOrder) : undefined;
++    const editing = this.editingServiceType();
++
++    const request = editing
++      ? this.serviceTypesService.update(editing.id, {
++          name: value.name.trim(),
++          ...(hours !== undefined && { hours }),
++          ...(sortOrder !== undefined && { sortOrder }),
++        })
++      : this.serviceTypesService.create({
++          code: value.code.trim().toUpperCase(),
++          name: value.name.trim(),
++          ...(hours !== undefined && { hours }),
++          ...(sortOrder !== undefined && { sortOrder }),
++        });
++
++    this.serviceTypeSaving.set(true);
++    this.serviceTypeFormError.set("");
++    request.subscribe({
++      next: () => {
++        this.serviceTypeSaving.set(false);
++        this.serviceTypeFormOpen.set(false);
++        this.loadServiceTypes();
++        this.alertService.showSuccess(
++          editing ? "Service type updated" : "Service type added"
++        );
++      },
++      error: (error: unknown) => {
++        this.serviceTypeSaving.set(false);
++        this.serviceTypeFormError.set(
++          errorMessage(error, "Failed to save service type")
++        );
++      },
++    });
++  }
++
++  toggleServiceType(serviceType: ServiceTypeRecord): void {
++    const activate = !serviceType.isActive;
++    const message = activate
++      ? `Activate ${serviceType.name}?`
++      : `Deactivate ${serviceType.name}? It will be hidden from pickers; payment history that used it is kept.`;
++    if (!confirm(message)) return;
++
++    this.busyServiceTypeId.set(serviceType.id);
++    const request = activate
++      ? this.serviceTypesService.update(serviceType.id, { isActive: true })
++      : this.serviceTypesService.deactivate(serviceType.id);
++
++    request.subscribe({
++      next: () => {
++        this.busyServiceTypeId.set(null);
++        this.loadServiceTypes();
++        this.alertService.showSuccess(
++          activate ? "Service type activated" : "Service type deactivated"
++        );
++      },
++      error: (error: unknown) => {
++        this.busyServiceTypeId.set(null);
++        this.alertService.showError(
++          "Failed to update service type",
++          errorMessage(error, "Please try again")
++        );
++      },
++    });
++  }
++
+   private logoDataUrl(base64: string): string {
+     if (base64.startsWith("data:")) return base64;
+     const mime = base64.startsWith("/9j/") ? "image/jpeg" : "image/png";
+diff --git a/front/src/app/features/drivers/driver-edit-modal.component.ts b/front/src/app/features/drivers/driver-edit-modal.component.ts
+index bf74c50..35522bf 100644
+--- a/front/src/app/features/drivers/driver-edit-modal.component.ts
++++ b/front/src/app/features/drivers/driver-edit-modal.component.ts
+@@ -16,6 +16,7 @@ type TextField =
+   | "name"
+   | "phone"
+   | "email"
++  | "corporateEmail"
+   | "address"
+   | "homeDepotId"
+   | "transporterId"
+@@ -28,6 +29,7 @@ const TEXT_FIELDS: readonly TextField[] = [
+   "name",
+   "phone",
+   "email",
++  "corporateEmail",
+   "address",
+   "homeDepotId",
+   "transporterId",
+@@ -93,6 +95,22 @@ const toDateInput = (value: string | null | undefined): string => (value ? value
+                   <p class="mt-1 text-sm text-red-600">Enter a valid email address</p>
+                 }
+               </div>
++
++              <div>
++                <label for="d-corporate-email" class="block text-sm font-medium text-gray-700 mb-1">
++                  Corporate email
++                </label>
++                <input
++                  id="d-corporate-email"
++                  type="email"
++                  formControlName="corporateEmail"
++                  placeholder="name@yourdsp.com"
++                  [class]="inputClass('corporateEmail')"
++                />
++                @if (invalid('corporateEmail')) {
++                  <p class="mt-1 text-sm text-red-600">Enter a valid email address</p>
++                }
++              </div>
+               <div>
+                 <label for="d-citizenship" class="block text-sm font-medium text-gray-700 mb-1">Citizenship</label>
+                 <input
+@@ -278,6 +296,7 @@ export class DriverEditModalComponent implements OnInit {
+     name: ["", [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
+     phone: ["", [Validators.minLength(6), Validators.maxLength(20)]],
+     email: ["", [Validators.email]],
++    corporateEmail: ["", [Validators.email, Validators.maxLength(160)]],
+     address: ["", [Validators.maxLength(250)]],
+     status: ["ACTIVE" as DriverStatus],
+     homeDepotId: [""],
+@@ -311,6 +330,7 @@ export class DriverEditModalComponent implements OnInit {
+       name: driver.name ?? "",
+       phone: driver.phone ?? "",
+       email: driver.email ?? "",
++      corporateEmail: driver.corporateEmail ?? "",
+       address: driver.address ?? "",
+       status: driver.status,
+       homeDepotId: driver.homeDepotId ?? "",
+diff --git a/front/src/app/features/drivers/driver-schedule.component.html b/front/src/app/features/drivers/driver-schedule.component.html
+index 0f7229b..e95db67 100644
+--- a/front/src/app/features/drivers/driver-schedule.component.html
++++ b/front/src/app/features/drivers/driver-schedule.component.html
+@@ -268,13 +268,13 @@
+     </div>
+     } @else {
+     <!-- Availability Grid -->
+-    <div class="bg-white rounded-lg shadow overflow-hidden">
++    <div class="bg-white rounded-lg shadow">
+       <div class="flex">
+         <!-- Fixed Driver Column -->
+         <div class="w-80 flex-shrink-0 border-r border-gray-200">
+           <!-- Driver Column Header -->
+           <div
+-            class="px-6 py-4 bg-gray-50 border-b border-gray-200 h-20 flex items-center"
++            class="px-6 py-4 bg-gray-50 border-b border-gray-200 h-20 flex items-center sticky top-0 z-20"
+           >
+             <h3 class="text-sm font-semibold text-gray-900">
+               Drivers ({{ filteredDrivers().length }})
+@@ -313,14 +313,14 @@
+         </div>
+ 
+         <!-- Scrollable Weeks Section -->
+-        <div class="flex-1 overflow-x-auto">
++        <div class="flex-1 min-w-0">
+           <!-- Weeks Header -->
+-          <div class="flex bg-gray-50 border-b border-gray-200 min-w-max h-20">
+-            <!-- Week 1 (Current Week) -->
+-            <div class="flex border-r-2 border-blue-300 bg-blue-50 h-full">
++          <div class="flex bg-gray-50 border-b border-gray-200 h-20 sticky top-0 z-20">
++            <!-- Semana selecionada -->
++            <div class="flex h-full flex-1">
+               @for (day of currentWeek().days; track day.date) {
+               <div
+-                class="min-w-36 px-4 text-center border-r border-gray-200 last:border-r-0 flex flex-col justify-center h-full"
++                class="flex-1 min-w-20 px-2 text-center border-r border-gray-200 last:border-r-0 flex flex-col justify-center h-full"
+               >
+                 <div
+                   class="text-xs font-medium text-blue-600 uppercase tracking-wide font-semibold"
+@@ -338,55 +338,21 @@
+               </div>
+               }
+             </div>
+-            <!-- Week 2 (Next Week) -->
+-            <div class="flex border-r-2 border-green-300 bg-green-50 h-full">
+-              @for (day of currentWeek().days; track day.date + '-week2'; let i
+-              = $index) {
+-              <div
+-                class="min-w-36 px-4 text-center border-r border-gray-200 last:border-r-0 flex flex-col justify-center h-full"
+-              >
+-                <div
+-                  class="text-xs font-medium text-green-600 uppercase tracking-wide font-semibold"
+-                >
+-                  {{ day.dayName }}
+-                </div>
+-                <div class="text-lg font-bold mt-1 text-gray-900">
+-                  {{ getNextWeekDayNumber(day.date, 7) }}
+-                </div>
+-              </div>
+-              }
+-            </div>
+-            <!-- Week 3 (Week After) -->
+-            <div class="flex bg-purple-50 h-full">
+-              @for (day of currentWeek().days; track day.date + '-week3'; let i
+-              = $index) {
+-              <div
+-                class="min-w-36 px-4 text-center border-r border-gray-200 last:border-r-0 flex flex-col justify-center h-full"
+-              >
+-                <div
+-                  class="text-xs font-medium text-purple-600 uppercase tracking-wide font-semibold"
+-                >
+-                  {{ day.dayName }}
+-                </div>
+-                <div class="text-lg font-bold mt-1 text-gray-900">
+-                  {{ getNextWeekDayNumber(day.date, 14) }}
+-                </div>
+-              </div>
+-              }
+-            </div>
++            
++            
+           </div>
+ 
+           <!-- Availability Rows -->
+-          <div class="min-w-max">
++          <div>
+             @for (driver of filteredDrivers(); track driver.id) {
+             <div
+               class="flex hover:bg-gray-50 transition-colors min-h-24 py-3 border-b border-gray-200"
+             >
+-              <!-- Week 1 (Current Week) -->
+-              <div class="flex border-r-2 border-blue-300 bg-blue-50/30 h-full">
++              <!-- Semana selecionada -->
++              <div class="flex h-full flex-1">
+                 @for (day of currentWeek().days; track day.date) {
+                 <div
+-                  class="min-w-36 px-4 border-r border-gray-100 last:border-r-0 flex items-center justify-center h-full"
++                  class="flex-1 min-w-20 px-2 border-r border-gray-100 last:border-r-0 flex items-center justify-center h-full"
+                 >
+                   @if (getScheduleForDriverAndDate(driver.id, day.date); as
+                   schedule) {
+@@ -507,352 +473,8 @@
+                 </div>
+                 }
+               </div>
+-              <!-- Week 2 (Next Week) -->
+-              <div
+-                class="flex border-r-2 border-green-300 bg-green-50/30 h-full"
+-              >
+-                @for (day of currentWeek().days; track day.date + '-week2') {
+-                <div
+-                  class="min-w-36 px-4 border-r border-gray-200 last:border-r-0 flex items-center justify-center h-full"
+-                >
+-                  @if (getScheduleForDriverAndDate(driver.id,
+-                  getNextWeekDate(day.date, 7)); as schedule) {
+-                  <button
+-                    (click)="
+-                      editSchedule(
+-                        driver.id,
+-                        getNextWeekDate(day.date, 7),
+-                        schedule
+-                      )
+-                    "
+-                    [class]="
+-                      'w-full px-3 py-2 rounded-md text-xs font-medium cursor-pointer transition-all hover:shadow-sm schedule-button ' +
+-                      getScheduleStatusClass(schedule.status)
+-                    "
+-                  >
+-                    {{ getScheduleDisplayText(schedule) }}
+-                  </button>
+-                  } @else {
+-                  <div class="relative">
+-                    <button
+-                      (click)="
+-                        toggleDropdown(driver.id, getNextWeekDate(day.date, 7))
+-                      "
+-                      [attr.data-dropdown-id]="
+-                        driver.id + '-' + getNextWeekDate(day.date, 7)
+-                      "
+-                      class="w-full px-3 py-2 rounded-md text-xs font-medium cursor-pointer transition-all hover:shadow-sm bg-gray-50 text-gray-600 hover:bg-green-50 hover:text-green-600 border border-dashed border-green-300 hover:border-green-400 add-schedule-btn"
+-                    >
+-                      + Add
+-                      <svg
+-                        class="ml-1 w-3 h-3"
+-                        fill="none"
+-                        stroke="currentColor"
+-                        viewBox="0 0 24 24"
+-                      >
+-                        <path
+-                          stroke-linecap="round"
+-                          stroke-linejoin="round"
+-                          stroke-width="2"
+-                          d="M19 9l-7 7-7-7"
+-                        ></path>
+-                      </svg>
+-                    </button>
+-
+-                    @if (showDropdown() === driver.id + '-' +
+-                    getNextWeekDate(day.date, 7)) {
+-                    <div
+-                      class="fixed bg-white border border-gray-200 rounded-md shadow-lg z-50 min-w-36"
+-                      [style.left.px]="
+-                        getDropdownPosition(
+-                          driver.id + '-' + getNextWeekDate(day.date, 7)
+-                        ).left
+-                      "
+-                      [style.top.px]="
+-                        getDropdownPosition(
+-                          driver.id + '-' + getNextWeekDate(day.date, 7)
+-                        ).top
+-                      "
+-                    >
+-                      <button
+-                        (click)="
+-                          quickAddSchedule(
+-                            driver.id,
+-                            getNextWeekDate(day.date, 7),
+-                            'FULL_ROUTE'
+-                          )
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-blue-50 hover:text-blue-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+-                      >
+-                        <span>Full Route</span>
+-                        <span class="text-gray-400 text-xs">F</span>
+-                      </button>
+-                      <button
+-                        (click)="
+-                          quickAddSchedule(
+-                            driver.id,
+-                            getNextWeekDate(day.date, 7),
+-                            'HOLIDAY'
+-                          )
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-green-50 hover:text-green-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+-                      >
+-                        <span>Holiday</span>
+-                        <span class="text-gray-400 text-xs">H</span>
+-                      </button>
+-                      <button
+-                        (click)="
+-                          quickAddSchedule(
+-                            driver.id,
+-                            getNextWeekDate(day.date, 7),
+-                            'RIDE_ALONG'
+-                          )
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-purple-50 hover:text-purple-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+-                      >
+-                        <span>Ride Along</span>
+-                        <span class="text-gray-400 text-xs">R</span>
+-                      </button>
+-                      <button
+-                        (click)="
+-                          quickAddSchedule(
+-                            driver.id,
+-                            getNextWeekDate(day.date, 7),
+-                            'TRAINING_DAY'
+-                          )
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-yellow-50 hover:text-yellow-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+-                      >
+-                        <span>Training Day</span>
+-                        <span class="text-gray-400 text-xs">T</span>
+-                      </button>
+-                      <button
+-                        (click)="
+-                          quickAddSchedule(
+-                            driver.id,
+-                            getNextWeekDate(day.date, 7),
+-                            'SAME_DAY'
+-                          )
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-indigo-50 hover:text-indigo-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+-                      >
+-                        <span>Same Day</span>
+-                        <span class="text-gray-400 text-xs">S</span>
+-                      </button>
+-                      <button
+-                        (click)="
+-                          quickAddSchedule(
+-                            driver.id,
+-                            getNextWeekDate(day.date, 7),
+-                            'NURSERY_ROUTE'
+-                          )
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-pink-50 hover:text-pink-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+-                      >
+-                        <span>Nursery Route</span>
+-                        <span class="text-gray-400 text-xs">N</span>
+-                      </button>
+-                      <button
+-                        (click)="
+-                          quickAddSchedule(
+-                            driver.id,
+-                            getNextWeekDate(day.date, 7),
+-                            'OFF'
+-                          )
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 hover:text-gray-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+-                      >
+-                        <span>Off</span>
+-                        <span class="text-gray-400 text-xs">O</span>
+-                      </button>
+-                      <button
+-                        (click)="
+-                          addSchedule(driver.id, getNextWeekDate(day.date, 7))
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 hover:text-gray-600 transition-colors font-medium flex justify-between items-center"
+-                      >
+-                        <span>Custom...</span>
+-                        <span class="text-gray-400 text-xs">C</span>
+-                      </button>
+-                    </div>
+-                    }
+-                  </div>
+-                  }
+-                </div>
+-                }
+-              </div>
+-              <!-- Week 3 (Week After) -->
+-              <div class="flex bg-purple-50/30 h-full">
+-                @for (day of currentWeek().days; track day.date + '-week3') {
+-                <div
+-                  class="min-w-36 px-4 border-r border-gray-200 last:border-r-0 flex items-center justify-center h-full"
+-                >
+-                  @if (getScheduleForDriverAndDate(driver.id,
+-                  getNextWeekDate(day.date, 14)); as schedule) {
+-                  <button
+-                    (click)="
+-                      editSchedule(
+-                        driver.id,
+-                        getNextWeekDate(day.date, 14),
+-                        schedule
+-                      )
+-                    "
+-                    [class]="
+-                      'w-full px-3 py-2 rounded-md text-xs font-medium cursor-pointer transition-all hover:shadow-sm schedule-button ' +
+-                      getScheduleStatusClass(schedule.status)
+-                    "
+-                  >
+-                    {{ getScheduleDisplayText(schedule) }}
+-                  </button>
+-                  } @else {
+-                  <div class="relative">
+-                    <button
+-                      (click)="
+-                        toggleDropdown(driver.id, getNextWeekDate(day.date, 14))
+-                      "
+-                      [attr.data-dropdown-id]="
+-                        driver.id + '-' + getNextWeekDate(day.date, 14)
+-                      "
+-                      class="w-full px-3 py-2 rounded-md text-xs font-medium cursor-pointer transition-all hover:shadow-sm bg-gray-50 text-gray-600 hover:bg-purple-50 hover:text-purple-600 border border-dashed border-purple-300 hover:border-purple-400 add-schedule-btn"
+-                    >
+-                      + Add
+-                      <svg
+-                        class="ml-1 w-3 h-3"
+-                        fill="none"
+-                        stroke="currentColor"
+-                        viewBox="0 0 24 24"
+-                      >
+-                        <path
+-                          stroke-linecap="round"
+-                          stroke-linejoin="round"
+-                          stroke-width="2"
+-                          d="M19 9l-7 7-7-7"
+-                        ></path>
+-                      </svg>
+-                    </button>
+-
+-                    @if (showDropdown() === driver.id + '-' +
+-                    getNextWeekDate(day.date, 14)) {
+-                    <div
+-                      class="fixed bg-white border border-gray-200 rounded-md shadow-lg z-50 min-w-36"
+-                      [style.left.px]="
+-                        getDropdownPosition(
+-                          driver.id + '-' + getNextWeekDate(day.date, 14)
+-                        ).left
+-                      "
+-                      [style.top.px]="
+-                        getDropdownPosition(
+-                          driver.id + '-' + getNextWeekDate(day.date, 14)
+-                        ).top
+-                      "
+-                    >
+-                      <button
+-                        (click)="
+-                          quickAddSchedule(
+-                            driver.id,
+-                            getNextWeekDate(day.date, 14),
+-                            'FULL_ROUTE'
+-                          )
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-blue-50 hover:text-blue-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+-                      >
+-                        <span>Full Route</span>
+-                        <span class="text-gray-400 text-xs">F</span>
+-                      </button>
+-                      <button
+-                        (click)="
+-                          quickAddSchedule(
+-                            driver.id,
+-                            getNextWeekDate(day.date, 14),
+-                            'HOLIDAY'
+-                          )
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-green-50 hover:text-green-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+-                      >
+-                        <span>Holiday</span>
+-                        <span class="text-gray-400 text-xs">H</span>
+-                      </button>
+-                      <button
+-                        (click)="
+-                          quickAddSchedule(
+-                            driver.id,
+-                            getNextWeekDate(day.date, 14),
+-                            'RIDE_ALONG'
+-                          )
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-purple-50 hover:text-purple-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+-                      >
+-                        <span>Ride Along</span>
+-                        <span class="text-gray-400 text-xs">R</span>
+-                      </button>
+-                      <button
+-                        (click)="
+-                          quickAddSchedule(
+-                            driver.id,
+-                            getNextWeekDate(day.date, 14),
+-                            'TRAINING_DAY'
+-                          )
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-yellow-50 hover:text-yellow-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+-                      >
+-                        <span>Training Day</span>
+-                        <span class="text-gray-400 text-xs">T</span>
+-                      </button>
+-                      <button
+-                        (click)="
+-                          quickAddSchedule(
+-                            driver.id,
+-                            getNextWeekDate(day.date, 14),
+-                            'SAME_DAY'
+-                          )
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-indigo-50 hover:text-indigo-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+-                      >
+-                        <span>Same Day</span>
+-                        <span class="text-gray-400 text-xs">S</span>
+-                      </button>
+-                      <button
+-                        (click)="
+-                          quickAddSchedule(
+-                            driver.id,
+-                            getNextWeekDate(day.date, 14),
+-                            'NURSERY_ROUTE'
+-                          )
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-pink-50 hover:text-pink-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+-                      >
+-                        <span>Nursery Route</span>
+-                        <span class="text-gray-400 text-xs">N</span>
+-                      </button>
+-                      <button
+-                        (click)="
+-                          quickAddSchedule(
+-                            driver.id,
+-                            getNextWeekDate(day.date, 14),
+-                            'OFF'
+-                          )
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 hover:text-gray-600 transition-colors border-b border-gray-100 flex justify-between items-center"
+-                      >
+-                        <span>Off</span>
+-                        <span class="text-gray-400 text-xs">O</span>
+-                      </button>
+-                      <button
+-                        (click)="
+-                          addSchedule(driver.id, getNextWeekDate(day.date, 14))
+-                        "
+-                        class="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 hover:text-gray-600 transition-colors font-medium flex justify-between items-center"
+-                      >
+-                        <span>Custom...</span>
+-                        <span class="text-gray-400 text-xs">C</span>
+-                      </button>
+-                    </div>
+-                    }
+-                  </div>
+-                  }
+-                </div>
+-                }
+-              </div>
++              
++              
+             </div>
+             }
+           </div>
+diff --git a/front/src/app/features/drivers/drivers.component.html b/front/src/app/features/drivers/drivers.component.html
+index 7a35366..5dd17fb 100644
+--- a/front/src/app/features/drivers/drivers.component.html
++++ b/front/src/app/features/drivers/drivers.component.html
+@@ -42,9 +42,9 @@
+   </div>
+ 
+   <div class="p-6">
+-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
++    <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+       <!-- Main Content -->
+-      <div class="lg:col-span-3 space-y-6">
++      <div class="xl:col-span-3 space-y-6 min-w-0">
+         <!-- Stats Cards (GET /api/drivers/stats) -->
+         @if (stats().length > 0) {
+           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+@@ -216,22 +216,22 @@
+                       <table class="min-w-full divide-y divide-gray-200">
+                         <thead class="bg-gray-50">
+                           <tr>
+-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
++                            <th class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                               Driver
+                             </th>
+-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
++                            <th class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                               Contact
+                             </th>
+-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
++                            <th class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                               Home depot
+                             </th>
+-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
++                            <th class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                               Status
+                             </th>
+-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
++                            <th class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                               Licence
+                             </th>
+-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
++                            <th class="px-2 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                               Actions
+                             </th>
+                           </tr>
+@@ -239,7 +239,7 @@
+                         <tbody class="bg-white divide-y divide-gray-200">
+                           @for (driver of filteredDrivers(); track driver.id) {
+                             <tr class="hover:bg-gray-50">
+-                              <td class="px-6 py-4 whitespace-nowrap">
++                              <td class="px-2 py-4 whitespace-nowrap">
+                                 <div class="flex items-center">
+                                   <div class="flex-shrink-0 h-10 w-10">
+                                     <div
+@@ -260,18 +260,18 @@
+                                   </div>
+                                 </div>
+                               </td>
+-                              <td class="px-6 py-4 whitespace-nowrap">
++                              <td class="px-2 py-4 whitespace-nowrap">
+                                 <div class="text-sm text-gray-900">{{ driver.phone }}</div>
+                                 <div class="text-sm text-gray-500">{{ driver.email }}</div>
+                               </td>
+-                              <td class="px-6 py-4 whitespace-nowrap">
++                              <td class="px-2 py-4 whitespace-nowrap">
+                                 <span
+                                   class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+                                 >
+                                   {{ depotLabel(driver) }}
+                                 </span>
+                               </td>
+-                              <td class="px-6 py-4 whitespace-nowrap">
++                              <td class="px-2 py-4 whitespace-nowrap">
+                                 <span
+                                   [class]="
+                                     'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' +
+@@ -286,7 +286,7 @@
+                                   </div>
+                                 }
+                               </td>
+-                              <td class="px-6 py-4 whitespace-nowrap">
++                              <td class="px-2 py-4 whitespace-nowrap">
+                                 <div class="text-sm text-gray-900">{{ driver.points }} points</div>
+                                 @if (driver.licenseExpiry) {
+                                   <div class="text-xs text-gray-500">
+@@ -294,7 +294,7 @@
+                                   </div>
+                                 }
+                               </td>
+-                              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
++                              <td class="px-2 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                 <button
+                                   type="button"
+                                   (click)="viewDriverDetails(driver)"
+diff --git a/front/src/app/features/drivers/drivers.model.ts b/front/src/app/features/drivers/drivers.model.ts
+index a381788..ae54938 100644
+--- a/front/src/app/features/drivers/drivers.model.ts
++++ b/front/src/app/features/drivers/drivers.model.ts
+@@ -22,6 +22,8 @@ export interface Driver {
+   avatar?: string;
+   phone: string;
+   email: string;
++  /** Company-issued address; the personal one stays in `email` */
++  corporateEmail?: string | null;
+   /** Legacy free-text depot name, kept in sync with homeDepot by the API */
+   depot: string;
+   homeDepotId?: string | null;
+@@ -64,6 +66,8 @@ export interface UpdateDriverRequest {
+   name?: string;
+   phone?: string;
+   email?: string;
++  /** Empty string clears it */
++  corporateEmail?: string;
+   address?: string;
+   status?: DriverStatus;
+   homeDepotId?: string;
+diff --git a/front/src/app/features/recruitment/candidates/candidate-detail.component.html b/front/src/app/features/recruitment/candidates/candidate-detail.component.html
+index dd924b3..2014bc9 100644
+--- a/front/src/app/features/recruitment/candidates/candidate-detail.component.html
++++ b/front/src/app/features/recruitment/candidates/candidate-detail.component.html
+@@ -115,6 +115,28 @@
+             </span>
+           </div>
+           <div class="flex space-x-3">
++            @if (!isEditing() && canHire()) {
++            <button
++              type="button"
++              (click)="openHireModal()"
++              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
++            >
++              <svg
++                class="-ml-1 mr-2 h-4 w-4"
++                fill="none"
++                stroke="currentColor"
++                viewBox="0 0 24 24"
++              >
++                <path
++                  stroke-linecap="round"
++                  stroke-linejoin="round"
++                  stroke-width="2"
++                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
++                />
++              </svg>
++              Hire as driver
++            </button>
++            }
+             @if (!isEditing()) {
+             <button
+               type="button"
+@@ -693,6 +715,74 @@
+         </div>
+       </div>
+ 
++      <!-- Recruitment Pipeline -->
++      <div class="bg-white shadow sm:rounded-lg">
++        <div class="px-6 py-4 border-b border-gray-200">
++          <h2 class="text-lg font-medium text-gray-900">Recruitment Pipeline</h2>
++          <p class="mt-1 text-sm text-gray-500">
++            Progress of this candidate through screening and training
++          </p>
++        </div>
++        <div class="px-6 py-4 space-y-6">
++          <!-- Initial contact -->
++          <div class="flex items-center">
++            <input
++              type="checkbox"
++              formControlName="initialContactDone"
++              [attr.disabled]="!isEditing() ? true : null"
++              id="initialContactDone"
++              class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
++            />
++            <label
++              for="initialContactDone"
++              class="ml-2 block text-sm text-gray-900"
++            >
++              Initial contact made
++            </label>
++          </div>
++
++          <!-- Screening call outcome -->
++          <div>
++            <label
++              for="miniInterviewResult"
++              class="block text-sm font-medium text-gray-700 mb-2"
++            >
++              Screening call outcome
++            </label>
++            <textarea
++              id="miniInterviewResult"
++              formControlName="miniInterviewResult"
++              rows="3"
++              maxlength="2000"
++              [readonly]="!isEditing()"
++              placeholder="How the screening call went"
++              class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
++              [class.bg-gray-50]="!isEditing()"
++            ></textarea>
++          </div>
++
++          <!-- Training day outcome -->
++          <div>
++            <label
++              for="trainingTestResult"
++              class="block text-sm font-medium text-gray-700 mb-2"
++            >
++              Training day outcome
++            </label>
++            <textarea
++              id="trainingTestResult"
++              formControlName="trainingTestResult"
++              rows="3"
++              maxlength="2000"
++              [readonly]="!isEditing()"
++              placeholder="Result of the training-day assessment"
++              class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
++              [class.bg-gray-50]="!isEditing()"
++            ></textarea>
++          </div>
++        </div>
++      </div>
++
+       <!-- Agreement Information -->
+       <div class="bg-white shadow sm:rounded-lg">
+         <div class="px-6 py-4 border-b border-gray-200">
+@@ -1061,3 +1151,148 @@
+   [documentTitle]="modalDocumentTitle()"
+   (close)="closeDocumentModal()"
+ ></app-document-viewer-modal>
++
++<!-- Hire candidate as driver -->
++@if (isHireModalOpen()) {
++<div
++  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
++  (click)="$event.target === $event.currentTarget && closeHireModal()"
++>
++  <div class="w-full max-w-lg rounded-lg bg-white shadow-xl">
++    <div class="border-b border-gray-200 px-6 py-4">
++      <h2 class="text-lg font-medium text-gray-900">
++        @if (hireResult()) { Driver created } @else { Hire
++        {{ candidate()?.name }} as a driver }
++      </h2>
++    </div>
++
++    @if (hireResult(); as result) {
++    <!-- Success -->
++    <div class="space-y-4 px-6 py-5">
++      <p class="text-sm text-gray-700">{{ result.message }}</p>
++
++      <div class="rounded-md bg-gray-50 p-4">
++        <p class="text-sm text-gray-700">
++          <span class="font-medium">Login email:</span> {{ result.email }}
++        </p>
++        @if (result.generatedPassword) {
++        <p class="mt-2 text-sm text-gray-700">
++          <span class="font-medium">Temporary password:</span>
++          <code class="rounded bg-white px-2 py-1 font-mono">{{
++            result.generatedPassword
++          }}</code>
++        </p>
++        <p class="mt-2 text-xs text-gray-500">
++          Shown once only. Copy it now and pass it to the driver.
++        </p>
++        }
++      </div>
++    </div>
++    <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
++      <button
++        type="button"
++        (click)="closeHireModal()"
++        class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
++      >
++        Close
++      </button>
++      <button
++        type="button"
++        (click)="goToDriver()"
++        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
++      >
++        Open driver record
++      </button>
++    </div>
++    } @else {
++    <!-- Form -->
++    <form [formGroup]="hireForm" (ngSubmit)="submitHire()">
++      <div class="space-y-4 px-6 py-5">
++        @if (hireError()) {
++        <div class="rounded-md border border-red-200 bg-red-50 p-3">
++          <p class="text-sm text-red-800">{{ hireError() }}</p>
++        </div>
++        }
++
++        <div>
++          <label
++            for="hire-depot"
++            class="mb-1 block text-sm font-medium text-gray-700"
++          >
++            Home depot <span class="text-red-500">*</span>
++          </label>
++          <select
++            id="hire-depot"
++            formControlName="homeDepotId"
++            class="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
++          >
++            <option value="">Select a depot</option>
++            @for (depot of depots(); track depot.id) {
++            <option [value]="depot.id">{{ depot.code }} — {{ depot.name }}</option>
++            }
++          </select>
++        </div>
++
++        <div>
++          <label
++            for="hire-transporter"
++            class="mb-1 block text-sm font-medium text-gray-700"
++          >
++            Transporter ID <span class="text-red-500">*</span>
++          </label>
++          <input
++            id="hire-transporter"
++            type="text"
++            formControlName="transporterId"
++            placeholder="Amazon Transporter ID"
++            class="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
++          />
++          <p class="mt-1 text-xs text-gray-500">
++            Must be unique within this DSP.
++          </p>
++        </div>
++
++        <div>
++          <label
++            for="hire-corporate-email"
++            class="mb-1 block text-sm font-medium text-gray-700"
++          >
++            Corporate email
++          </label>
++          <input
++            id="hire-corporate-email"
++            type="email"
++            formControlName="corporateEmail"
++            placeholder="name@yourdsp.com (optional)"
++            class="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
++          />
++        </div>
++
++        <p class="text-xs text-gray-500">
++          This creates the driver record and a DRIVER login, and closes the
++          candidate out of the pipeline. It cannot be undone from this screen.
++        </p>
++      </div>
++
++      <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
++        <button
++          type="button"
++          (click)="closeHireModal()"
++          [disabled]="hiring()"
++          class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
++        >
++          Cancel
++        </button>
++        <button
++          type="submit"
++          [disabled]="hiring() || hireForm.invalid"
++          class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
++        >
++          @if (hiring()) { Hiring... } @else { Confirm hire }
++        </button>
++      </div>
++    </form>
++    }
++  </div>
++</div>
++}
+diff --git a/front/src/app/features/recruitment/candidates/candidate-detail.component.ts b/front/src/app/features/recruitment/candidates/candidate-detail.component.ts
+index d945ad6..4710829 100644
+--- a/front/src/app/features/recruitment/candidates/candidate-detail.component.ts
++++ b/front/src/app/features/recruitment/candidates/candidate-detail.component.ts
+@@ -14,6 +14,7 @@ import {
+   type Candidate,
+   type UpdateCandidateDto,
+   type CandidateDocuments,
++  type DepotOption,
+ } from "./candidates.service";
+ import { DocumentViewerModalComponent } from "./document-viewer-modal.component";
+ 
+@@ -40,6 +41,36 @@ export class CandidateDetailComponent {
+   readonly modalDocumentUrl = signal<string | null>(null);
+   readonly modalDocumentTitle = signal<string>("");
+ 
++  // Hire (candidate -> driver) modal state
++  readonly isHireModalOpen = signal(false);
++  readonly hiring = signal(false);
++  readonly hireError = signal<string | null>(null);
++  readonly depots = signal<DepotOption[]>([]);
++  /** Set once the hire succeeds, so the recruiter can copy the password */
++  readonly hireResult = signal<{
++    driverId: string;
++    email: string;
++    generatedPassword: string | null;
++    message: string;
++  } | null>(null);
++
++  readonly hireForm: FormGroup = this.fb.group({
++    homeDepotId: ["", [Validators.required]],
++    transporterId: ["", [Validators.required, Validators.maxLength(40)]],
++    corporateEmail: ["", [Validators.email]],
++  });
++
++  /**
++   * A candidate linked to a login has already been hired. The API enforces
++   * this too (400); this only decides whether the button is shown.
++   */
++  readonly canHire = computed(() => {
++    const candidate = this.candidate();
++    return (
++      !!candidate && !candidate.userId && candidate.status !== "ACTIVE_DRIVER"
++    );
++  });
++
+   // Computed image URLs for reliable loading
+   readonly insuranceImageUrl = computed(() => {
+     const candidate = this.candidate();
+@@ -157,6 +188,11 @@ export class CandidateDetailComponent {
+       sla: [""],
+       account: [""],
+ 
++      // Recruitment pipeline tracking
++      initialContactDone: [false],
++      miniInterviewResult: [""],
++      trainingTestResult: [""],
++
+       // Emergency Contact (from registration)
+       emergencyContactName: ["", [Validators.required]],
+       emergencyContactPhone: ["", [Validators.required]],
+@@ -265,6 +301,11 @@ export class CandidateDetailComponent {
+       sla: candidate.sla || "",
+       account: candidate.account || "",
+ 
++      // Recruitment pipeline tracking
++      initialContactDone: candidate.initialContactDone || false,
++      miniInterviewResult: candidate.miniInterviewResult || "",
++      trainingTestResult: candidate.trainingTestResult || "",
++
+       // Emergency Contact - extract from documents.additionalData if stored there
+       emergencyContactName:
+         candidate.emergencyContactName ||
+@@ -335,6 +376,11 @@ export class CandidateDetailComponent {
+       sla: formValue.sla,
+       account: formValue.account,
+ 
++      // Recruitment pipeline tracking
++      initialContactDone: formValue.initialContactDone,
++      miniInterviewResult: formValue.miniInterviewResult,
++      trainingTestResult: formValue.trainingTestResult,
++
+       // Emergency Contact
+       emergencyContactName: formValue.emergencyContactName,
+       emergencyContactPhone: formValue.emergencyContactPhone,
+@@ -507,6 +553,95 @@ export class CandidateDetailComponent {
+     return mappings[formatted] || formatted;
+   }
+ 
++  // ---- Hire: candidate -> driver -------------------------------------------
++
++  openHireModal(): void {
++    this.hireError.set(null);
++    this.hireResult.set(null);
++    this.hireForm.reset({
++      homeDepotId: "",
++      transporterId: "",
++      corporateEmail: "",
++    });
++    this.isHireModalOpen.set(true);
++
++    this.candidatesService.getDepots().subscribe({
++      next: (depots) => this.depots.set(depots.filter((depot) => depot.isActive)),
++      error: () =>
++        this.hireError.set("Could not load depots. Close this and try again."),
++    });
++  }
++
++  closeHireModal(): void {
++    if (this.hiring()) return;
++    this.isHireModalOpen.set(false);
++    this.hireResult.set(null);
++    this.hireError.set(null);
++  }
++
++  submitHire(): void {
++    const candidate = this.candidate();
++    if (!candidate || this.hireForm.invalid) {
++      this.hireForm.markAllAsTouched();
++      return;
++    }
++
++    const raw = this.hireForm.value as {
++      homeDepotId: string;
++      transporterId: string;
++      corporateEmail?: string;
++    };
++
++    this.hiring.set(true);
++    this.hireError.set(null);
++
++    this.candidatesService
++      .convertToDriver(candidate.id, {
++        homeDepotId: raw.homeDepotId,
++        transporterId: raw.transporterId.trim(),
++        ...(raw.corporateEmail?.trim()
++          ? { corporateEmail: raw.corporateEmail.trim() }
++          : {}),
++      })
++      .subscribe({
++        next: (result) => {
++          this.hiring.set(false);
++          this.hireResult.set({
++            driverId: result.driverId,
++            email: result.email,
++            generatedPassword: result.generatedPassword,
++            message: result.message,
++          });
++          // Reload so the screen reflects the closed-out candidate
++          this.candidatesService
++            .getCandidateById(candidate.id)
++            .subscribe({ next: (updated) => this.candidate.set(updated) });
++        },
++        error: (err: unknown) => {
++          this.hiring.set(false);
++          // The API lists what is missing when the record is incomplete —
++          // show its message rather than a generic failure.
++          this.hireError.set(this.hireErrorMessage(err));
++        },
++      });
++  }
++
++  goToDriver(): void {
++    const result = this.hireResult();
++    this.isHireModalOpen.set(false);
++    void this.router.navigate(
++      result ? ["/drivers", result.driverId] : ["/drivers"]
++    );
++  }
++
++  private hireErrorMessage(err: unknown): string {
++    const message = (err as { error?: { message?: string | string[] } })?.error
++      ?.message;
++    if (Array.isArray(message)) return message.join(". ");
++    if (typeof message === "string" && message.trim()) return message;
++    return "Could not hire this candidate. Please try again.";
++  }
++
+   // Helper method to safely open document modal with formatted URL
+   openDocumentModalSafe(documentData: string, title: string): void {
+     const formattedUrl = this.formatImageSrc(documentData);
+diff --git a/front/src/app/features/recruitment/candidates/candidates.component.ts b/front/src/app/features/recruitment/candidates/candidates.component.ts
+index 4494203..6bbeaa5 100644
+--- a/front/src/app/features/recruitment/candidates/candidates.component.ts
++++ b/front/src/app/features/recruitment/candidates/candidates.component.ts
+@@ -12,6 +12,7 @@ import { Router } from "@angular/router";
+ import { environment } from "../../../../environments/environment";
+ import { CandidateModalComponent } from "./candidate-modal.component";
+ import { FormsModule } from "@angular/forms";
++import { apiErrorMessage } from "../../../shared/utils/api-error";
+ 
+ interface Candidate {
+   id: string;
+@@ -231,7 +232,7 @@ export class CandidatesComponent {
+         },
+         error: (err) => {
+           console.error("Failed to add candidate", err);
+-          this.error.set(err.error?.message || "Failed to add candidate");
++          this.error.set(apiErrorMessage(err, "Failed to add candidate"));
+         },
+       });
+   }
+@@ -266,9 +267,7 @@ export class CandidatesComponent {
+         error: (err) => {
+           this.sendingSms.set(false);
+           console.error("Failed to send WhatsApp message", err);
+-          this.error.set(
+-            err.error?.message || "Failed to send WhatsApp message"
+-          );
++          this.error.set(apiErrorMessage(err, "Failed to send WhatsApp message"));
+         },
+       });
+   }
+diff --git a/front/src/app/features/recruitment/candidates/candidates.service.ts b/front/src/app/features/recruitment/candidates/candidates.service.ts
+index 832ced5..f5da454 100644
+--- a/front/src/app/features/recruitment/candidates/candidates.service.ts
++++ b/front/src/app/features/recruitment/candidates/candidates.service.ts
+@@ -79,6 +79,14 @@ export interface Candidate {
+   account?: string;
+   formCompleted?: boolean;
+ 
++  // Recruitment pipeline tracking
++  initialContactDone?: boolean;
++  miniInterviewResult?: string;
++  trainingTestResult?: string;
++
++  /** Set once the candidate has been hired and given a login */
++  userId?: string | null;
++
+   // Document Storage
+   documents?: CandidateDocuments; // Updated to use proper interface
+   documentsCount?: number;
+@@ -162,6 +170,33 @@ export interface SendSmsDto {
+   candidateId: string;
+ }
+ 
++/** Depot as returned by GET /api/depots */
++export interface DepotOption {
++  id: string;
++  code: string;
++  name: string;
++  isActive: boolean;
++}
++
++/** Body of POST /api/recruitment/candidates/:id/convert-to-driver */
++export interface ConvertToDriverRequest {
++  homeDepotId: string;
++  transporterId: string;
++  corporateEmail?: string;
++  joinDate?: string;
++  contractType?: string;
++}
++
++export interface ConvertToDriverResponse {
++  success: boolean;
++  driverId: string;
++  userId: string;
++  email: string;
++  /** Present only when the API generated the password; shown once */
++  generatedPassword: string | null;
++  message: string;
++}
++
+ export interface UpdateCandidateDto {
+   name?: string;
+   phoneNumber?: string;
+@@ -227,6 +262,9 @@ export interface UpdateCandidateDto {
+   drugTestDate?: string;
+   trainingCertificate?: string;
+   trainingCompletionDate?: string;
++  initialContactDone?: boolean;
++  miniInterviewResult?: string;
++  trainingTestResult?: string;
+ }
+ 
+ @Injectable({
+@@ -258,6 +296,22 @@ export class CandidatesService {
+     );
+   }
+ 
++  /** Active depots of the current DSP, for the hire form */
++  getDepots(): Observable<DepotOption[]> {
++    return this.http.get<DepotOption[]>(`${environment.apiUrl}/depots`);
++  }
++
++  /** Hire a candidate: creates the Driver record and the DRIVER login */
++  convertToDriver(
++    id: string,
++    body: ConvertToDriverRequest
++  ): Observable<ConvertToDriverResponse> {
++    return this.http.post<ConvertToDriverResponse>(
++      `${this.API_URL}/candidates/${id}/convert-to-driver`,
++      body
++    );
++  }
++
+   deleteCandidate(id: string): Observable<void> {
+     return this.http.delete<void>(`${this.API_URL}/candidates/${id}`);
+   }
+-- 
+2.43.0
+

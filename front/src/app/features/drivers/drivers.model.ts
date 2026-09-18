@@ -22,6 +22,8 @@ export interface Driver {
   avatar?: string;
   phone: string;
   email: string;
+  /** Company-issued address; the personal one stays in `email` */
+  corporateEmail?: string | null;
   /** Legacy free-text depot name, kept in sync with homeDepot by the API */
   depot: string;
   homeDepotId?: string | null;
@@ -64,6 +66,8 @@ export interface UpdateDriverRequest {
   name?: string;
   phone?: string;
   email?: string;
+  /** Empty string clears it */
+  corporateEmail?: string;
   address?: string;
   status?: DriverStatus;
   homeDepotId?: string;

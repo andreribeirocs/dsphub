@@ -30,7 +30,6 @@ export class EnhancedValidationPipe extends NestValidationPipe {
         const formattedErrors = errors.map((error) => ({
           field: error.property,
           constraints: error.constraints,
-          value: error.value,
         }));
         const logger = new Logger("ValidationPipe");
         logger.error(
@@ -46,7 +45,7 @@ export class EnhancedValidationPipe extends NestValidationPipe {
 
   async transform(value: any, metadata: ArgumentMetadata): Promise<any> {
     // Skip processing for file uploads to preserve Buffer objects
-    if (this.isFileUpload(value)) {
+    if (metadata.type === "custom" && this.isFileUpload(value)) {
       return value;
     }
 
@@ -68,7 +67,7 @@ export class EnhancedValidationPipe extends NestValidationPipe {
         value.fieldname &&
         value.originalname &&
         value.mimetype &&
-        value.buffer
+        Buffer.isBuffer(value.buffer)
       ) {
         return true;
       }

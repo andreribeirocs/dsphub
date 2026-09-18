@@ -8,6 +8,7 @@ import {
   Query,
   Patch,
   Delete,
+  BadRequestException,
 } from "@nestjs/common";
 import { RecruitmentService } from "./recruitment.service";
 import { CreateCandidateDto } from "./dto/create-candidate.dto";
@@ -16,6 +17,7 @@ import { CompleteRegistrationDto } from "./dto/complete-registration.dto";
 import { BetterAuthGuard } from "../auth/guards/better-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import {
   ThrottleStrict,
   ThrottleModerate,
@@ -31,11 +33,12 @@ import {
 import { GetCandidatesDto } from "./dto/get-candidates.dto";
 import { UpdateCandidateDto } from "./dto/update-candidate.dto";
 import { ConvertToDriverDto } from "./dto/convert-to-driver.dto";
+import { RecruitmentWorkflowService } from "./workflow/recruitment-workflow.service";
 
 @ApiTags("recruitment")
 @Controller("recruitment")
 export class RecruitmentController {
-  constructor(private recruitmentService: RecruitmentService) {}
+  constructor(private recruitmentService: RecruitmentService, private workflow: RecruitmentWorkflowService) {}
 
   @ApiOperation({
     summary: "Create a new candidate (recruitment manager only)",
@@ -67,8 +70,11 @@ export class RecruitmentController {
   @UseGuards(BetterAuthGuard, RolesGuard)
   @Roles("SUPER_ADMIN", "OWNER", "DIRECTOR", "MANAGER_RECRUITMENT")
   @Post("send-sms")
-  async sendSms(@Body() sendSmsDto: SendSmsDto) {
-    return this.recruitmentService.sendSms(sendSmsDto.candidateId);
+  async sendSms(@Body() sendSmsDto: SendSmsDto, @CurrentUser() user: { id: string }) {
+    const result = await this.workflow.contact({ channel: "whatsapp", candidateIds: [sendSmsDto.candidateId] }, user.id);
+    const invitation = result.results[0];
+    if (!invitation.success) throw new BadRequestException(invitation.message);
+    return { success: true, message: invitation.message };
   }
 
   @ApiOperation({ summary: "Validate registration token (public endpoint)" })
@@ -180,9 +186,14 @@ export class RecruitmentController {
   @ApiBody({ type: ConvertToDriverDto })
   async convertToDriver(
     @Param("id") id: string,
-    @Body() convertToDriverDto: ConvertToDriverDto
+    @Body() convertToDriverDto: ConvertToDriverDto,
+    @CurrentUser() user: { id: string }
   ) {
-    return this.recruitmentService.convertToDriver(id, convertToDriverDto);
+    return this.recruitmentService.convertToDriver(
+      id,
+      convertToDriverDto,
+      user?.id
+    );
   }
 
   @Delete("candidates/:id")

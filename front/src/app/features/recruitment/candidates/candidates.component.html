@@ -166,6 +166,8 @@
             <div class="text-sm font-medium text-gray-900">
               {{ candidate.name }}
             </div>
+            @if (candidate.documentFlags?.length) { <div class="text-xs font-semibold text-red-700">Flag: document rejected — review required</div> }
+            @if (candidate.contactPreference) { <div class="text-xs text-gray-500">Preferred: {{ candidate.contactPreference === 'email' ? 'Email' : 'WhatsApp' }}</div> }
             @if (candidate.email) {
             <div class="text-sm text-gray-500">
               {{ candidate.email }}
@@ -195,10 +197,10 @@
               (click)="openSendSmsModal(candidate); $event.stopPropagation()"
               class="text-indigo-600 hover:text-indigo-900"
             >
-              Send WhatsApp
+              Send invitation
             </button>
             } @else {
-            <span class="text-gray-400">WhatsApp Sent</span>
+            <span class="text-gray-400">{{ candidate.status === 'SMS_SENT' ? 'Invitation sent' : 'Application received' }}</span>
             }
           </td>
           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -534,7 +536,7 @@
                   (click)="openSendSmsModal(selectedCandidateForProfile()!)"
                   class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm"
                 >
-                  Send WhatsApp Message
+                  Send registration invitation
                 </button>
                 }
               </div>

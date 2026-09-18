@@ -38,6 +38,7 @@ model User {
   routePriceUpdates     RoutePrice[]
   suspiciousLogins      SuspiciousLogin[]
   sentInvoices          DriverInvoice[]
+  auditLogs             AuditLog[]        @relation("AuditLogActor")
 
   @@index([role])
   @@index([status])
@@ -158,6 +159,9 @@ model Organization {
   routePrices        RoutePrice[]
   loginAttempts      LoginAttempt[]
   serviceTypes       ServiceType[]
+  auditLogs          AuditLog[]
+  stints             DriverStint[]
+  driverDocuments    DriverDocument[]
 
   @@index([slug])
   @@index([isActive])
@@ -190,6 +194,41 @@ model ServiceType {
   @@index([organizationId])
   @@index([organizationId, isActive])
   @@map("service_type")
+}
+
+/// Audit trail of things that happened inside a DSP.
+///
+/// Before this table the Audit Logs screen could only show sign-ins
+/// (login_attempt) and route price changes (payment_history), so anything else
+/// a user did left no trace. `security_events` was not usable for this: it has
+/// no organizationId, so it cannot be scoped to one DSP.
+///
+/// Rows are written, never updated or deleted — that is the point of a trail.
+model AuditLog {
+  id             String   @id @default(uuid())
+  organizationId String
+  /// Machine key, e.g. CANDIDATE_CONVERTED_TO_DRIVER
+  action         String
+  /// Model the action touched, e.g. "Driver"
+  entityType     String
+  entityId       String?
+  /// Who did it. Null for actions taken by the system itself.
+  actorUserId    String?
+  /// One sentence, shown as-is in the Audit Logs screen
+  summary        String
+  /// Anything structured worth keeping (ids, before/after, reason)
+  metadata       Json?
+  ipAddress      String?
+  userAgent      String?
+  occurredAt     DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, occurredAt])
+  @@index([organizationId, action])
+  @@index([entityType, entityId])
+  @@map("audit_log")
 }
 
 /// Domains a DSP uses to access DSPHub (e.g. app.mydsp.co.uk).
@@ -367,14 +406,20 @@ model Driver {
   rtwStatus           String           @default("PENDING")
   status              String           @default("PENDING")
   totalTrips          Int              @default(0)
-  transporterId       String
+  /// Amazon's ID for the CURRENT passage. Null while the person is still in
+  /// onboarding (it is only issued on activation) and after they offboard.
+  /// The full series lives on DriverStint.
+  transporterId       String?
   user                User             @relation(fields: [userId], references: [id])
   organization        Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   paymentRecords      DriverPayment[]
   schedules           DriverSchedule[]
   invoices            DriverInvoice[]
+  stints              DriverStint[]
+  driverDocuments     DriverDocument[]
 
   @@unique([organizationId, transporterId])
+  @@index([organizationId, insuranceNumber])
   @@index([organizationId])
   @@index([homeDepotId])
   @@index([organizationId, userId])
@@ -492,7 +537,7 @@ model Candidate {
 
   // Recruitment pipeline tracking
   /// Recruiter has made first contact with the candidate
-  initialContactDone Boolean   @default(false)
+  initialContactDone  Boolean @default(false)
   /// Free-text outcome of the screening call
   miniInterviewResult String?
   /// Free-text outcome of the training-day assessment
@@ -955,4 +1000,100 @@ enum InvoiceStatus {
   APPROVED
   SENT
   CANCELLED
+}
+
+/// One engagement of one person with the DSP. A person who leaves and comes
+/// back gets a NEW stint - new login, new transporter ID - while the Driver
+/// row stays the same, so payments, schedules and invoices keep pointing at
+/// one person and the history survives the gap.
+model DriverStint {
+  id             String            @id @default(uuid())
+  organizationId String
+  driverId       String
+  /// The login issued for THIS passage. Each onboarding gets a new email.
+  userId         String?
+  /// Amazon's transporter ID for this passage. Null until activation: it does
+  /// not exist while the person is still in classroom or ride along.
+  transporterId  String?
+  /// The candidate record this passage came out of, when it came from recruitment
+  candidateId    String?
+  startDate      DateTime
+  /// Null while the person is still working
+  endDate        DateTime?
+  exitReason     DriverExitReason?
+  /// Free text: why they left, in the words of whoever recorded it. A record
+  /// to remember the person by, not a gate - hiring stays a human decision.
+  exitNotes      String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  driver       Driver           @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documents    DriverDocument[]
+
+  @@unique([organizationId, transporterId])
+  @@index([organizationId])
+  @@index([driverId])
+  @@index([driverId, startDate])
+  @@index([candidateId])
+  @@map("driver_stints")
+}
+
+enum DriverExitReason {
+  RESIGNED
+  DISMISSED
+  ABSENTEEISM
+  PERFORMANCE
+  PERSONAL
+  END_OF_CONTRACT
+  NO_SHOW
+  OTHER
+}
+
+/// Every version of every document, never overwritten. A returning driver
+/// re-submits everything, and the old copies stay readable: an audit asks
+/// which document was valid on a given date, which a single current value
+/// cannot answer.
+model DriverDocument {
+  id             String             @id @default(uuid())
+  organizationId String
+  driverId       String
+  /// The passage during which this copy was collected
+  stintId        String?
+  type           DriverDocumentType
+  number         String?
+  issuedAt       DateTime?
+  expiresAt      DateTime?
+  status         String             @default("PENDING")
+  /// Where the file itself lives
+  fileRef        String?
+  collectedAt    DateTime           @default(now())
+  collectedById  String?
+  /// When a newer copy replaced this one. Null means this is the current one.
+  supersededAt   DateTime?
+  notes          String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  driver       Driver       @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  stint        DriverStint? @relation(fields: [stintId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([driverId])
+  @@index([driverId, type, supersededAt])
+  @@index([expiresAt])
+  @@map("driver_documents")
+}
+
+enum DriverDocumentType {
+  PASSPORT
+  VISA
+  RIGHT_TO_WORK
+  DRIVING_LICENCE
+  DBS
+  MEDICAL
+  PROOF_OF_ADDRESS
+  NATIONAL_INSURANCE
+  OTHER
 }

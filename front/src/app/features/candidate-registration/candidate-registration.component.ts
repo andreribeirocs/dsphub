@@ -7,6 +7,7 @@ import {
   Validators,
 } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
+import { APPLICATION_SECTIONS } from "./application-fields";
 import {
   CandidateRegistrationService,
   TokenValidationResponse,
@@ -37,6 +38,7 @@ export class CandidateRegistrationComponent implements OnInit {
 
   // Form and file handling
   registrationForm!: FormGroup;
+  readonly applicationSections = APPLICATION_SECTIONS;
   uploadedFiles = signal<
     Record<string, { file: File; preview: string; base64: string }>
   >({});
@@ -88,6 +90,13 @@ export class CandidateRegistrationComponent implements OnInit {
     this.registrationForm = this.formBuilder.group({
       // Personal Information
       email: ["", [Validators.email]],
+      contactPreference: ["", Validators.required],
+      applicationDetails: this.formBuilder.group(Object.fromEntries(
+        this.applicationSections.flatMap(section => section.fields).map(field => [field.key, ["", [
+          ...(field.maxLength ? [Validators.maxLength(field.maxLength)] : []),
+          ...(field.pattern ? [Validators.pattern(field.pattern)] : []),
+        ]]])
+      )),
       dateOfBirth: ["", [Validators.required]],
       citizenship: [""],
       documentNumber: [""],
@@ -137,7 +146,8 @@ export class CandidateRegistrationComponent implements OnInit {
 
       // Additional Information
       comments: [""],
-    });
+    }, { validators: form => form.get("contactPreference")?.value === "email" && !form.get("email")?.value?.trim()
+      ? { contactEmailRequired: true } : null });
   }
 
   private validateTokenFromRoute(): void {
@@ -270,7 +280,8 @@ export class CandidateRegistrationComponent implements OnInit {
   isStepValid(step: number): boolean {
     switch (step) {
       case 1: // Personal Information
-        return this.registrationForm.get("dateOfBirth")?.valid ?? false;
+        return ["dateOfBirth", "email", "contactPreference"].every(key => this.registrationForm.get(key)?.valid)
+          && !this.registrationForm.hasError("contactEmailRequired");
       case 2: // Address Information
         return (
           (this.registrationForm.get("address")?.valid ?? false) &&
@@ -286,7 +297,8 @@ export class CandidateRegistrationComponent implements OnInit {
             false) &&
           (this.registrationForm.get("emergencyContactRelationship")?.valid ??
             false) &&
-          (this.registrationForm.get("points")?.valid ?? true) // Optional but must be valid if provided
+          (this.registrationForm.get("points")?.valid ?? true) &&
+          (this.registrationForm.get("applicationDetails")?.valid ?? true)
         );
       case 4: {
         // File Uploads
@@ -337,6 +349,9 @@ export class CandidateRegistrationComponent implements OnInit {
     const registrationData: CompleteRegistrationRequest = {
       token,
       email: formData.email || undefined,
+      contactPreference: formData.contactPreference,
+      applicationDetails: Object.fromEntries(Object.entries(formData.applicationDetails as Record<string, string>)
+        .map(([key, value]) => [key, value.trim()]).filter(([, value]) => value !== "")),
       dateOfBirth: formData.dateOfBirth,
       citizenship: formData.citizenship || undefined,
       documentNumber: formData.documentNumber || undefined,
@@ -381,10 +396,7 @@ export class CandidateRegistrationComponent implements OnInit {
   }
 
   private markFormGroupTouched(): void {
-    Object.keys(this.registrationForm.controls).forEach((key) => {
-      const control = this.registrationForm.get(key);
-      control?.markAsTouched();
-    });
+    this.registrationForm.markAllAsTouched();
   }
 
   getFieldError(fieldName: string): string {
@@ -397,6 +409,7 @@ export class CandidateRegistrationComponent implements OnInit {
         return `Please enter a valid ${this.getFieldLabel(fieldName)}.`;
       if (control.errors["minlength"])
         return `${this.getFieldLabel(fieldName)} is too short.`;
+      if (control.errors["maxlength"]) return "This answer is too long.";
     }
     return "";
   }
@@ -404,6 +417,7 @@ export class CandidateRegistrationComponent implements OnInit {
   private getFieldLabel(fieldName: string): string {
     const labels: Record<string, string> = {
       email: "Email",
+      contactPreference: "Preferred contact method",
       dateOfBirth: "Date of Birth",
       citizenship: "Citizenship",
       documentNumber: "Document Number",
