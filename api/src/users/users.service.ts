@@ -17,6 +17,7 @@ import {
   UserStatsResponseDto,
 } from "./dto";
 import { TenantContext } from "../tenancy/tenant-context";
+import { canCreateRole } from "../auth/permissions";
 
 interface CreateUserData {
   readonly email: string;
@@ -53,9 +54,25 @@ export class UsersService {
     };
   }
 
+  /**
+   * Quem pode dar QUAL papel.
+   *
+   * Antes aqui so existia uma trava para SUPER_ADMIN, e ela bastava enquanto
+   * `users.manage` pertencia so ao dono. Deixou de bastar: pela planilha que o
+   * Andre revisou, recrutamento e gerente geral tambem criam usuario. Sem
+   * olhar o papel ALVO, um recrutador criaria um ADMIN e teria o sistema
+   * inteiro pela manha - escalada de privilegio em tres cliques.
+   *
+   * A matriz CAN_CREATE responde por ator e por alvo, e aceita tanto o nome
+   * novo quanto o que ainda esta gravado no banco.
+   */
   private assertRoleChangeAllowed(actor: Actor | undefined, role?: UserRole) {
-    if (role === UserRole.SUPER_ADMIN && actor?.role !== UserRole.SUPER_ADMIN) {
-      throw new ForbiddenException("Only super administrators can grant this role");
+    if (!role) return;
+
+    if (!canCreateRole(actor?.role, role)) {
+      // Mensagem igual para "nao pode" e "papel nao existe": quem sonda a API
+      // nao aprende a hierarquia pelas respostas de erro.
+      throw new ForbiddenException("You cannot grant this role");
     }
   }
 
@@ -69,8 +86,16 @@ export class UsersService {
     return user;
   }
 
+  /**
+   * So mexe em usuario de um papel que voce poderia ter criado.
+   *
+   * Sem isto, a trava de cima seria contornavel pelo outro lado: nao consigo
+   * CRIAR um ADMIN, mas pego um ADMIN que ja existe, troco a senha dele e
+   * entro. Editar um usuario mais forte que voce e a mesma escalada com outro
+   * verbo.
+   */
   private assertCanManage(actor: Actor | undefined, target: User) {
-    if (target.role === UserRole.SUPER_ADMIN && actor?.role !== UserRole.SUPER_ADMIN) {
+    if (!canCreateRole(actor?.role, target.role)) {
       throw new ForbiddenException("You cannot change this user");
     }
   }
